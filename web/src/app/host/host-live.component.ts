@@ -51,7 +51,7 @@ import { buildJoinUrl } from '../core/join-url';
               <app-bosch-button icon="chevron-right" (click)="advance()">Next step</app-bosch-button>
             }
             <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
-            <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">Excel</app-bosch-button>
+            <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
             <app-bosch-button variant="secondary" icon="export" (click)="download('pdf')">PDF</app-bosch-button>
             <app-bosch-button variant="danger" (click)="end()">End</app-bosch-button>
           </div>

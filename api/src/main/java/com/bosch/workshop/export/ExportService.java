@@ -11,12 +11,10 @@ import com.lowagie.text.FontFactory;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.PdfWriter;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -37,50 +35,35 @@ public class ExportService {
         this.summaryService = summaryService;
     }
 
+    /** Lightweight CSV export (avoids Apache POI on free-tier memory limits). */
     public byte[] exportExcel(UUID sessionId, String hostToken) {
         WorkshopSession session = sessionService.requireSession(sessionId);
         sessionService.assertHost(session, hostToken);
-        try (XSSFWorkbook workbook = new XSSFWorkbook();
-                ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet entries = workbook.createSheet("Entries");
-            Row header = entries.createRow(0);
-            header.createCell(0).setCellValue("Content");
-            header.createCell(1).setCellValue("Step");
-            header.createCell(2).setCellValue("Group");
-            int r = 1;
-            for (var e : entryRepository.findBySessionIdAndHiddenFalseOrderByCreatedAtAsc(sessionId)) {
-                Row row = entries.createRow(r++);
-                row.createCell(0).setCellValue(e.getContent());
-                row.createCell(1).setCellValue(String.valueOf(e.getSessionStepId()));
-                row.createCell(2).setCellValue(e.getGroupId() == null ? "" : String.valueOf(e.getGroupId()));
-            }
-            Sheet actions = workbook.createSheet("Actions");
-            Row ah = actions.createRow(0);
-            ah.createCell(0).setCellValue("Action");
-            ah.createCell(1).setCellValue("Owner");
-            ah.createCell(2).setCellValue("Due Date");
-            int ar = 1;
-            for (Map<String, Object> a : activityService.listActions(sessionId)) {
-                Row row = actions.createRow(ar++);
-                row.createCell(0).setCellValue(String.valueOf(a.get("action")));
-                row.createCell(1).setCellValue(a.get("owner") == null ? "" : String.valueOf(a.get("owner")));
-                row.createCell(2).setCellValue(a.get("dueDate") == null ? "" : String.valueOf(a.get("dueDate")));
-            }
-            Sheet summary = workbook.createSheet("Summary");
-            Map<String, Object> sum = summaryService.latest(sessionId);
-            summary.createRow(0).createCell(0).setCellValue("Insights");
-            int sr = 1;
-            Object insights = sum.get("insights");
-            if (insights instanceof List<?> list) {
-                for (Object i : list) {
-                    summary.createRow(sr++).createCell(0).setCellValue(String.valueOf(i));
-                }
-            }
-            workbook.write(out);
-            return out.toByteArray();
-        } catch (Exception e) {
-            throw new com.bosch.workshop.common.ApiException("Excel export failed: " + e.getMessage());
+        StringBuilder csv = new StringBuilder();
+        csv.append("Section,Field1,Field2,Field3\n");
+        csv.append(csvRow("Session", session.getTitle(), session.getCode(), String.valueOf(session.getStatus())));
+        for (var e : entryRepository.findBySessionIdAndHiddenFalseOrderByCreatedAtAsc(sessionId)) {
+            csv.append(csvRow(
+                    "Entry",
+                    e.getContent(),
+                    String.valueOf(e.getSessionStepId()),
+                    e.getGroupId() == null ? "" : String.valueOf(e.getGroupId())));
         }
+        for (Map<String, Object> a : activityService.listActions(sessionId)) {
+            csv.append(csvRow(
+                    "Action",
+                    String.valueOf(a.get("action")),
+                    a.get("owner") == null ? "" : String.valueOf(a.get("owner")),
+                    a.get("dueDate") == null ? "" : String.valueOf(a.get("dueDate"))));
+        }
+        Map<String, Object> sum = summaryService.latest(sessionId);
+        Object insights = sum.get("insights");
+        if (insights instanceof List<?> list) {
+            for (Object i : list) {
+                csv.append(csvRow("Insight", String.valueOf(i), "", ""));
+            }
+        }
+        return csv.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     public byte[] exportPdf(UUID sessionId, String hostToken) {
@@ -119,5 +102,14 @@ public class ExportService {
         } catch (Exception e) {
             throw new com.bosch.workshop.common.ApiException("PDF export failed: " + e.getMessage());
         }
+    }
+
+    private static String csvRow(String a, String b, String c, String d) {
+        return quote(a) + "," + quote(b) + "," + quote(c) + "," + quote(d) + "\n";
+    }
+
+    private static String quote(String value) {
+        String v = value == null ? "" : value.replace("\"", "\"\"");
+        return "\"" + v + "\"";
     }
 }

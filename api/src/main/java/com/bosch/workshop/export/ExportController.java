@@ -15,14 +15,13 @@ public class ExportController {
         this.exportService = exportService;
     }
 
-    @GetMapping("/export.xlsx")
+    @GetMapping({"/export.xlsx", "/export.csv"})
     public ResponseEntity<byte[]> excel(
             @PathVariable UUID sessionId, @RequestHeader("X-Host-Token") String hostToken) {
         byte[] bytes = exportService.exportExcel(sessionId, hostToken);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"workshop-" + sessionId + ".xlsx\"")
-                .contentType(MediaType.parseMediaType(
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"workshop-" + sessionId + ".csv\"")
+                .contentType(MediaType.parseMediaType("text/csv"))
                 .body(bytes);
     }
 
