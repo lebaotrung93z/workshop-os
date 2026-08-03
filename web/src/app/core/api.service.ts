@@ -40,6 +40,21 @@ export class ApiService {
     return this.http.get<any[]>(`${environment.apiUrl}/templates`);
   }
 
+  createTemplate(body: {
+    name: string;
+    description?: string;
+    steps: Array<{
+      type: string;
+      title: string;
+      instructions?: string;
+      timerSeconds?: number | null;
+      config?: Record<string, unknown>;
+      groups?: Array<{ title: string }>;
+    }>;
+  }): Observable<any> {
+    return this.http.post(`${environment.apiUrl}/templates`, body);
+  }
+
   createSession(templateId: string, title?: string): Observable<any> {
     return this.http.post(`${environment.apiUrl}/sessions`, { templateId, title });
   }

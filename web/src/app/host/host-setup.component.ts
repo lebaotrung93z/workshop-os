@@ -16,7 +16,7 @@ import { ApiService } from '../core/api.service';
         <app-bosch-logo />
         <h1>Workshop OS</h1>
       </header>
-      <app-bosch-card title="Create workshop" subtitle="Pick a template and start a hybrid session">
+      <app-bosch-card title="Create workshop" subtitle="Pick a template or build your own format">
         <label>
           Workshop title
           <input [(ngModel)]="title" placeholder="Sprint Retro – Team Alpha" />
@@ -34,6 +34,7 @@ import { ApiService } from '../core/api.service';
         }
         <div class="actions">
           <app-bosch-button [disabled]="!selected() || busy()" (click)="create()">Create session</app-bosch-button>
+          <a routerLink="/host/format">Create manual format</a>
           <a routerLink="/j">Join as participant</a>
         </div>
       </app-bosch-card>
@@ -49,7 +50,8 @@ import { ApiService } from '../core/api.service';
     .tpl { text-align: left; border: 1px solid var(--bosch-border); background: var(--bosch-bg-muted); padding: 0.9rem; cursor: pointer; display: grid; gap: 0.25rem; }
     .tpl.active { border-color: var(--bosch-accent); background: var(--bosch-accent-soft); }
     .tpl span { color: var(--bosch-text-muted); font-size: 0.9rem; }
-    .actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+    .actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+    .actions a { color: var(--bosch-accent); font-weight: 700; }
     .err { color: var(--bosch-error); }
   `
 })
