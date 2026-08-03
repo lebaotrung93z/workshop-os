@@ -103,7 +103,11 @@ export class ApiService {
       this.ensureTemplates()
         .then(() => getDocs(query(collection(db, 'templates'), orderBy('name'))))
         .then((snap) => {
-          sub.next(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          sub.next(
+            snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((t: any) => t.key !== 'probe')
+          );
           sub.complete();
         })
         .catch((e) => sub.error(e));
