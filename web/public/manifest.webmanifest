@@ -1,0 +1,21 @@
+{
+  "name": "Workshop OS",
+  "short_name": "Workshop OS",
+  "description": "Hybrid workshop facilitation for Bosch teams",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007bc0",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

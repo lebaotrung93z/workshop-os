@@ -1,0 +1,5 @@
+# Bosch UI
+- Use components under `src/app/bosch-ui` for buttons, cards, and logo.
+- Use `src/app/bosch-icon` for icons; map logical names to files in `src/asset/bosch-icons` and `public/asset/bosch-icons`.
+- Keep Bosch theme tokens from `src/bosch-theme.scss`.
+- Do not invent alternate UI kits for primary screens.

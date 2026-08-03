@@ -1,0 +1,191 @@
+:root {
+  --bosch-white: #ffffff;
+  --bosch-black: #000000;
+
+  --bosch-gray-95: #eff1f2;
+  --bosch-gray-90: #e0e2e5;
+  --bosch-gray-85: #d0d4d8;
+  --bosch-gray-80: #c1c7cc;
+  --bosch-gray-75: #b2b9c0;
+  --bosch-gray-70: #a4abb3;
+  --bosch-gray-65: #979ea4;
+  --bosch-gray-60: #8a9097;
+  --bosch-gray-55: #7d8389;
+  --bosch-gray-50: #71767c;
+  --bosch-gray-45: #656a6f;
+  --bosch-gray-40: #595e62;
+  --bosch-gray-35: #4e5256;
+  --bosch-gray-30: #43464a;
+  --bosch-gray-25: #383b3e;
+  --bosch-gray-20: #2e3033;
+  --bosch-gray-15: #232628;
+  --bosch-gray-10: #1a1c1d;
+  --bosch-gray-5: #101112;
+
+  --bosch-purple-40: #9e2896;
+  --bosch-blue-50: #007bc0;
+  --bosch-blue-55: #0088d4;
+  --bosch-turquoise-50: #18837e;
+  --bosch-green-85: #9be4b3;
+  --bosch-green-60: #37a264;
+  --bosch-green-50: #00884a;
+  --bosch-yellow-95: #ffefd1;
+  --bosch-yellow-90: #ffdf95;
+  --bosch-yellow-85: #ffcf00;
+  --bosch-yellow-75: #deb300;
+  --bosch-yellow-70: #cda600;
+  --bosch-yellow-65: #bd9900;
+  --bosch-red-70: #ff8787;
+  --bosch-red-60: #ff5152;
+  --bosch-red-55: #ff2124;
+  --bosch-red-50: #ed0007;
+
+  /* Light theme (default) */
+  --bosch-bg: var(--bosch-gray-95);
+  --bosch-bg-muted: #f6f7f9;
+  --bosch-surface: var(--bosch-white);
+  --bosch-surface-elevated: var(--bosch-white);
+  --bosch-popover: var(--bosch-white);
+  --bosch-border: var(--bosch-gray-90);
+  --bosch-border-strong: var(--bosch-gray-85);
+
+  --bosch-text: var(--bosch-gray-10);
+  --bosch-text-secondary: var(--bosch-gray-45);
+  --bosch-text-muted: var(--bosch-gray-50);
+  --bosch-text-disabled: var(--bosch-gray-65);
+
+  --bosch-accent: var(--bosch-blue-50);
+  --bosch-accent-hover: var(--bosch-blue-55);
+  --bosch-accent-soft: rgba(0, 123, 192, 0.1);
+  --bosch-accent-ring: rgba(0, 123, 192, 0.3);
+  --bosch-glow: #e5f5ff;
+  --bosch-glow-soft: color-mix(in srgb, #e5f5ff 14%, transparent);
+  --bosch-glow-ring: color-mix(in srgb, #e5f5ff 38%, transparent);
+  --bosch-star: #ffe15c;
+  --bosch-focus-ring: color-mix(in srgb, #e5f5ff 24%, transparent);
+
+  --bosch-positive: var(--bosch-green-50);
+  --bosch-negative: var(--bosch-red-50);
+  --bosch-neutral: var(--bosch-turquoise-50);
+  --bosch-warning: var(--bosch-yellow-70);
+  --bosch-error: var(--bosch-red-50);
+  --bosch-logo-red: var(--bosch-red-50);
+
+  --bosch-on-accent: var(--bosch-white);
+  --bosch-on-warning: var(--bosch-gray-5);
+
+  --bosch-performance-high: var(--bosch-green-50);
+  --bosch-performance-medium: var(--bosch-yellow-75);
+  --bosch-performance-low: var(--bosch-red-50);
+  --bosch-revenue: var(--bosch-turquoise-50);
+
+  --bosch-card-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 10px 28px rgba(16, 24, 40, 0.05);
+  --bosch-card-header-height: calc(1.3rem + 1.125rem);
+  --bosch-card-radius: 0px;
+
+  --bosch-font-family: Arial, Helvetica, sans-serif;
+  --bosch-line-height: 1.5;
+
+  color-scheme: light;
+}
+
+/*
+ * Bosch corporate website theme (bosch.com / Frontend Kit light mode).
+ * Tokens sourced from Bosch Digital Design System: white page background,
+ * black body copy, Bosch Blue 50 interactive accents, Bosch Red for logotype.
+ */
+:root[data-theme='bosch'] {
+  --bosch-bg: var(--bosch-white);
+  --bosch-bg-muted: var(--bosch-gray-95);
+  --bosch-surface: var(--bosch-white);
+  --bosch-surface-elevated: var(--bosch-white);
+  --bosch-popover: var(--bosch-white);
+  --bosch-border: var(--bosch-gray-90);
+  --bosch-border-strong: var(--bosch-gray-85);
+
+  --bosch-text: var(--bosch-black);
+  --bosch-text-secondary: var(--bosch-gray-45);
+  --bosch-text-muted: var(--bosch-gray-50);
+  --bosch-text-disabled: var(--bosch-gray-65);
+
+  --bosch-accent: var(--bosch-blue-50);
+  --bosch-accent-hover: #00629a;
+  --bosch-accent-soft: #d1e4ff;
+  --bosch-accent-ring: rgba(0, 123, 192, 0.24);
+  --bosch-glow: var(--bosch-blue-50);
+  --bosch-glow-soft: #d1e4ff;
+  --bosch-glow-ring: rgba(0, 123, 192, 0.24);
+  --bosch-star: var(--bosch-yellow-85);
+  --bosch-focus-ring: rgba(0, 123, 192, 0.24);
+
+  --bosch-positive: var(--bosch-green-50);
+  --bosch-negative: var(--bosch-red-50);
+  --bosch-neutral: var(--bosch-turquoise-50);
+  --bosch-warning: var(--bosch-yellow-70);
+  --bosch-error: var(--bosch-red-50);
+  --bosch-logo-red: var(--bosch-red-50);
+
+  --bosch-on-accent: var(--bosch-white);
+  --bosch-on-warning: var(--bosch-gray-5);
+
+  --bosch-performance-high: var(--bosch-green-50);
+  --bosch-performance-medium: var(--bosch-yellow-75);
+  --bosch-performance-low: var(--bosch-red-50);
+  --bosch-revenue: var(--bosch-turquoise-50);
+
+  --bosch-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.05);
+  --bosch-card-radius: 0px;
+
+  --bosch-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --bosch-line-height: 1.5;
+
+  color-scheme: light;
+}
+
+/* Dark theme (opt-in) */
+:root[data-theme='dark'] {
+  --bosch-bg: var(--bosch-gray-5);
+  --bosch-bg-muted: var(--bosch-gray-10);
+  --bosch-surface: var(--bosch-gray-15);
+  --bosch-surface-elevated: var(--bosch-gray-20);
+  --bosch-popover: var(--bosch-gray-20);
+  --bosch-border: var(--bosch-gray-25);
+  --bosch-border-strong: var(--bosch-gray-30);
+
+  --bosch-text: var(--bosch-gray-95);
+  --bosch-text-secondary: var(--bosch-gray-70);
+  --bosch-text-muted: var(--bosch-gray-65);
+  --bosch-text-disabled: var(--bosch-gray-55);
+
+  --bosch-accent: var(--bosch-yellow-85);
+  --bosch-accent-hover: var(--bosch-yellow-90);
+  --bosch-accent-soft: rgba(255, 207, 0, 0.14);
+  --bosch-accent-ring: rgba(255, 207, 0, 0.38);
+  --bosch-glow: var(--bosch-yellow-85);
+  --bosch-glow-soft: rgba(255, 207, 0, 0.14);
+  --bosch-glow-ring: rgba(255, 207, 0, 0.38);
+  --bosch-star: var(--bosch-yellow-85);
+  --bosch-focus-ring: rgba(255, 207, 0, 0.24);
+
+  --bosch-positive: var(--bosch-green-60);
+  --bosch-negative: var(--bosch-red-60);
+  --bosch-neutral: var(--bosch-turquoise-50);
+  --bosch-warning: var(--bosch-yellow-70);
+  --bosch-error: var(--bosch-red-50);
+  --bosch-logo-red: var(--bosch-red-50);
+
+  --bosch-on-accent: var(--bosch-gray-5);
+  --bosch-on-warning: var(--bosch-gray-5);
+
+  --bosch-performance-high: var(--bosch-green-60);
+  --bosch-performance-medium: var(--bosch-yellow-85);
+  --bosch-performance-low: var(--bosch-red-60);
+  --bosch-revenue: var(--bosch-turquoise-50);
+
+  --bosch-card-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.22);
+
+  --bosch-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --bosch-line-height: 1.5;
+
+  color-scheme: dark;
+}
