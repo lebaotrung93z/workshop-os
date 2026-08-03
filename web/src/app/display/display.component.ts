@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
+import { buildJoinUrl } from '../core/join-url';
 
 @Component({
   selector: 'app-display',
@@ -205,7 +206,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   private ensureQr(session: any) {
     if (!session?.code) return;
-    const url = `${location.origin}/#/j?code=${session.code}`;
+    const url = buildJoinUrl(location.origin, session.code);
     if (url === this.joinUrl && this.qrDataUrl()) return;
     this.joinUrl = url;
     QRCode.toDataURL(url, { width: 360, margin: 1, errorCorrectionLevel: 'M' }).then((dataUrl) =>

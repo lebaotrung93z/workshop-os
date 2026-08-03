@@ -9,6 +9,7 @@ import { RealtimeService } from '../core/realtime.service';
 import { Subscription } from 'rxjs';
 import QRCode from 'qrcode';
 import { ActivityHostPanelComponent } from '../shared/activity/activity-host-panel.component';
+import { buildJoinUrl } from '../core/join-url';
 
 @Component({
   selector: 'app-host-live',
@@ -107,7 +108,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
-    this.joinUrl = `${location.origin}/#/j?code=`;
+    this.joinUrl = buildJoinUrl(location.origin, '');
     this.refresh();
     this.realtime.connect(this.id);
     this.sub = this.realtime.events$.subscribe((e) => {
@@ -133,8 +134,10 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.api.getHostSession(this.id).subscribe({
       next: (s) => {
         this.session.set(s);
-        this.joinUrl = `${location.origin}/#/j?code=${s.code}`;
-        QRCode.toDataURL(this.joinUrl, { width: 180, margin: 1 }).then((url) => this.qrDataUrl.set(url));
+        this.joinUrl = buildJoinUrl(location.origin, s.code);
+        QRCode.toDataURL(this.joinUrl, { width: 180, margin: 1, errorCorrectionLevel: 'M' }).then((url) =>
+          this.qrDataUrl.set(url)
+        );
       }
     });
     this.api.getSummary(this.id).subscribe({
