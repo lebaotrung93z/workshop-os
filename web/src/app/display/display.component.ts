@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
+import QRCode from 'qrcode';
 import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
@@ -19,18 +20,15 @@ import { RealtimeService } from '../core/realtime.service';
         </div>
       </header>
 
-      @if (session()?.status === 'LOBBY' || !session()?.currentStep) {
+      @if (showJoinScreen()) {
         <section class="hero">
-          <h2>Scan to join</h2>
+          <h2>{{ joinHeadline() }}</h2>
+          @if (qrDataUrl()) {
+            <img class="qr" [src]="qrDataUrl()" alt="Scan to join workshop" width="360" height="360" />
+          }
           <p class="code-lg">{{ session()?.code }}</p>
-          <p>Waiting for the host to start…</p>
-        </section>
-      }
-
-      @if (session()?.currentStep?.type === 'welcome') {
-        <section class="hero">
-          <h2>{{ session()?.currentStep?.title }}</h2>
-          <p>{{ session()?.currentStep?.instructions }}</p>
+          <p class="join-url">{{ joinUrl }}</p>
+          <p>{{ joinSubline() }}</p>
         </section>
       }
 
@@ -110,8 +108,10 @@ import { RealtimeService } from '../core/realtime.service';
     h2 { font-size: 2.2rem; margin: 0 0 1rem; }
     h3 { margin: 0 0 0.75rem; color: var(--bosch-accent); }
     .code, .code-lg { font-weight: 800; letter-spacing: 0.12em; color: var(--bosch-accent); }
-    .code-lg { font-size: 4rem; display: block; margin: 0.5rem 0; }
-    .hero { text-align: center; padding: 4rem 1rem; }
+    .code-lg { font-size: 4rem; display: block; margin: 0.75rem 0 0.35rem; }
+    .hero { text-align: center; padding: 2.5rem 1rem 4rem; display: grid; justify-items: center; gap: 0.5rem; }
+    .qr { width: min(360px, 70vw); height: auto; background: #fff; padding: 1rem; border: 1px solid var(--bosch-border); }
+    .join-url { word-break: break-all; max-width: 36rem; color: var(--bosch-text-muted); font-size: 1.05rem; margin: 0; }
     .bars { display: grid; gap: 1rem; max-width: 900px; }
     .row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 1rem; align-items: center; font-size: 1.4rem; }
     .track { height: 28px; background: var(--bosch-gray-90); }
@@ -138,7 +138,9 @@ export class DisplayComponent implements OnInit, OnDestroy {
   private sub?: Subscription;
 
   id = '';
+  joinUrl = '';
   session = signal<any>(null);
+  qrDataUrl = signal('');
   entries = signal<any[]>([]);
   poll = signal<any[]>([]);
   votes = signal<any[]>([]);
@@ -152,6 +154,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     this.sub = this.realtime.events$.subscribe((e) => {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
+        this.ensureQr(e.data);
         this.loadExtras();
       }
       if (e.type === 'entry.created' || e.type === 'entry.hidden' || e.type === 'vote.updated' || e.type === 'action.created') {
@@ -167,14 +170,47 @@ export class DisplayComponent implements OnInit, OnDestroy {
     this.realtime.disconnect();
   }
 
+  showJoinScreen() {
+    const s = this.session();
+    if (!s) return false;
+    return s.status === 'LOBBY' || !s.currentStep || s.currentStep?.type === 'welcome';
+  }
+
+  joinHeadline() {
+    const s = this.session();
+    if (s?.currentStep?.type === 'welcome' && s.status !== 'LOBBY') {
+      return s.currentStep.title || 'Welcome';
+    }
+    return 'Scan to join';
+  }
+
+  joinSubline() {
+    const s = this.session();
+    if (s?.currentStep?.type === 'welcome' && s.status !== 'LOBBY') {
+      return s.currentStep.instructions || 'Scan the QR code or enter the code on your phone.';
+    }
+    return 'Waiting for the host to start…';
+  }
+
   refresh() {
     this.api.getDisplay(this.id).subscribe((s) => {
       this.session.set(s);
+      this.ensureQr(s);
       this.loadExtras();
     });
     this.api.getSummary(this.id).subscribe((s) => {
       if (s?.insights) this.summary.set(s);
     });
+  }
+
+  private ensureQr(session: any) {
+    if (!session?.code) return;
+    const url = `${location.origin}/#/j?code=${session.code}`;
+    if (url === this.joinUrl && this.qrDataUrl()) return;
+    this.joinUrl = url;
+    QRCode.toDataURL(url, { width: 360, margin: 1, errorCorrectionLevel: 'M' }).then((dataUrl) =>
+      this.qrDataUrl.set(dataUrl)
+    );
   }
 
   loadExtras() {
