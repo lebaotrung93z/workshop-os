@@ -1,17 +1,13 @@
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM node:20-alpine
 WORKDIR /app
-COPY api/mvnw .
-COPY api/.mvn .mvn
-COPY api/pom.xml .
-COPY api/src src
-RUN chmod +x mvnw && ./mvnw -q -DskipTests package \
-  && mv target/*.jar target/app.jar
-
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-COPY --from=build /app/target/app.jar app.jar
+RUN printf '%s\n' \
+  'const http=require("http");' \
+  'const port=process.env.PORT||8080;' \
+  'http.createServer((req,res)=>{' \
+  '  res.writeHead(410,{"Content-Type":"application/json"});' \
+  '  res.end(JSON.stringify({error:"Workshop OS API moved to Firebase Firestore. Use the static web app."}));' \
+  '}).listen(port,"0.0.0.0",()=>console.log("legacy stub on",port));' \
+  > server.js
 ENV PORT=8080
-# Free Render ~512MB: SerialGC + capped heap/metaspace to avoid exit 137.
-ENV JAVA_TOOL_OPTIONS="-Xmx360m -Xms64m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError -Djava.security.egd=file:/dev/./urandom"
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+CMD ["node","server.js"]

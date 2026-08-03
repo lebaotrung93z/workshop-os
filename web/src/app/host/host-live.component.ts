@@ -52,7 +52,7 @@ import { buildJoinUrl } from '../core/join-url';
             }
             <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
             <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
-            <app-bosch-button variant="secondary" icon="export" (click)="download('pdf')">PDF</app-bosch-button>
+            <app-bosch-button variant="secondary" icon="export" (click)="download('pdf')">Report</app-bosch-button>
             <app-bosch-button variant="danger" (click)="end()">End</app-bosch-button>
           </div>
           @if (message()) {
@@ -170,14 +170,15 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     });
   }
   download(kind: 'xlsx' | 'pdf') {
-    const url = this.api.exportUrl(this.id, kind);
-    fetch(url, { headers: { 'X-Host-Token': this.api.hostToken() } })
-      .then((r) => r.blob())
+    const run =
+      kind === 'xlsx' ? this.api.exportCsv(this.id) : this.api.exportPdfText(this.id);
+    run
       .then((blob) => {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = `workshop.${kind}`;
+        a.download = kind === 'xlsx' ? `workshop.csv` : `workshop.txt`;
         a.click();
-      });
+      })
+      .catch((e) => this.message.set(e?.message || 'Export failed'));
   }
 }

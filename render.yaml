@@ -1,38 +1,5 @@
 services:
   - type: web
-    name: workshop-os-api
-    runtime: docker
-    dockerfilePath: ./api/Dockerfile
-    dockerContext: ./api
-    plan: free
-    healthCheckPath: /actuator/health
-    envVars:
-      - key: PORT
-        value: "8080"
-      - key: JAVA_TOOL_OPTIONS
-        value: "-Xmx360m -Xms64m -XX:MaxMetaspaceSize=96m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError"
-      - key: SPRING_DATASOURCE_URL
-        fromDatabase:
-          name: workshop-os-db
-          property: connectionString
-      - key: SPRING_DATASOURCE_USERNAME
-        fromDatabase:
-          name: workshop-os-db
-          property: user
-      - key: SPRING_DATASOURCE_PASSWORD
-        fromDatabase:
-          name: workshop-os-db
-          property: password
-      - key: CORS_ORIGINS
-        sync: false
-      - key: AI_PROVIDER
-        value: groq
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
-
-  - type: web
     name: workshop-os-web
     runtime: static
     buildCommand: cd web && npm ci && npm run build
@@ -45,9 +12,3 @@ services:
       - path: /*
         name: Cache-Control
         value: no-cache
-
-databases:
-  - name: workshop-os-db
-    plan: free
-    databaseName: workshop_os
-    user: workshop

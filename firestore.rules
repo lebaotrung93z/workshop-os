@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function sessionPath(sessionId) {
+      return /databases/$(database)/documents/sessions/$(sessionId);
+    }
+
+    function keepsHostToken(sessionId) {
+      return request.resource.data.hostToken == resource.data.hostToken;
+    }
+
+    function isParticipantCountBump() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantCount'])
+        && request.resource.data.participantCount is int
+        && request.resource.data.participantCount == resource.data.participantCount + 1;
+    }
+
+    function participantDoc(sessionId, participantId) {
+      return get(/databases/$(database)/documents/sessions/$(sessionId)/participants/$(participantId));
+    }
+
+    function isParticipantWrite(sessionId) {
+      return request.resource.data.participantId is string
+        && request.resource.data.joinToken is string
+        && participantDoc(sessionId, request.resource.data.participantId).data.joinToken
+          == request.resource.data.joinToken;
+    }
+
+    match /templates/{templateId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+
+    match /sessionCodes/{code} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['sessionId'])
+        && request.resource.data.sessionId is string;
+      allow update, delete: if false;
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if true;
+      allow create: if request.resource.data.hostToken is string
+        && request.resource.data.code is string
+        && request.resource.data.status == 'LOBBY'
+        && request.resource.data.steps is list;
+      allow update: if keepsHostToken(sessionId) || isParticipantCountBump();
+      allow delete: if false;
+
+      match /participants/{participantId} {
+        allow read: if true;
+        allow create: if request.resource.data.joinToken is string
+          && request.resource.data.displayName is string
+          && request.resource.data.uid == participantId;
+        allow update, delete: if false;
+      }
+
+      match /entries/{entryId} {
+        allow read: if true;
+        allow create: if isParticipantWrite(sessionId)
+          && request.resource.data.hidden == false
+          && request.resource.data.content is string
+          && request.resource.data.stepId is string;
+        allow update: if request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden', 'hostToken']);
+        allow delete: if false;
+      }
+
+      match /votes/{voteId} {
+        allow read: if true;
+        allow create: if isParticipantWrite(sessionId)
+          && voteId == request.resource.data.entryId + '_' + request.resource.data.participantId;
+        allow update, delete: if false;
+      }
+
+      match /actions/{actionId} {
+        allow read: if true;
+        allow create: if isParticipantWrite(sessionId)
+          || (request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken);
+        allow update, delete: if request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken;
+      }
+
+      match /summary/{docId} {
+        allow read: if true;
+        allow create, update: if request.resource.data.hostToken
+          == get(sessionPath(sessionId)).data.hostToken;
+        allow delete: if false;
+      }
+    }
+  }
+}

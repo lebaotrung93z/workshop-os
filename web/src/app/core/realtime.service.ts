@@ -1,39 +1,20 @@
-import { Injectable, OnDestroy } from '@angular/core';
-import { Client, IMessage } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
-import { Subject } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { Injectable, inject } from '@angular/core';
+import { Observable } from 'rxjs';
+import { ApiService } from './api.service';
 
 @Injectable({ providedIn: 'root' })
-export class RealtimeService implements OnDestroy {
-  private client?: Client;
-  readonly events$ = new Subject<{ type: string; data: any }>();
+export class RealtimeService {
+  private api = inject(ApiService);
+
+  get events$(): Observable<{ type: string; data: any }> {
+    return this.api.events$;
+  }
 
   connect(sessionId: string) {
-    this.disconnect();
-    this.client = new Client({
-      webSocketFactory: () => new SockJS(environment.wsUrl) as any,
-      reconnectDelay: 3000,
-      onConnect: () => {
-        this.client?.subscribe(`/topic/session/${sessionId}`, (msg: IMessage) => {
-          try {
-            const body = JSON.parse(msg.body);
-            this.events$.next(body);
-          } catch {
-            /* ignore */
-          }
-        });
-      }
-    });
-    this.client.activate();
+    this.api.connectRealtime(sessionId);
   }
 
   disconnect() {
-    this.client?.deactivate();
-    this.client = undefined;
-  }
-
-  ngOnDestroy() {
-    this.disconnect();
+    this.api.disconnectRealtime();
   }
 }
