@@ -67,9 +67,11 @@ export class ApiService {
 
   private async ensureTemplates(): Promise<void> {
     const snap = await getDocs(collection(db, 'templates'));
-    if (!snap.empty) return;
+    const existingKeys = new Set(snap.docs.map((d) => d.data()['key']));
     const batch = writeBatch(db);
+    let writes = 0;
     for (const t of SEED_TEMPLATES) {
+      if (existingKeys.has(t.key)) continue;
       const id = randomId();
       batch.set(doc(db, 'templates', id), {
         key: t.key,
@@ -91,8 +93,9 @@ export class ApiService {
         })),
         createdAt: nowIso()
       });
+      writes++;
     }
-    await batch.commit();
+    if (writes) await batch.commit();
   }
 
   listTemplates(): Observable<any[]> {
