@@ -107,7 +107,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
-    this.joinUrl = `${location.origin}/j?code=${''}`;
+    this.joinUrl = `${location.origin}/#/j?code=`;
     this.refresh();
     this.realtime.connect(this.id);
     this.sub = this.realtime.events$.subscribe((e) => {
@@ -133,7 +133,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.api.getHostSession(this.id).subscribe({
       next: (s) => {
         this.session.set(s);
-        this.joinUrl = `${location.origin}/j?code=${s.code}`;
+        this.joinUrl = `${location.origin}/#/j?code=${s.code}`;
         QRCode.toDataURL(this.joinUrl, { width: 180, margin: 1 }).then((url) => this.qrDataUrl.set(url));
       }
     });

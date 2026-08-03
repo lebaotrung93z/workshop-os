@@ -49,7 +49,10 @@ Creates a session, joins 50 participants in parallel, and verifies `participantC
 
 ## Render
 
-Connect the repo and apply `render.yaml` (API web service + static site + Postgres). Set `CORS_ORIGINS` to the static site URL and `GROQ_API_KEY`.
+- Web: https://workshop-os-web.onrender.com  
+- API: https://workshop-os-api.onrender.com  
 
-Update [`web/src/environments/environment.prod.ts`](web/src/environments/environment.prod.ts) `apiUrl` / `wsUrl` to your Render API hostname before deploying the static site.
+Connect the repo and apply `render.yaml` (API web service + static site + Postgres). Set `CORS_ORIGINS` to the web URL and `GROQ_API_KEY`.
+
+The Angular app uses **hash routing** (`/#/display/...`, `/#/j?code=...`) so deep links work on Render static hosting. Optionally add a Dashboard rewrite `/*` → `/index.html` if you later switch back to path URLs.
 
