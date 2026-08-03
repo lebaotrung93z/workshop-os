@@ -22,7 +22,9 @@ public class DataSourceConfig {
         dataSource.setJdbcUrl(normalized.jdbcUrl());
         dataSource.setUsername(normalized.username());
         dataSource.setPassword(normalized.password());
-        dataSource.setMaximumPoolSize(5);
+        dataSource.setMaximumPoolSize(2);
+        dataSource.setMinimumIdle(1);
+        dataSource.setConnectionTimeout(20000);
         return dataSource;
     }
 

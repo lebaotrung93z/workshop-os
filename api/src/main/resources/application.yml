@@ -1,6 +1,10 @@
 server:
   address: 0.0.0.0
   port: ${PORT:8080}
+  tomcat:
+    threads:
+      max: 40
+      min-spare: 2
 
 spring:
   application:
@@ -17,6 +21,8 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+        temp:
+          use_jdbc_metadata_defaults: false
   flyway:
     enabled: true
 
@@ -29,6 +35,11 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
 
 app:
   cors-origins: ${CORS_ORIGINS:http://localhost:4200}
@@ -44,4 +55,7 @@ app:
 
 logging:
   level:
+    root: WARN
     com.bosch.workshop: INFO
+    org.springframework.web: WARN
+    org.hibernate: WARN

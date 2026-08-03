@@ -9,6 +9,8 @@ services:
     envVars:
       - key: PORT
         value: "8080"
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=55.0 -XX:InitialRAMPercentage=20.0 -XX:+ExitOnOutOfMemoryError"
       - key: SPRING_DATASOURCE_URL
         fromDatabase:
           name: workshop-os-db
