@@ -1,5 +1,5 @@
-import { Component, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { Component, OnInit, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
 import { BoschCardComponent } from '../bosch-ui/bosch-card/bosch-card.component';
@@ -47,11 +47,23 @@ interface DraftStep {
       <header class="top">
         <app-bosch-logo />
         <div>
-          <h1>Manual format</h1>
-          <p>Build your own workshop flow, then start a session</p>
+          <h1>{{ customizing() ? 'Customize template' : 'Manual format' }}</h1>
+          <p>
+            @if (customizing()) {
+              Edit any step, then save as your custom template
+            } @else {
+              Build your own workshop flow, then start a session
+            }
+          </p>
         </div>
         <a routerLink="/" class="back">Back to templates</a>
       </header>
+
+      @if (customizing() && sourceName()) {
+        <p class="source-banner">
+          Based on <strong>{{ sourceName() }}</strong> — edits save as a new custom template.
+        </p>
+      }
 
       <app-bosch-card title="Format details" subtitle="Name this format for your team">
         <label>
@@ -183,8 +195,16 @@ interface DraftStep {
       }
 
       <div class="actions">
-        <app-bosch-button icon="dashboard" [disabled]="busy()" (click)="create()">
-          Create format &amp; start session
+        <app-bosch-button
+          variant="secondary"
+          icon="plus"
+          [disabled]="busy()"
+          (click)="saveAsCustom()"
+        >
+          {{ busy() && saveMode() === 'template' ? 'Saving…' : 'Save as custom template' }}
+        </app-bosch-button>
+        <app-bosch-button icon="dashboard" [disabled]="busy()" (click)="createAndStart()">
+          {{ busy() && saveMode() === 'session' ? 'Starting…' : 'Save & start workshop' }}
         </app-bosch-button>
       </div>
     </div>
@@ -212,13 +232,21 @@ interface DraftStep {
     .sub { margin-top: 0.5rem; display: grid; gap: 0.5rem; }
     .sub-title { margin: 0; font-weight: 700; }
     .row { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center; }
-    .actions { display: flex; gap: 1rem; }
+    .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
     .err { color: var(--bosch-error); margin: 0; }
+    .source-banner {
+      margin: 0;
+      padding: 0.75rem 1rem;
+      background: color-mix(in srgb, var(--bosch-primary) 8%, #fff);
+      border: 1px solid color-mix(in srgb, var(--bosch-primary) 25%, #fff);
+      color: var(--bosch-text);
+    }
   `
 })
-export class FormatBuilderComponent {
+export class FormatBuilderComponent implements OnInit {
   private api = inject(ApiService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
 
   stepTypes = [
     { value: 'welcome' as StepType, label: 'Welcome' },
@@ -235,6 +263,9 @@ export class FormatBuilderComponent {
   steps = signal<DraftStep[]>([]);
   busy = signal(false);
   error = signal('');
+  customizing = signal(false);
+  sourceName = signal('');
+  saveMode = signal<'template' | 'session' | null>(null);
 
   constructor() {
     this.steps.set([
@@ -244,6 +275,30 @@ export class FormatBuilderComponent {
       this.blankStep('voting'),
       this.blankStep('form')
     ]);
+  }
+
+  ngOnInit() {
+    const fromId = this.route.snapshot.queryParamMap.get('from');
+    if (!fromId) return;
+    this.busy.set(true);
+    this.api.getTemplate(fromId).subscribe({
+      next: (tpl) => {
+        this.customizing.set(true);
+        this.sourceName.set(tpl.name);
+        this.formatName = `Copy of ${tpl.name}`;
+        this.description = tpl.description || '';
+        this.workshopTitle = '';
+        const ordered = [...(tpl.steps || [])].sort(
+          (a: any, b: any) => (a.stepOrder || 0) - (b.stepOrder || 0)
+        );
+        this.steps.set(ordered.map((s: any) => this.fromTemplateStep(s)));
+        this.busy.set(false);
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.error.set(e?.error?.message || 'Could not load template to customize');
+      }
+    });
   }
 
   typeLabel(type: StepType) {
@@ -295,7 +350,15 @@ export class FormatBuilderComponent {
     step.groups.splice(index, 1);
   }
 
-  create() {
+  saveAsCustom() {
+    this.persistTemplate('template');
+  }
+
+  createAndStart() {
+    this.persistTemplate('session');
+  }
+
+  private persistTemplate(mode: 'template' | 'session') {
     this.error.set('');
     if (!this.formatName.trim()) {
       this.error.set('Format name is required');
@@ -312,9 +375,16 @@ export class FormatBuilderComponent {
       steps: this.steps().map((s) => this.toPayloadStep(s))
     };
 
+    this.saveMode.set(mode);
     this.busy.set(true);
     this.api.createTemplate(payload).subscribe({
       next: (tpl) => {
+        if (mode === 'template') {
+          this.busy.set(false);
+          this.saveMode.set(null);
+          this.router.navigate(['/'], { queryParams: { custom: tpl.id } });
+          return;
+        }
         this.api.createSession(tpl.id, this.workshopTitle || this.formatName).subscribe({
           next: (s) => {
             this.api.setHostSession(s.id, s.hostToken);
@@ -322,15 +392,54 @@ export class FormatBuilderComponent {
           },
           error: (e) => {
             this.busy.set(false);
+            this.saveMode.set(null);
             this.error.set(e?.error?.message || 'Session create failed');
           }
         });
       },
       error: (e) => {
         this.busy.set(false);
+        this.saveMode.set(null);
         this.error.set(e?.error?.message || 'Format create failed');
       }
     });
+  }
+
+  private fromTemplateStep(step: any): DraftStep {
+    const type = (step.type || 'welcome') as StepType;
+    const draft = this.blankStep(type);
+    draft.title = step.title || draft.title;
+    draft.instructions = step.instructions || '';
+    draft.timerSeconds = step.timerSeconds ?? null;
+    const cfg = step.config || {};
+
+    if (type === 'poll') {
+      const opts = Array.isArray(cfg['options']) ? cfg['options'] : [];
+      if (opts.length) {
+        draft.options = opts.map((o: any) => ({
+          id: String(o.id || this.slug(String(o.label || 'opt'))),
+          label: String(o.label || '')
+        }));
+      }
+    } else if (type === 'input') {
+      draft.anonymous = !!cfg['anonymous'];
+      draft.linkedBoard = cfg['boardMode'] === 'okr';
+      const groups = Array.isArray(step.groups) ? step.groups : [];
+      if (groups.length) {
+        const ordered = [...groups].sort(
+          (a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0)
+        );
+        draft.groups = ordered.map((g: any) => ({ title: String(g.title || '') }));
+      } else if (draft.linkedBoard) {
+        draft.groups = [{ title: 'Objectives' }];
+      }
+    } else if (type === 'voting') {
+      draft.votesPerParticipant = Number(cfg['votesPerParticipant']) || 3;
+    } else if (type === 'form') {
+      draft.linkActionToKr = cfg['linkTo'] === 'kr';
+    }
+
+    return draft;
   }
 
   private toPayloadStep(step: DraftStep) {

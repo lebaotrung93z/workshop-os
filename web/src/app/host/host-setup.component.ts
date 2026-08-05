@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
 import { ApiService } from '../core/api.service';
@@ -40,12 +40,22 @@ import { HostShellComponent } from './host-shell.component';
             }
           </div>
 
+          @if (savedNotice()) {
+            <p class="ok">{{ savedNotice() }}</p>
+          }
           @if (error()) {
             <p class="err">{{ error() }}</p>
           }
 
           <div class="actions">
             <app-bosch-button [disabled]="!selected() || busy()" (click)="create()">Create session</app-bosch-button>
+            <app-bosch-button
+              variant="secondary"
+              [disabled]="!selected() || busy()"
+              (click)="customize()"
+            >
+              Customize template
+            </app-bosch-button>
             <a routerLink="/j">Join as participant</a>
           </div>
         </section>
@@ -70,22 +80,32 @@ import { HostShellComponent } from './host-shell.component';
     .tpl__top { align-items: center; display: flex; justify-content: space-between; margin-bottom: 0.35rem; }
     .tpl__top span { background: #fff; border-radius: var(--wos-radius-pill); color: var(--wos-primary); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.5rem; }
     .tpl p { color: var(--wos-text-muted); margin: 0; }
-    .actions { align-items: center; display: flex; gap: 1rem; margin-top: 1.15rem; }
+    .actions { align-items: center; display: flex; gap: 1rem; margin-top: 1.15rem; flex-wrap: wrap; }
     .err { color: var(--wos-danger); }
+    .ok { color: var(--wos-success, #0a7a3e); font-weight: 600; }
   `
 })
 export class HostSetupComponent implements OnInit {
   private api = inject(ApiService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
   templates = signal<any[]>([]);
   selected = signal<string>('');
   title = '';
   busy = signal(false);
   error = signal('');
+  savedNotice = signal('');
 
   ngOnInit() {
+    const customId = this.route.snapshot.queryParamMap.get('custom');
     this.api.listTemplates().subscribe({
-      next: (t) => this.templates.set(t),
+      next: (t) => {
+        this.templates.set(t);
+        if (customId && t.some((x) => x.id === customId)) {
+          this.selected.set(customId);
+          this.savedNotice.set('Custom template saved — selected below.');
+        }
+      },
       error: (e) => this.error.set(e?.error?.message || 'Failed to load templates')
     });
   }
@@ -103,5 +123,11 @@ export class HostSetupComponent implements OnInit {
         this.error.set(e?.error?.message || 'Create failed');
       }
     });
+  }
+
+  customize() {
+    const id = this.selected();
+    if (!id) return;
+    this.router.navigate(['/host/format'], { queryParams: { from: id } });
   }
 }

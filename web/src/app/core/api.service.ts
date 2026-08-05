@@ -168,6 +168,18 @@ export class ApiService {
     });
   }
 
+  getTemplate(id: string): Observable<any> {
+    return new Observable((sub) => {
+      getDoc(doc(db, 'templates', id))
+        .then((snap) => {
+          if (!snap.exists()) throw new Error('Template not found');
+          sub.next({ id: snap.id, ...snap.data() });
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Failed to load template' } }));
+    });
+  }
+
   createTemplate(body: {
     name: string;
     description?: string;
