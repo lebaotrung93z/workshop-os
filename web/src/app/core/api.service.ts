@@ -9,7 +9,6 @@ import {
   query,
   orderBy,
   onSnapshot,
-  writeBatch,
   type Unsubscribe
 } from 'firebase/firestore';
 import { Observable, Subject } from 'rxjs';
@@ -105,43 +104,41 @@ export class ApiService {
   }
 
   private async ensureTemplates(): Promise<void> {
-    const seedRevision = 3; // bump when SEED_TEMPLATES structure changes
+    const seedRevision = 4; // bump when SEED_TEMPLATES structure changes
     const snap = await getDocs(collection(db, 'templates'));
     const byKey = new Map(snap.docs.map((d) => [d.data()['key'] as string, d]));
-    const batch = writeBatch(db);
-    let writes = 0;
+
+    // Creates and updates separately so a blocked update cannot prevent seeding a new template.
     for (const t of SEED_TEMPLATES) {
       const existing = byKey.get(t.key);
       if (!existing) {
-        const id = randomId();
-        batch.set(doc(db, 'templates', id), {
-          key: t.key,
-          name: t.name,
-          description: t.description,
-          seedRevision,
-          steps: this.mapSeedSteps(t),
-          createdAt: nowIso()
-        });
-        writes++;
+        try {
+          const id = randomId();
+          await setDoc(doc(db, 'templates', id), {
+            key: t.key,
+            name: t.name,
+            description: t.description,
+            seedRevision,
+            steps: this.mapSeedSteps(t),
+            createdAt: nowIso()
+          });
+        } catch {
+          // Ignore create failures (offline / rules); list still returns existing templates.
+        }
         continue;
       }
       const data = existing.data();
       if ((data['seedRevision'] || 0) < seedRevision) {
-        batch.update(doc(db, 'templates', existing.id), {
-          name: t.name,
-          description: t.description,
-          seedRevision,
-          steps: this.mapSeedSteps(t)
-        });
-        writes++;
-      }
-    }
-    if (writes) {
-      try {
-        await batch.commit();
-      } catch {
-        // Rules may not allow template updates until firestore.rules are deployed.
-        // New keys (e.g. okr-linked) still create; format-builder also supports OKR.
+        try {
+          await updateDoc(doc(db, 'templates', existing.id), {
+            name: t.name,
+            description: t.description,
+            seedRevision,
+            steps: this.mapSeedSteps(t)
+          });
+        } catch {
+          // Rules may still deny updates until firestore.rules are deployed.
+        }
       }
     }
   }
@@ -151,11 +148,20 @@ export class ApiService {
       this.ensureTemplates()
         .then(() => getDocs(query(collection(db, 'templates'), orderBy('name'))))
         .then((snap) => {
-          sub.next(
-            snap.docs
-              .map((d) => ({ id: d.id, ...d.data() }))
-              .filter((t: any) => t.key !== 'probe' && t.key !== 'okr')
+          const hidden = new Set(['probe', 'okr', 'okr-linked']);
+          const byKey = new Map<string, any>();
+          for (const d of snap.docs) {
+            const row = { id: d.id, ...d.data() } as any;
+            if (!row.key || hidden.has(row.key)) continue;
+            const prev = byKey.get(row.key);
+            if (!prev || (row.seedRevision || 0) >= (prev.seedRevision || 0)) {
+              byKey.set(row.key, row);
+            }
+          }
+          const list = [...byKey.values()].sort((a, b) =>
+            String(a.name || '').localeCompare(String(b.name || ''))
           );
+          sub.next(list);
           sub.complete();
         })
         .catch((e) => sub.error(e));
