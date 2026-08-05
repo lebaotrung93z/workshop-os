@@ -2,21 +2,27 @@ import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
+import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
+import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar-stack.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 
 @Component({
   selector: 'app-display',
   standalone: true,
-  imports: [BoschLogoComponent],
+  imports: [BoschLogoComponent, BoschAvatarComponent, BoschAvatarStackComponent],
   template: `
     <div class="screen">
       <header>
         <app-bosch-logo />
-        <div>
+        <div class="header__meta">
           <h1>{{ session()?.title }}</h1>
-          <p>Code <span class="code">{{ session()?.code }}</span> · {{ session()?.participantCount || 0 }} online</p>
+          <p>
+            Code <span class="code">{{ session()?.code }}</span>
+            · {{ session()?.participantCount || 0 }} online
+          </p>
         </div>
+        <app-bosch-avatar-stack [people]="participants()" [max]="8" size="md" />
       </header>
 
       @if (session()?.status === 'LOBBY' || !session()?.currentStep) {
@@ -24,13 +30,19 @@ import { RealtimeService } from '../core/realtime.service';
           <h2>Scan to join</h2>
           <p class="code-lg">{{ session()?.code }}</p>
           <p>Waiting for the host to start…</p>
+          <div class="hero__people">
+            <app-bosch-avatar-stack [people]="participants()" [max]="10" size="lg" />
+          </div>
         </section>
       }
 
       @if (session()?.currentStep?.type === 'welcome') {
-        <section class="hero">
-          <h2>{{ session()?.currentStep?.title }}</h2>
-          <p>{{ session()?.currentStep?.instructions }}</p>
+        <section class="hero welcome">
+          <h2>{{ session()?.currentStep?.title || 'Welcome!' }}</h2>
+          <p class="lede">{{ session()?.currentStep?.instructions }}</p>
+          <div class="hero__people">
+            <app-bosch-avatar-stack [people]="participants()" [max]="12" size="lg" />
+          </div>
         </section>
       }
 
@@ -53,11 +65,21 @@ import { RealtimeService } from '../core/realtime.service';
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
           <div class="columns">
-            @for (g of session()?.currentStep?.groups || []; track g.id) {
-              <div class="col">
+            @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
+              <div class="col" [attr.data-tone]="gi % 3">
                 <h3>{{ g.title }}</h3>
                 @for (e of entriesFor(g.id); track e.id) {
-                  <article>{{ e.content }}</article>
+                  <article class="note">
+                    <div class="note__head">
+                      @if (e.authorName) {
+                        <app-bosch-avatar [name]="e.authorName" size="sm" />
+                        <span>{{ e.authorName }}</span>
+                      } @else {
+                        <span class="muted">Anonymous</span>
+                      }
+                    </div>
+                    <p>{{ e.content }}</p>
+                  </article>
                 }
               </div>
             }
@@ -67,27 +89,42 @@ import { RealtimeService } from '../core/realtime.service';
 
       @if (session()?.currentStep?.type === 'voting') {
         <section>
-          <h2>Leaderboard</h2>
-          <ol>
+          <h2>Top issues (by votes)</h2>
+          <div class="vote-bars">
             @for (v of votes(); track v.entryId; let i = $index) {
-              <li><span class="rank">{{ i + 1 }}</span> {{ v.content }} <em>{{ v.votes }}</em></li>
+              <div class="vote-row">
+                <span class="rank">{{ i + 1 }}</span>
+                <div class="vote-row__body">
+                  <div class="vote-row__label">{{ v.content }}</div>
+                  <div class="track"><div class="fill" [style.width.%]="votePct(v.votes)"></div></div>
+                </div>
+                <strong>{{ v.votes }}</strong>
+              </div>
             }
-          </ol>
+          </div>
         </section>
       }
 
       @if (session()?.currentStep?.type === 'form' || summary()) {
         <section class="split">
           <div>
-            <h2>Actions</h2>
-            <table>
-              <thead><tr><th>Action</th><th>Owner</th><th>Due</th></tr></thead>
-              <tbody>
-                @for (a of actions(); track a.id) {
-                  <tr><td>{{ a.action }}</td><td>{{ a.owner }}</td><td>{{ a.dueDate }}</td></tr>
-                }
-              </tbody>
-            </table>
+            <h2>Action plan</h2>
+            <div class="actions">
+              @for (a of actions(); track a.id) {
+                <article class="action">
+                  <p class="action__text">{{ a.action }}</p>
+                  <div class="action__meta">
+                    @if (a.owner) {
+                      <app-bosch-avatar [name]="a.owner" size="sm" />
+                      <span>Owner: {{ a.owner }}</span>
+                    }
+                    @if (a.dueDate) {
+                      <span class="due">Due {{ a.dueDate }}</span>
+                    }
+                  </div>
+                </article>
+              }
+            </div>
           </div>
           @if (summary()?.insights) {
             <div>
@@ -104,30 +141,207 @@ import { RealtimeService } from '../core/realtime.service';
     </div>
   `,
   styles: `
-    .screen { min-height: 100vh; padding: 2rem 2.5rem; background: linear-gradient(180deg, #fff 0%, var(--bosch-gray-95) 100%); color: var(--bosch-text); }
-    header { display: flex; gap: 1.25rem; align-items: center; margin-bottom: 2rem; }
-    h1 { margin: 0; font-size: 2rem; }
-    h2 { font-size: 2.2rem; margin: 0 0 1rem; }
-    h3 { margin: 0 0 0.75rem; color: var(--bosch-accent); }
-    .code, .code-lg { font-weight: 800; letter-spacing: 0.12em; color: var(--bosch-accent); }
-    .code-lg { font-size: 4rem; display: block; margin: 0.5rem 0; }
-    .hero { text-align: center; padding: 4rem 1rem; }
-    .bars { display: grid; gap: 1rem; max-width: 900px; }
-    .row { display: grid; grid-template-columns: 160px 1fr 60px; gap: 1rem; align-items: center; font-size: 1.4rem; }
-    .track { height: 28px; background: var(--bosch-gray-90); }
-    .fill { height: 28px; background: var(--bosch-accent); }
-    .columns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
-    .col article { background: var(--bosch-yellow-95); border: 1px solid var(--bosch-border); padding: 0.85rem; margin-bottom: 0.65rem; font-size: 1.15rem; }
-    ol { list-style: none; padding: 0; margin: 0; font-size: 1.6rem; }
-    li { display: flex; gap: 1rem; align-items: baseline; padding: 0.6rem 0; border-bottom: 1px solid var(--bosch-border); }
-    .rank { color: var(--bosch-accent); font-weight: 800; width: 2rem; }
-    em { margin-left: auto; font-style: normal; font-weight: 800; }
-    .split { display: grid; grid-template-columns: 1.2fr 1fr; gap: 2rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 1.2rem; }
-    th, td { border-bottom: 1px solid var(--bosch-border); text-align: left; padding: 0.65rem; }
-    ul { font-size: 1.35rem; }
+    .screen {
+      background: linear-gradient(180deg, #fff 0%, var(--bosch-gray-95) 100%);
+      color: var(--bosch-text);
+      min-height: 100vh;
+      padding: 2rem 2.5rem;
+    }
+
+    header {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    .header__meta {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin: 0;
+    }
+
+    h2 {
+      font-size: 2.2rem;
+      margin: 0 0 1rem;
+    }
+
+    h3 {
+      color: var(--bosch-text);
+      margin: 0 0 0.75rem;
+    }
+
+    .code,
+    .code-lg {
+      color: var(--bosch-accent);
+      font-weight: 800;
+      letter-spacing: 0.12em;
+    }
+
+    .code-lg {
+      display: block;
+      font-size: 4rem;
+      margin: 0.5rem 0;
+    }
+
+    .hero {
+      padding: 3.5rem 1rem;
+      text-align: center;
+    }
+
+    .welcome .lede {
+      color: var(--bosch-text-secondary);
+      font-size: 1.4rem;
+      margin: 0 auto 1.5rem;
+      max-width: 40rem;
+    }
+
+    .hero__people {
+      display: flex;
+      justify-content: center;
+      margin-top: 1.5rem;
+    }
+
+    .bars,
+    .vote-bars {
+      display: grid;
+      gap: 1rem;
+      max-width: 960px;
+    }
+
+    .row {
+      align-items: center;
+      display: grid;
+      font-size: 1.4rem;
+      gap: 1rem;
+      grid-template-columns: 160px 1fr 60px;
+    }
+
+    .vote-row {
+      align-items: center;
+      display: grid;
+      font-size: 1.25rem;
+      gap: 1rem;
+      grid-template-columns: 2.5rem 1fr 3rem;
+    }
+
+    .vote-row__body {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .vote-row__label {
+      font-weight: 600;
+    }
+
+    .track {
+      background: var(--bosch-gray-90);
+      height: 28px;
+    }
+
+    .fill {
+      background: var(--bosch-accent);
+      height: 28px;
+    }
+
+    .columns {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .col {
+      background: var(--bosch-surface);
+      border: 1px solid var(--bosch-border);
+      border-top: 6px solid var(--bosch-accent);
+      min-height: 12rem;
+      padding: 1rem;
+    }
+
+    .col[data-tone='0'] { border-top-color: var(--bosch-positive); }
+    .col[data-tone='1'] { border-top-color: var(--bosch-error); }
+    .col[data-tone='2'] { border-top-color: var(--bosch-accent); }
+
+    .note {
+      background: var(--bosch-yellow-95);
+      border: 1px solid var(--bosch-border);
+      margin-bottom: 0.65rem;
+      padding: 0.85rem;
+    }
+
+    .note__head {
+      align-items: center;
+      display: flex;
+      font-size: 0.9rem;
+      font-weight: 600;
+      gap: 0.45rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .note p {
+      font-size: 1.15rem;
+      margin: 0;
+    }
+
+    .rank {
+      color: var(--bosch-accent);
+      font-weight: 800;
+    }
+
+    .split {
+      display: grid;
+      gap: 2rem;
+      grid-template-columns: 1.2fr 1fr;
+    }
+
+    .actions {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .action {
+      background: var(--bosch-surface);
+      border: 1px solid var(--bosch-border);
+      padding: 1rem;
+    }
+
+    .action__text {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 0 0 0.65rem;
+    }
+
+    .action__meta {
+      align-items: center;
+      color: var(--bosch-text-secondary);
+      display: flex;
+      flex-wrap: wrap;
+      font-size: 1.05rem;
+      gap: 0.55rem;
+    }
+
+    .due {
+      margin-left: auto;
+    }
+
+    ul {
+      font-size: 1.35rem;
+    }
+
+    .muted {
+      color: var(--bosch-text-muted);
+    }
+
     @media (max-width: 900px) {
-      .columns, .split { grid-template-columns: 1fr; }
+      .columns,
+      .split {
+        grid-template-columns: 1fr;
+      }
     }
   `
 })
@@ -139,6 +353,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   id = '';
   session = signal<any>(null);
+  participants = signal<{ id: string; displayName: string }[]>([]);
   entries = signal<any[]>([]);
   poll = signal<any[]>([]);
   votes = signal<any[]>([]);
@@ -158,7 +373,10 @@ export class DisplayComponent implements OnInit, OnDestroy {
         this.loadExtras();
       }
       if (e.type === 'summary.ready') this.summary.set(e.data);
-      if (e.type === 'participant.joined') this.refresh();
+      if (e.type === 'participant.joined') {
+        this.refreshParticipants();
+        this.refresh();
+      }
     });
   }
 
@@ -172,8 +390,16 @@ export class DisplayComponent implements OnInit, OnDestroy {
       this.session.set(s);
       this.loadExtras();
     });
+    this.refreshParticipants();
     this.api.getSummary(this.id).subscribe((s) => {
       if (s?.insights) this.summary.set(s);
+    });
+  }
+
+  refreshParticipants() {
+    this.api.listParticipants(this.id).subscribe({
+      next: (list) => this.participants.set(list || []),
+      error: () => this.participants.set([])
     });
   }
 
@@ -192,6 +418,11 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   pct(count: number) {
     const max = Math.max(1, ...this.poll().map((p) => Number(p.count) || 0));
+    return (Number(count) / max) * 100;
+  }
+
+  votePct(count: number) {
+    const max = Math.max(1, ...this.votes().map((v) => Number(v.votes) || 0));
     return (Number(count) / max) * 100;
   }
 }

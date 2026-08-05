@@ -14,8 +14,12 @@ import { ApiService } from '../core/api.service';
     <div class="page">
       <header class="top">
         <app-bosch-logo />
-        <h1>Workshop OS</h1>
+        <div>
+          <h1>Workshop OS</h1>
+          <p class="lede">Host laptop · Participant mobile · Big screen</p>
+        </div>
       </header>
+
       <app-bosch-card title="Create workshop" subtitle="Pick a template and start a hybrid session">
         <label>
           Workshop title
@@ -26,6 +30,7 @@ import { ApiService } from '../core/api.service';
             <button type="button" class="tpl" [class.active]="selected() === t.id" (click)="selected.set(t.id)">
               <strong>{{ t.name }}</strong>
               <span>{{ t.description }}</span>
+              <em>{{ (t.steps?.length || 0) }} steps</em>
             </button>
           }
         </div>
@@ -40,17 +45,88 @@ import { ApiService } from '../core/api.service';
     </div>
   `,
   styles: `
-    .page { max-width: 720px; margin: 0 auto; padding: 2rem 1rem; }
-    .top { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
-    h1 { margin: 0; font-size: 1.5rem; color: var(--bosch-text); }
-    label { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; font-weight: 600; }
-    input { border: 1px solid var(--bosch-border-strong); padding: 0.65rem 0.75rem; font: inherit; }
-    .templates { display: grid; gap: 0.75rem; }
-    .tpl { text-align: left; border: 1px solid var(--bosch-border); background: var(--bosch-bg-muted); padding: 0.9rem; cursor: pointer; display: grid; gap: 0.25rem; }
-    .tpl.active { border-color: var(--bosch-accent); background: var(--bosch-accent-soft); }
-    .tpl span { color: var(--bosch-text-muted); font-size: 0.9rem; }
-    .actions { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
-    .err { color: var(--bosch-error); }
+    .page {
+      margin: 0 auto;
+      max-width: 760px;
+      padding: 2rem 1rem;
+    }
+
+    .top {
+      align-items: center;
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      color: var(--bosch-text);
+      font-size: 1.6rem;
+      margin: 0;
+    }
+
+    .lede {
+      color: var(--bosch-text-muted);
+      margin: 0.2rem 0 0;
+    }
+
+    label {
+      display: flex;
+      flex-direction: column;
+      font-weight: 600;
+      gap: 0.35rem;
+      margin-bottom: 1rem;
+    }
+
+    input {
+      border: 1px solid var(--bosch-border-strong);
+      font: inherit;
+      padding: 0.65rem 0.75rem;
+    }
+
+    .templates {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .tpl {
+      background: var(--bosch-bg-muted);
+      border: 1px solid var(--bosch-border);
+      border-left: 4px solid transparent;
+      cursor: pointer;
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.95rem 1rem;
+      text-align: left;
+    }
+
+    .tpl.active {
+      background: var(--bosch-accent-soft);
+      border-color: var(--bosch-accent);
+      border-left-color: var(--bosch-accent);
+    }
+
+    .tpl span {
+      color: var(--bosch-text-muted);
+      font-size: 0.9rem;
+    }
+
+    .tpl em {
+      color: var(--bosch-accent);
+      font-size: 0.78rem;
+      font-style: normal;
+      font-weight: 700;
+    }
+
+    .actions {
+      align-items: center;
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .err {
+      color: var(--bosch-error);
+    }
   `
 })
 export class HostSetupComponent implements OnInit {

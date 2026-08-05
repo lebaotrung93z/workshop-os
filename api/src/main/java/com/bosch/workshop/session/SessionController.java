@@ -42,6 +42,11 @@ public class SessionController {
         return sessionService.getDisplay(id);
     }
 
+    @GetMapping("/{id}/participants")
+    public java.util.List<java.util.Map<String, Object>> participants(@PathVariable UUID id) {
+        return sessionService.listParticipants(id);
+    }
+
     @PostMapping("/{code}/join")
     public Map<String, Object> join(@PathVariable String code, @RequestBody JoinRequest request) {
         return sessionService.join(code, request.displayName());

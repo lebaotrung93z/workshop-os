@@ -20,6 +20,7 @@ public class ActivityService {
     private final InputEntryRepository entryRepository;
     private final VoteRepository voteRepository;
     private final ActionItemRepository actionItemRepository;
+    private final ParticipantRepository participantRepository;
     private final SessionEventPublisher events;
     private final ObjectMapper objectMapper;
 
@@ -29,6 +30,7 @@ public class ActivityService {
             InputEntryRepository entryRepository,
             VoteRepository voteRepository,
             ActionItemRepository actionItemRepository,
+            ParticipantRepository participantRepository,
             SessionEventPublisher events,
             ObjectMapper objectMapper) {
         this.sessionService = sessionService;
@@ -36,6 +38,7 @@ public class ActivityService {
         this.entryRepository = entryRepository;
         this.voteRepository = voteRepository;
         this.actionItemRepository = actionItemRepository;
+        this.participantRepository = participantRepository;
         this.events = events;
         this.objectMapper = objectMapper;
     }
@@ -97,21 +100,36 @@ public class ActivityService {
         SessionStep step = sid == null
                 ? null
                 : sessionStepRepository.findById(sid).orElse(null);
+        Map<UUID, String> names = participantNames(sessionId);
         if (step != null && "voting".equals(step.getType())) {
             return entryRepository.findBySessionIdAndHiddenFalseOrderByCreatedAtAsc(sessionId).stream()
                     .filter(e -> {
                         SessionStep s = sessionStepRepository.findById(e.getSessionStepId()).orElse(null);
                         return s != null && "input".equals(s.getType());
                     })
-                    .map(e -> entryView(e, null, true))
+                    .map(e -> toListedEntry(e, names))
                     .toList();
         }
         if (sid == null) {
             return List.of();
         }
         return entryRepository.findBySessionStepIdAndHiddenFalseOrderByCreatedAtAsc(sid).stream()
-                .map(e -> entryView(e, null, true))
+                .map(e -> toListedEntry(e, names))
                 .toList();
+    }
+
+    private Map<UUID, String> participantNames(UUID sessionId) {
+        Map<UUID, String> names = new HashMap<>();
+        for (Participant p : participantRepository.findBySessionIdOrderByCreatedAtAsc(sessionId)) {
+            names.put(p.getId(), p.getDisplayName());
+        }
+        return names;
+    }
+
+    private Map<String, Object> toListedEntry(InputEntry entry, Map<UUID, String> names) {
+        boolean anonymous = entry.getAuthorId() == null;
+        String authorName = anonymous ? null : names.get(entry.getAuthorId());
+        return entryView(entry, authorName, anonymous);
     }
 
     @Transactional
