@@ -667,7 +667,8 @@ export class ApiService {
   updateEntry(
     id: string,
     entryId: string,
-    patch: { content: string; parentId?: string | null; groupId?: string | null }
+    patch: { content: string; parentId?: string | null; groupId?: string | null },
+    opts?: { role?: 'host' | 'participant' }
   ): Observable<any> {
     return new Observable((sub) => {
       (async () => {
@@ -675,7 +676,11 @@ export class ApiService {
           content: patch.content.trim(),
           updatedAt: nowIso()
         };
-        if (this.hostToken()) {
+        const asHost =
+          opts?.role === 'host' ||
+          (opts?.role !== 'participant' && !!this.hostToken() && !this.participantId());
+        if (asHost) {
+          if (!this.hostToken()) throw new Error('Missing host token');
           payload.hostToken = this.hostToken();
         } else {
           const participantId = this.participantId();
@@ -871,6 +876,9 @@ export class ApiService {
   ): Observable<any> {
     return new Observable((sub) => {
       (async () => {
+        // Prefer participant credentials so host+participant in one browser still works.
+        const participantId = this.participantId();
+        const joinToken = this.joinToken();
         const payload: any = {
           action: body.action.trim(),
           owner: body.owner || '',
@@ -879,14 +887,13 @@ export class ApiService {
         };
         if (body.sourceEntryId !== undefined) payload.sourceEntryId = body.sourceEntryId || null;
         if (body.sourceLabel !== undefined) payload.sourceLabel = body.sourceLabel || null;
-        if (this.hostToken()) {
-          payload.hostToken = this.hostToken();
-        } else {
-          const participantId = this.participantId();
-          const joinToken = this.joinToken();
-          if (!participantId || !joinToken) throw new Error('Join the session before editing');
+        if (participantId && joinToken) {
           payload.participantId = participantId;
           payload.joinToken = joinToken;
+        } else if (this.hostToken()) {
+          payload.hostToken = this.hostToken();
+        } else {
+          throw new Error('Join the session before editing');
         }
         await updateDoc(doc(db, 'sessions', id, 'actions', actionId), payload);
         return { id: actionId, ...payload };
@@ -902,18 +909,19 @@ export class ApiService {
   removeOwnAction(id: string, actionId: string): Observable<any> {
     return new Observable((sub) => {
       (async () => {
+        const participantId = this.participantId();
+        const joinToken = this.joinToken();
         const payload: any = {
           hidden: true,
           updatedAt: nowIso()
         };
-        if (this.hostToken()) {
-          payload.hostToken = this.hostToken();
-        } else {
-          const participantId = this.participantId();
-          const joinToken = this.joinToken();
-          if (!participantId || !joinToken) throw new Error('Join the session before deleting');
+        if (participantId && joinToken) {
           payload.participantId = participantId;
           payload.joinToken = joinToken;
+        } else if (this.hostToken()) {
+          payload.hostToken = this.hostToken();
+        } else {
+          throw new Error('Join the session before deleting');
         }
         await updateDoc(doc(db, 'sessions', id, 'actions', actionId), payload);
         return { ok: true };

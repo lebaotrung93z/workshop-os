@@ -541,7 +541,7 @@ export class ActivityHostPanelComponent implements OnChanges {
     const content = this.editObjectiveText.trim();
     if (!content || !this.session?.id) return;
     this.busy.set(true);
-    this.api.updateEntry(this.session.id, obj.id, { content }).subscribe({
+    this.api.updateEntry(this.session.id, obj.id, { content }, { role: 'host' }).subscribe({
       next: () => {
         this.busy.set(false);
         this.cancelObjectiveEdit();
