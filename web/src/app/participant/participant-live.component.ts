@@ -26,19 +26,17 @@ import { RealtimeService } from '../core/realtime.service';
       <h1>{{ session()?.title }}</h1>
       <p class="status">{{ session()?.status }} · {{ session()?.currentStep?.title }}</p>
 
-      @if (!session()?.currentStep || session()?.status === 'LOBBY') {
+      @if (session()?.status === 'LOBBY' || !session()?.currentStep) {
         <app-bosch-card title="Waiting" subtitle="Host will start shortly">
           <p>Stay on this screen. Your facilitator controls the next step.</p>
         </app-bosch-card>
-      }
-
-      @if (session()?.currentStep?.type === 'welcome') {
+      } @else if (session()?.currentStep?.type === 'welcome') {
         <app-bosch-card title="Welcome" [subtitle]="session()?.currentStep?.title">
           <p>{{ session()?.currentStep?.instructions }}</p>
         </app-bosch-card>
       }
 
-      @if (session()?.currentStep?.type === 'poll') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'poll') {
         <app-bosch-card title="Poll" [subtitle]="session()?.currentStep?.instructions">
           <div class="options">
             @for (o of options(); track o.id) {
@@ -54,7 +52,7 @@ import { RealtimeService } from '../core/realtime.service';
         </app-bosch-card>
       }
 
-      @if (session()?.currentStep?.type === 'input') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'input') {
         <app-bosch-card title="Sticky notes" [subtitle]="session()?.currentStep?.instructions">
           <div class="groups">
             @for (g of session()?.currentStep?.groups || []; track g.id) {
@@ -68,7 +66,7 @@ import { RealtimeService } from '../core/realtime.service';
         </app-bosch-card>
       }
 
-      @if (session()?.currentStep?.type === 'voting') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'voting') {
         <app-bosch-card title="Vote" [subtitle]="'Remaining votes: ' + votesLeft()">
           <div class="vote-list">
             @for (e of entries(); track e.id) {
@@ -89,7 +87,7 @@ import { RealtimeService } from '../core/realtime.service';
         </app-bosch-card>
       }
 
-      @if (session()?.currentStep?.type === 'form') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'form') {
         <app-bosch-card title="Define 1 action" subtitle="Owner + due date">
           <label>Action <input [(ngModel)]="action" placeholder="What will we do?" /></label>
           <label>
