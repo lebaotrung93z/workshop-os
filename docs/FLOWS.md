@@ -224,7 +224,7 @@ Enum: `welcome` | `poll` | `input` | `voting` | `form`
 | voting | `votesPerParticipant: int` | Wall + Hide + leaderboard | Cast votes (budget) | Ranked leaderboard |
 | form | `{}` | Actions table | Submit action | Actions (+ AI) |
 
-**Voting data source:** all non-hidden session entries whose step type is `input` (not limited to the immediately previous step).
+**Voting data source:** all non-hidden session entries whose step type is `input` (not limited to the immediately previous step). For OKR boards (`boardMode: 'okr'`), voting lists **Key Results only** (`kind: 'kr'` / `parentId` set).
 
 **Anonymous input:** when `anonymous:true`, `authorId` is stored as null. Poll answers always keep the author.
 
@@ -258,13 +258,19 @@ All three templates share the sequence: **welcome → poll → input → voting 
 
 ### OKR Alignment (`okr`)
 
+Linked Objective → Key Result → Action workflow:
+
 | # | Type | Title | Config / groups |
 |---|---|---|---|
-| 1 | welcome | Welcome | |
+| 1 | welcome | Welcome | Host seeds Objectives later |
 | 2 | poll | Confidence | high / med / low |
-| 3 | input | Draft OKRs | named; Objectives · Key Results · Dependencies |
-| 4 | voting | Vote on OKRs | 3 votes |
-| 5 | form | Owners | |
+| 3 | input | OKR board | `boardMode: 'okr'`; host adds Objectives; participants attach KRs (`parentId`) |
+| 4 | voting | Prioritize KRs | 3 votes; **KRs only** |
+| 5 | form | Commitments | `linkTo: 'kr'`; action stores `sourceEntryId` + `sourceLabel` |
+
+**Big screen:** Top-down collapsible tree (session → Objectives → Key Results) with `+`/`−` toggles; node colors by type — primary (root), purple (Objectives), green (Key Results). KR branches start collapsed when ≥ 4 KRs. Action plan shows each action tagged with its KR.
+
+**Format builder:** Purpose field + “Linked board (Objective → KR)” on input steps + “Link action to Key Result” on form steps.
 
 ---
 

@@ -87,37 +87,63 @@ export class ApiService {
     if (displayName) this.displayName.set(displayName);
   }
 
+  private mapSeedSteps(t: (typeof SEED_TEMPLATES)[number]) {
+    return t.steps.map((s, i) => ({
+      id: randomId(),
+      stepOrder: i + 1,
+      type: s.type,
+      title: s.title,
+      instructions: s.instructions,
+      config: s.config,
+      groups: (s.groups || []).map((g, gi) => ({
+        id: randomId(),
+        title: g.title,
+        groupOrder: gi + 1
+      })),
+      timerSeconds: s.timerSeconds
+    }));
+  }
+
   private async ensureTemplates(): Promise<void> {
+    const seedRevision = 3; // bump when SEED_TEMPLATES structure changes
     const snap = await getDocs(collection(db, 'templates'));
-    const existingKeys = new Set(snap.docs.map((d) => d.data()['key']));
+    const byKey = new Map(snap.docs.map((d) => [d.data()['key'] as string, d]));
     const batch = writeBatch(db);
     let writes = 0;
     for (const t of SEED_TEMPLATES) {
-      if (existingKeys.has(t.key)) continue;
-      const id = randomId();
-      batch.set(doc(db, 'templates', id), {
-        key: t.key,
-        name: t.name,
-        description: t.description,
-        steps: t.steps.map((s, i) => ({
-          id: randomId(),
-          stepOrder: i + 1,
-          type: s.type,
-          title: s.title,
-          instructions: s.instructions,
-          config: s.config,
-          groups: (s.groups || []).map((g, gi) => ({
-            id: randomId(),
-            title: g.title,
-            groupOrder: gi + 1
-          })),
-          timerSeconds: s.timerSeconds
-        })),
-        createdAt: nowIso()
-      });
-      writes++;
+      const existing = byKey.get(t.key);
+      if (!existing) {
+        const id = randomId();
+        batch.set(doc(db, 'templates', id), {
+          key: t.key,
+          name: t.name,
+          description: t.description,
+          seedRevision,
+          steps: this.mapSeedSteps(t),
+          createdAt: nowIso()
+        });
+        writes++;
+        continue;
+      }
+      const data = existing.data();
+      if ((data['seedRevision'] || 0) < seedRevision) {
+        batch.update(doc(db, 'templates', existing.id), {
+          name: t.name,
+          description: t.description,
+          seedRevision,
+          steps: this.mapSeedSteps(t)
+        });
+        writes++;
+      }
     }
-    if (writes) await batch.commit();
+    if (writes) {
+      try {
+        await batch.commit();
+      } catch {
+        // Rules may not allow template updates until firestore.rules are deployed.
+        // New keys (e.g. okr-linked) still create; format-builder also supports OKR.
+      }
+    }
   }
 
   listTemplates(): Observable<any[]> {
@@ -128,7 +154,7 @@ export class ApiService {
           sub.next(
             snap.docs
               .map((d) => ({ id: d.id, ...d.data() }))
-              .filter((t: any) => t.key !== 'probe')
+              .filter((t: any) => t.key !== 'probe' && t.key !== 'okr')
           );
           sub.complete();
         })
@@ -462,8 +488,17 @@ export class ApiService {
         // Voting lists stickies from input steps (not the voting step itself).
         // See docs/FLOWS.md — matches legacy Spring ActivityService.listEntries.
         if (targetStep?.type === 'voting') {
-          const inputStepIds = new Set(steps.filter((st) => st.type === 'input').map((st) => st.id));
+          const inputSteps = steps.filter((st) => st.type === 'input');
+          const inputStepIds = new Set(inputSteps.map((st) => st.id));
           rows = rows.filter((r: any) => inputStepIds.has(r.stepId));
+          // OKR mode: vote on Key Results only.
+          const okrInput = inputSteps.some((st) => {
+            const cfg = typeof st.config === 'string' ? (() => { try { return JSON.parse(st.config); } catch { return {}; } })() : st.config || {};
+            return cfg.boardMode === 'okr';
+          });
+          if (okrInput) {
+            rows = rows.filter((r: any) => r.kind === 'kr' || !!r.parentId);
+          }
         } else if (resolvedStepId) {
           rows = rows.filter((r: any) => r.stepId === resolvedStepId);
         }
@@ -479,14 +514,28 @@ export class ApiService {
 
   submitEntry(
     id: string,
-    contentOrBody: string | { stepId: string; groupId?: string; content: string },
+    contentOrBody:
+      | string
+      | {
+          stepId: string;
+          groupId?: string;
+          content: string;
+          parentId?: string | null;
+          kind?: 'objective' | 'kr' | 'sticky';
+        },
     groupId?: string
   ): Observable<any> {
     return new Observable((sub) => {
       (async () => {
         const session = await getDoc(doc(db, 'sessions', id));
         const currentStepId = session.data()?.['currentStepId'] as string;
-        let body: { stepId: string; groupId?: string; content: string };
+        let body: {
+          stepId: string;
+          groupId?: string;
+          content: string;
+          parentId?: string | null;
+          kind?: 'objective' | 'kr' | 'sticky';
+        };
         if (typeof contentOrBody === 'string') {
           body = { stepId: currentStepId, content: contentOrBody, groupId };
         } else {
@@ -499,10 +548,13 @@ export class ApiService {
           throw new Error('Join the session before submitting');
         }
         const entryId = randomId();
+        const kind = body.kind || (body.parentId ? 'kr' : 'sticky');
         await setDoc(doc(db, 'sessions', id, 'entries', entryId), {
           stepId: body.stepId,
           groupId: body.groupId || null,
           content: body.content,
+          parentId: body.parentId || null,
+          kind,
           participantId,
           joinToken,
           authorUid: participantId,
@@ -510,13 +562,70 @@ export class ApiService {
           hidden: false,
           createdAt: nowIso()
         });
-        return { id: entryId, authorName: authorName || null };
+        return { id: entryId, authorName: authorName || null, kind, parentId: body.parentId || null };
       })()
         .then((r) => {
           sub.next(r);
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Submit failed' } }));
+    });
+  }
+
+  /** Host seeds an Objective on the current (or given) input step. */
+  createHostObjective(
+    id: string,
+    body: { content: string; stepId?: string; groupId?: string | null }
+  ): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const hostToken = this.hostToken();
+        if (!hostToken) throw new Error('Missing host token');
+        const session = await getDoc(doc(db, 'sessions', id));
+        if (!session.exists()) throw new Error('Session not found');
+        const data = session.data()!;
+        if (data['hostToken'] !== hostToken) throw new Error('Host token mismatch');
+        const stepId = body.stepId || (data['currentStepId'] as string);
+        const step = (data['steps'] || []).find((s: any) => s.id === stepId);
+        const groupId = body.groupId ?? step?.groups?.[0]?.id ?? null;
+
+        // Ensure a durable host participant so entry creates pass participant rules
+        // (works even before updated hostToken entry rules are deployed).
+        const hostParticipantId = `host-${id}`;
+        const existing = await getDoc(doc(db, 'sessions', id, 'participants', hostParticipantId));
+        let joinToken = (existing.data()?.['joinToken'] as string) || '';
+        if (!existing.exists() || !joinToken) {
+          joinToken = randomToken();
+          await setDoc(doc(db, 'sessions', id, 'participants', hostParticipantId), {
+            uid: hostParticipantId,
+            displayName: 'Host',
+            joinToken,
+            createdAt: nowIso()
+          });
+        }
+
+        const entryId = randomId();
+        await setDoc(doc(db, 'sessions', id, 'entries', entryId), {
+          stepId,
+          groupId,
+          content: body.content.trim(),
+          parentId: null,
+          kind: 'objective',
+          participantId: hostParticipantId,
+          joinToken,
+          authorUid: hostParticipantId,
+          authorName: 'Host',
+          hostToken,
+          hidden: false,
+          createdAt: nowIso()
+        });
+        return { id: entryId, kind: 'objective', content: body.content.trim() };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Create objective failed' } }));
     });
   }
 
@@ -592,6 +701,8 @@ export class ApiService {
           entryId: e.id,
           content: e.content,
           groupId: e.groupId || null,
+          parentId: e.parentId || null,
+          kind: e.kind || null,
           authorName: e.authorName || null,
           votes: counts.get(e.id) || 0
         }));
@@ -640,13 +751,18 @@ export class ApiService {
     });
   }
 
-  submitAction(id: string, body: { action: string; owner?: string; dueDate?: string }): Observable<any> {
+  submitAction(
+    id: string,
+    body: { action: string; owner?: string; dueDate?: string; sourceEntryId?: string; sourceLabel?: string }
+  ): Observable<any> {
     return new Observable((sub) => {
       const actionId = randomId();
       const payload: any = {
         action: body.action,
         owner: body.owner || '',
         dueDate: body.dueDate || '',
+        sourceEntryId: body.sourceEntryId || null,
+        sourceLabel: body.sourceLabel || null,
         createdAt: nowIso()
       };
       if (this.hostToken()) {

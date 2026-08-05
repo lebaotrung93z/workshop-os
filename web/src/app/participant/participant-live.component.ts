@@ -6,6 +6,7 @@ import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.comp
 import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
+import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
 
 @Component({
   selector: 'app-participant-live',
@@ -78,41 +79,68 @@ import { RealtimeService } from '../core/realtime.service';
         } @else if (session()?.currentStep?.type === 'input') {
           <section class="panel">
             <div class="panel__head">
-              <h2>Share ideas</h2>
+              <h2>{{ isOkr() ? 'Key Results' : 'Share ideas' }}</h2>
               <p class="hint">{{ session()?.currentStep?.instructions || 'Add sticky notes in each column.' }}</p>
             </div>
 
-            <div class="group-cards">
-              @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
-                <button
-                  type="button"
-                  class="gcard"
-                  [attr.data-tone]="gi % 3"
-                  [class.on]="groupId === g.id"
-                  (click)="groupId = g.id"
+            @if (isOkr()) {
+              <div class="obj-list">
+                <p class="field__label">Select Objective</p>
+                @for (o of objectives(); track o.id) {
+                  <button type="button" class="obj" [class.on]="parentId === o.id" (click)="parentId = o.id">
+                    <strong>{{ o.content }}</strong>
+                    <span>{{ krsUnder(o.id).length }} KRs</span>
+                  </button>
+                } @empty {
+                  <p class="empty">Waiting for the host to add an Objective.</p>
+                }
+              </div>
+              <div class="compose">
+                <label class="field">
+                  <span class="field__label">Key Result</span>
+                  <textarea [(ngModel)]="content" rows="3" placeholder="Add a measurable key result…"></textarea>
+                </label>
+                <app-bosch-button
+                  icon="add"
+                  [block]="true"
+                  [disabled]="!content.trim() || !parentId"
+                  (click)="submitKr()"
                 >
-                  <strong>{{ g.title }}</strong>
-                  <span>{{ countFor(g.id) }} added</span>
-                </button>
-              }
-            </div>
-
-            <div class="compose">
-              <label class="field">
-                <span class="field__label">Your idea</span>
-                <textarea [(ngModel)]="content" rows="3" placeholder="Add idea…"></textarea>
-              </label>
-              <app-bosch-button icon="add" [block]="true" [disabled]="!content.trim() || !groupId" (click)="submitEntry()">
-                Add idea
-              </app-bosch-button>
-            </div>
+                  Add Key Result
+                </app-bosch-button>
+              </div>
+            } @else {
+              <div class="group-cards">
+                @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
+                  <button
+                    type="button"
+                    class="gcard"
+                    [attr.data-tone]="gi % 3"
+                    [class.on]="groupId === g.id"
+                    (click)="groupId = g.id"
+                  >
+                    <strong>{{ g.title }}</strong>
+                    <span>{{ countFor(g.id) }} added</span>
+                  </button>
+                }
+              </div>
+              <div class="compose">
+                <label class="field">
+                  <span class="field__label">Your idea</span>
+                  <textarea [(ngModel)]="content" rows="3" placeholder="Add idea…"></textarea>
+                </label>
+                <app-bosch-button icon="add" [block]="true" [disabled]="!content.trim() || !groupId" (click)="submitEntry()">
+                  Add idea
+                </app-bosch-button>
+              </div>
+            }
           </section>
         } @else if (session()?.currentStep?.type === 'voting') {
           <section class="panel">
             <div class="panel__head vote-head">
               <div>
                 <h2>Vote</h2>
-                <p class="hint">Tap an idea to cast a vote</p>
+                <p class="hint">{{ isOkr() ? 'Tap a Key Result to cast a vote' : 'Tap an idea to cast a vote' }}</p>
               </div>
               <span class="votes-left">{{ votesLeft() }} left</span>
             </div>
@@ -127,6 +155,9 @@ import { RealtimeService } from '../core/realtime.service';
                       <span class="muted">Anonymous</span>
                     }
                   </div>
+                  @if (parentLabel(e); as pl) {
+                    <span class="vote__parent">{{ pl }}</span>
+                  }
                   <p>{{ e.content }}</p>
                   <span class="vote__cta">Tap to vote</span>
                 </button>
@@ -139,9 +170,26 @@ import { RealtimeService } from '../core/realtime.service';
           <section class="panel">
             <div class="panel__head">
               <h2>Define 1 action</h2>
-              <p class="hint">Capture one commitment before you wrap up.</p>
+              <p class="hint">
+                {{
+                  linksToKr()
+                    ? 'Pick a Key Result, then capture the commitment.'
+                    : 'Capture one commitment before you wrap up.'
+                }}
+              </p>
             </div>
             <div class="form-fields">
+              @if (linksToKr()) {
+                <label class="field">
+                  <span class="field__label">Key Result</span>
+                  <select [(ngModel)]="sourceEntryId">
+                    <option value="">Select a Key Result…</option>
+                    @for (kr of krChoices(); track kr.id) {
+                      <option [value]="kr.id">{{ kr.content }}</option>
+                    }
+                  </select>
+                </label>
+              }
               <label class="field">
                 <span class="field__label">Action</span>
                 <input [(ngModel)]="action" placeholder="What will we do?" />
@@ -159,7 +207,12 @@ import { RealtimeService } from '../core/realtime.service';
               </label>
             </div>
             <div class="panel__actions">
-              <app-bosch-button icon="save" [block]="true" [disabled]="!action.trim()" (click)="submitAction()">
+              <app-bosch-button
+                icon="save"
+                [block]="true"
+                [disabled]="!action.trim() || (linksToKr() && !sourceEntryId)"
+                (click)="submitAction()"
+              >
                 Submit
               </app-bosch-button>
             </div>
@@ -499,6 +552,52 @@ import { RealtimeService } from '../core/realtime.service';
       font-weight: 750;
     }
 
+    .vote__parent {
+      color: var(--wos-primary);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+
+    .obj-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .obj {
+      background: var(--wos-primary-soft);
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: var(--wos-primary);
+      cursor: pointer;
+      display: flex;
+      gap: 0.5rem;
+      justify-content: space-between;
+      padding: 0.85rem 0.9rem;
+      text-align: left;
+    }
+
+    .obj.on {
+      border-color: var(--wos-primary);
+      box-shadow: 0 0 0 2px var(--wos-primary-ring);
+    }
+
+    .obj span {
+      flex: 0 0 auto;
+      font-size: 0.75rem;
+      font-weight: 800;
+      opacity: 0.85;
+    }
+
+    select {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      box-sizing: border-box;
+      font: inherit;
+      padding: 0.8rem 0.85rem;
+      width: 100%;
+    }
+
     .muted {
       color: var(--wos-text-muted);
     }
@@ -590,11 +689,15 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   done = signal(false);
   content = '';
   groupId = '';
+  parentId = '';
+  sourceEntryId = '';
   action = '';
   owner = '';
   dueDate = '';
   msg = signal('');
   private myEntryCounts = signal<Record<string, number>>({});
+  private boardEntries = signal<any[]>([]); // all entries on OKR input step for objectives/parents
+  private voteTallies = signal<any[]>([]);
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || this.api.sessionId();
@@ -609,10 +712,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
         if (e.type === 'session.ended') this.done.set(true);
       }
       if (e.type === 'vote.updated' || e.type === 'entry.created') {
-        const step = this.session()?.currentStep;
-        if (step?.type === 'voting' || step?.type === 'input') {
-          this.api.listEntries(this.id, step.id).subscribe((list) => this.entries.set(list));
-        }
+        this.reloadBoardData();
         if (e.type === 'vote.updated' && e.data?.votesRemaining != null) {
           this.votesLeft.set(e.data.votesRemaining);
         }
@@ -623,6 +723,40 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
+  }
+
+  isOkr() {
+    const step = this.session()?.currentStep;
+    if (step?.type === 'input') return isOkrBoard(step);
+    return (this.session()?.steps || []).some((s: any) => s.type === 'input' && isOkrBoard(s));
+  }
+
+  linksToKr() {
+    const step = this.session()?.currentStep;
+    if (step?.type !== 'form') return false;
+    return formLinksToKr(step) || this.isOkr();
+  }
+
+  objectives() {
+    return this.boardEntries().filter((e) => e.kind === 'objective');
+  }
+
+  krsUnder(objectiveId: string) {
+    return this.boardEntries().filter((e) => e.kind === 'kr' && e.parentId === objectiveId);
+  }
+
+  parentLabel(entry: any): string | null {
+    if (!entry?.parentId) return null;
+    const parent = this.boardEntries().find((e) => e.id === entry.parentId) || this.entries().find((e) => e.id === entry.parentId);
+    return parent?.content ? `Objective: ${parent.content}` : null;
+  }
+
+  krChoices() {
+    const krs = this.boardEntries().filter((e) => e.kind === 'kr');
+    const tallies = new Map(this.voteTallies().map((t) => [t.entryId, t.votes]));
+    return [...krs].sort(
+      (a, b) => (tallies.get(b.id) || 0) - (tallies.get(a.id) || 0) || String(a.content).localeCompare(String(b.content))
+    );
   }
 
   statusLabel() {
@@ -648,15 +782,40 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   }
 
   private parseConfig(step: any) {
-    try {
-      return typeof step.config === 'string' ? JSON.parse(step.config) : step.config || {};
-    } catch {
-      return {};
-    }
+    return parseStepConfig(step);
   }
 
   countFor(groupId: string) {
     return this.myEntryCounts()[groupId] || 0;
+  }
+
+  private inputStepId(): string | null {
+    const steps = this.session()?.steps || [];
+    const input = steps.find((s: any) => s.type === 'input' && isOkrBoard(s)) || steps.find((s: any) => s.type === 'input');
+    return input?.id || null;
+  }
+
+  private reloadBoardData() {
+    const step = this.session()?.currentStep;
+    if (!step) return;
+    if (step.type === 'voting' || step.type === 'input') {
+      this.api.listEntries(this.id, step.id).subscribe((list) => this.entries.set(list));
+    }
+    const inputId = this.inputStepId();
+    if (inputId) {
+      this.api.listEntries(this.id, inputId).subscribe((list) => {
+        this.boardEntries.set(list);
+        if (this.isOkr() && !this.parentId && list.some((e) => e.kind === 'objective')) {
+          this.parentId = list.find((e) => e.kind === 'objective')!.id;
+        }
+      });
+    }
+    if (step.type === 'form' || step.type === 'voting') {
+      const voting = (this.session()?.steps || []).find((s: any) => s.type === 'voting');
+      if (voting) {
+        this.api.tallyVotes(this.id, voting.id).subscribe((t) => this.voteTallies.set(t));
+      }
+    }
   }
 
   loadStepData() {
@@ -681,6 +840,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       const cfg = this.parseConfig(step);
       this.votesLeft.set(cfg.votesPerParticipant ?? 3);
     }
+    this.reloadBoardData();
   }
 
   answerPoll(optionId: string) {
@@ -707,6 +867,28 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     });
   }
 
+  submitKr() {
+    const text = this.content.trim();
+    const step = this.session()?.currentStep;
+    if (!text || !this.parentId || !step) return;
+    this.api
+      .submitEntry(this.id, {
+        stepId: step.id,
+        groupId: step.groups?.[0]?.id,
+        content: text,
+        parentId: this.parentId,
+        kind: 'kr'
+      })
+      .subscribe({
+        next: () => {
+          this.content = '';
+          this.msg.set('Key Result added');
+          this.reloadBoardData();
+        },
+        error: (e) => this.msg.set(e?.error?.message)
+      });
+  }
+
   vote(entryId: string) {
     this.api.castVote(this.id, entryId).subscribe({
       next: (r) => {
@@ -719,13 +901,22 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
 
   submitAction() {
     const owner = this.owner || this.displayName();
-    this.api.submitAction(this.id, { action: this.action, owner, dueDate: this.dueDate }).subscribe({
-      next: () => {
-        this.action = '';
-        this.done.set(true);
-        this.msg.set('Action saved');
-      },
-      error: (e) => this.msg.set(e?.error?.message)
-    });
+    const kr = this.krChoices().find((e) => e.id === this.sourceEntryId);
+    this.api
+      .submitAction(this.id, {
+        action: this.action,
+        owner,
+        dueDate: this.dueDate,
+        sourceEntryId: this.sourceEntryId || undefined,
+        sourceLabel: kr?.content
+      })
+      .subscribe({
+        next: () => {
+          this.action = '';
+          this.done.set(true);
+          this.msg.set('Action saved');
+        },
+        error: (e) => this.msg.set(e?.error?.message)
+      });
   }
 }

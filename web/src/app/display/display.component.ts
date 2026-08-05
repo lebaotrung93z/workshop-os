@@ -7,6 +7,7 @@ import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { buildJoinUrl } from '../core/join-url';
+import { buildOkrTree, isOkrBoard } from '../core/okr.util';
 
 @Component({
   selector: 'app-display',
@@ -55,7 +56,60 @@ import { buildJoinUrl } from '../core/join-url';
         </section>
       }
 
-      @if (!showJoinScreen() && session()?.currentStep?.type === 'input') {
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && isOkr()) {
+        <section class="tree-section">
+          <h2>{{ session()?.currentStep?.title }}</h2>
+          @if (objectives().length) {
+            <div class="okr-tree" role="tree">
+              <div class="tree-node tree-node--root" role="treeitem">
+                <div class="tree-pill tree-pill--root">{{ session()?.title || 'OKRs' }}</div>
+                <button
+                  type="button"
+                  class="tree-toggle"
+                  [attr.aria-expanded]="isOpen('__root__', objectives().length)"
+                  (click)="toggle('__root__')"
+                  [attr.aria-label]="isOpen('__root__', objectives().length) ? 'Collapse objectives' : 'Expand objectives'"
+                >
+                  {{ isOpen('__root__', objectives().length) ? '−' : '+' }}
+                </button>
+                @if (isOpen('__root__', objectives().length)) {
+                  <div class="tree-children" role="group">
+                    @for (obj of objectives(); track obj.id) {
+                      <div class="tree-node" role="treeitem">
+                        <div class="tree-pill tree-pill--objective">{{ obj.content }}</div>
+                        @if (obj.krs.length) {
+                          <button
+                            type="button"
+                            class="tree-toggle"
+                            [attr.aria-expanded]="isOpen(obj.id, obj.krs.length)"
+                            (click)="toggle(obj.id)"
+                            [attr.aria-label]="isOpen(obj.id, obj.krs.length) ? 'Collapse key results' : 'Expand key results'"
+                          >
+                            {{ isOpen(obj.id, obj.krs.length) ? '−' : '+' }}
+                          </button>
+                          @if (isOpen(obj.id, obj.krs.length)) {
+                            <div class="tree-children" role="group">
+                              @for (kr of obj.krs; track kr.id) {
+                                <div class="tree-node tree-node--leaf" role="treeitem">
+                                  <div class="tree-pill tree-pill--kr">{{ kr.content }}</div>
+                                </div>
+                              }
+                            </div>
+                          }
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          } @else {
+            <p class="muted">Waiting for Objectives…</p>
+          }
+        </section>
+      }
+
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && !isOkr()) {
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
           <div class="columns">
@@ -85,7 +139,7 @@ import { buildJoinUrl } from '../core/join-url';
 
       @if (!showJoinScreen() && session()?.currentStep?.type === 'voting') {
         <section>
-          <h2>Top issues</h2>
+          <h2>{{ isOkr() ? 'Top Key Results' : 'Top issues' }}</h2>
           <div class="vote-bars">
             @for (v of votes(); track v.entryId; let i = $index) {
               <div class="vote-row">
@@ -113,6 +167,9 @@ import { buildJoinUrl } from '../core/join-url';
             <div class="actions">
               @for (a of actions(); track a.id) {
                 <article class="action">
+                  @if (a.sourceLabel) {
+                    <span class="kr-tag">KR · {{ a.sourceLabel }}</span>
+                  }
                   <p>{{ a.action }}</p>
                   <div class="action__meta">
                     @if (a.owner) {
@@ -254,6 +311,159 @@ import { buildJoinUrl } from '../core/join-url';
       gap: 0.5rem;
     }
     .action__meta em { color: var(--wos-screen-muted); font-style: normal; margin-left: auto; }
+    .kr-tag { color: #93c5fd; display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.4rem; }
+
+    .okr-tree {
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+      padding: 1rem 0.5rem 2.5rem;
+      width: 100%;
+    }
+
+    .tree-node {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .tree-pill {
+      border-radius: 12px;
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      line-height: 1.35;
+      max-width: 280px;
+      min-width: 140px;
+      padding: 0.85rem 1.15rem;
+      text-align: center;
+      word-break: break-word;
+      z-index: 1;
+    }
+
+    /* Session / workshop root */
+    .tree-pill--root {
+      background: var(--wos-primary);
+      box-shadow: 0 8px 24px rgba(0, 86, 210, 0.4);
+      font-size: 1.2rem;
+      max-width: 360px;
+      min-width: 180px;
+      padding: 1rem 1.4rem;
+    }
+
+    /* Objectives */
+    .tree-pill--objective {
+      background: var(--wos-purple);
+      box-shadow: 0 8px 24px rgba(124, 77, 255, 0.4);
+    }
+
+    /* Key Results */
+    .tree-pill--kr {
+      background: var(--wos-success);
+      box-shadow: 0 6px 18px rgba(15, 157, 88, 0.35);
+      font-size: 0.98rem;
+      font-weight: 600;
+      max-width: 240px;
+    }
+
+    .tree-toggle {
+      align-items: center;
+      background: #0b1220;
+      border: 2px solid #94a3b8;
+      border-radius: 50%;
+      color: #e2e8f0;
+      cursor: pointer;
+      display: inline-flex;
+      font-size: 1.2rem;
+      font-weight: 700;
+      height: 1.75rem;
+      justify-content: center;
+      line-height: 1;
+      margin-top: 0.75rem;
+      padding: 0;
+      position: relative;
+      width: 1.75rem;
+      z-index: 2;
+    }
+    .tree-toggle::before {
+      background: #94a3b8;
+      bottom: 100%;
+      content: '';
+      height: 0.75rem;
+      left: 50%;
+      position: absolute;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+    .tree-toggle:hover {
+      border-color: #fff;
+      color: #fff;
+    }
+
+    .tree-children {
+      --tree-gap: 1.75rem;
+      display: flex;
+      gap: var(--tree-gap);
+      justify-content: center;
+      margin-top: 0;
+      padding-top: 1.35rem;
+      position: relative;
+    }
+
+    /* Stem from toggle down to the sibling bar */
+    .tree-children::before {
+      background: #94a3b8;
+      content: '';
+      height: 1.35rem;
+      left: 50%;
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+
+    .tree-children > .tree-node {
+      padding-top: 1.1rem;
+    }
+
+    /* Drop from bar into each child */
+    .tree-children > .tree-node::before {
+      background: #94a3b8;
+      content: '';
+      height: 1.1rem;
+      left: 50%;
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+
+    /* Sibling horizontal connectors */
+    .tree-children > .tree-node:not(:only-child)::after {
+      background: #94a3b8;
+      content: '';
+      height: 2px;
+      position: absolute;
+      top: 0;
+    }
+    .tree-children > .tree-node:first-child:not(:only-child)::after {
+      left: 50%;
+      width: calc(50% + var(--tree-gap) / 2);
+    }
+    .tree-children > .tree-node:last-child:not(:only-child)::after {
+      left: auto;
+      right: 50%;
+      width: calc(50% + var(--tree-gap) / 2);
+    }
+    .tree-children > .tree-node:not(:first-child):not(:last-child)::after {
+      left: calc(var(--tree-gap) / -2);
+      width: calc(100% + var(--tree-gap));
+    }
+
+    .tree-section {
+      overflow-x: auto;
+    }
 
     .insights { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
     .insights li { align-items: start; display: flex; font-size: 1.25rem; gap: 0.65rem; }
@@ -274,6 +484,8 @@ import { buildJoinUrl } from '../core/join-url';
 
     @media (max-width: 900px) {
       .columns, .split { grid-template-columns: 1fr; }
+      .tree-children { --tree-gap: 1rem; flex-wrap: wrap; }
+      .tree-pill { max-width: 220px; }
     }
   `
 })
@@ -293,6 +505,34 @@ export class DisplayComponent implements OnInit, OnDestroy {
   votes = signal<any[]>([]);
   actions = signal<any[]>([]);
   summary = signal<any>(null);
+  expanded = signal<Record<string, boolean>>({});
+
+  isOkr() {
+    const step = this.session()?.currentStep;
+    if (step?.type === 'input') return isOkrBoard(step);
+    return (this.session()?.steps || []).some((s: any) => s.type === 'input' && isOkrBoard(s));
+  }
+
+  objectives() {
+    return buildOkrTree(this.entries(), this.actions());
+  }
+
+  isOpen(id: string, childCount: number) {
+    const map = this.expanded();
+    if (id in map) return map[id];
+    // Root starts expanded; deep KR branches collapse when crowded.
+    if (id === '__root__') return true;
+    return childCount < 4;
+  }
+
+  toggle(id: string) {
+    const childCount =
+      id === '__root__'
+        ? this.objectives().length
+        : this.objectives().find((o) => o.id === id)?.krs.length || 0;
+    const open = this.isOpen(id, childCount);
+    this.expanded.update((m) => ({ ...m, [id]: !open }));
+  }
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('sessionId') || '';

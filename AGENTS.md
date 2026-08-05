@@ -39,6 +39,10 @@ npx -y firebase-tools@latest deploy --only firestore:rules --project workshop-os
 
 `app-bosch-avatar` falls back to **2-letter initials** from the display name when no photo is set. Rosters use `listParticipants()` against the session’s Firestore `participants` subcollection.
 
+### OKR linked board
+
+OKR sessions use `boardMode: 'okr'`: host adds Objectives, participants submit KRs with `parentId`, voting is KR-only, and the form step links actions via `sourceEntryId`. Helpers live in `web/src/app/core/okr.util.ts`. Seeded templates refresh when `seedRevision` bumps in `ensureTemplates()`.
+
 ### UI theme (mockup)
 
 Visual language follows the hybrid mockup (not strict Bosch square/`#007bc0` defaults): primary `#0056D2`, ~8px radii, Inter, dark host sidebar, dark big-screen display, green/red/blue input columns. Tokens live in `web/src/styles/_workshop-theme.scss` and map onto existing `--bosch-*` CSS variables so `bosch-*` components pick up the mockup look.

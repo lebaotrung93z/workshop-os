@@ -1,12 +1,14 @@
 import { Component, Input, OnChanges, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../../bosch-ui/bosch-button/bosch-button.component';
 import { BoschAvatarComponent } from '../../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../../core/api.service';
+import { buildOkrTree, isOkrBoard } from '../../core/okr.util';
 
 @Component({
   selector: 'app-activity-host-panel',
   standalone: true,
-  imports: [BoschButtonComponent, BoschAvatarComponent],
+  imports: [FormsModule, BoschButtonComponent, BoschAvatarComponent],
   template: `
     <div class="panel">
       @if (session?.currentStep?.type === 'poll') {
@@ -22,7 +24,50 @@ import { ApiService } from '../../core/api.service';
         </div>
       }
 
-      @if (session?.currentStep?.type === 'input') {
+      @if (session?.currentStep?.type === 'input' && isOkr()) {
+        <div class="okr-head">
+          <h3>OKR board</h3>
+          <span>{{ objectives().length }} objectives</span>
+        </div>
+        <div class="add-obj">
+          <input [(ngModel)]="newObjective" placeholder="Add an Objective…" (keyup.enter)="addObjective()" />
+          <app-bosch-button [disabled]="!newObjective.trim() || busy()" (click)="addObjective()">Add Objective</app-bosch-button>
+        </div>
+        <div class="okr-grid">
+          @for (obj of objectives(); track obj.id) {
+            <article class="obj-card">
+              <header>
+                <div>
+                  <strong>{{ obj.content }}</strong>
+                  <span class="count">{{ obj.krs.length }} key results</span>
+                </div>
+                <div class="obj-actions">
+                  <button type="button" class="link" (click)="toggle(obj.id)">
+                    {{ isOpen(obj.id, obj.krs.length) ? 'Hide KRs' : 'Show KRs' }}
+                  </button>
+                  <button type="button" class="hide" (click)="hide(obj.id)">Hide</button>
+                </div>
+              </header>
+              @if (isOpen(obj.id, obj.krs.length)) {
+                <div class="kr-list">
+                  @for (kr of obj.krs; track kr.id) {
+                    <div class="kr">
+                      <p>{{ kr.content }}</p>
+                      <button type="button" class="hide" (click)="hide(kr.id)">Hide</button>
+                    </div>
+                  } @empty {
+                    <p class="empty">No Key Results yet</p>
+                  }
+                </div>
+              }
+            </article>
+          } @empty {
+            <p class="empty">Add an Objective to start the board.</p>
+          }
+        </div>
+      }
+
+      @if (session?.currentStep?.type === 'input' && !isOkr()) {
         <h3>Live wall</h3>
         <div class="columns">
           @for (g of session?.currentStep?.groups || []; track g.id; let gi = $index) {
@@ -75,6 +120,9 @@ import { ApiService } from '../../core/api.service';
         <div class="actions">
           @for (a of actions(); track a.id) {
             <article class="action">
+              @if (a.sourceLabel) {
+                <span class="kr-tag">KR · {{ a.sourceLabel }}</span>
+              }
               <p>{{ a.action }}</p>
               <div class="action__meta">
                 @if (a.owner) {
@@ -86,6 +134,8 @@ import { ApiService } from '../../core/api.service';
                 }
               </div>
             </article>
+          } @empty {
+            <p class="empty">No actions yet</p>
           }
         </div>
       }
@@ -114,10 +164,12 @@ import { ApiService } from '../../core/api.service';
     .note { background: #fff; border-radius: var(--wos-radius); box-shadow: var(--wos-shadow); display: grid; gap: 0.4rem; padding: 0.7rem; }
     .note__head { align-items: center; display: flex; font-size: 0.78rem; font-weight: 600; gap: 0.35rem; }
     .note p { margin: 0; }
-    .hide { background: transparent; border: 0; color: var(--wos-danger); cursor: pointer; font-size: 0.78rem; font-weight: 700; padding: 0; text-align: left; }
+    .hide, .link { background: transparent; border: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; padding: 0; }
+    .hide { color: var(--wos-danger); text-align: left; }
+    .link { color: var(--wos-primary); }
     .empty, .muted { color: var(--wos-text-muted); margin: 0; }
-    .vote-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: space-between; }
-    .vote-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
+    .vote-head, .okr-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: space-between; }
+    .vote-head span, .okr-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
     .rank { color: var(--wos-primary); font-weight: 800; }
     .vote-row__label { font-weight: 600; margin-bottom: 0.25rem; }
     .actions { display: grid; gap: 0.55rem; }
@@ -125,6 +177,18 @@ import { ApiService } from '../../core/api.service';
     .action p { font-weight: 600; margin: 0 0 0.45rem; }
     .action__meta { align-items: center; color: var(--wos-text-secondary); display: flex; gap: 0.4rem; }
     .action__meta em { color: var(--wos-text-muted); font-style: normal; margin-left: auto; }
+    .kr-tag { color: var(--wos-primary); display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.35rem; }
+    .add-obj { display: grid; gap: 0.5rem; grid-template-columns: 1fr auto; }
+    .add-obj input { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.7rem 0.8rem; }
+    .okr-grid { display: grid; gap: 0.75rem; }
+    .obj-card { background: var(--wos-primary-soft); border: 1px solid #c9dbff; border-radius: var(--wos-radius-lg); overflow: hidden; }
+    .obj-card > header { align-items: start; display: flex; gap: 0.75rem; justify-content: space-between; padding: 0.85rem 1rem; }
+    .obj-card strong { display: block; }
+    .count { color: var(--wos-text-muted); font-size: 0.78rem; font-weight: 600; }
+    .obj-actions { display: flex; flex-direction: column; gap: 0.35rem; align-items: end; }
+    .kr-list { background: #fff; display: grid; gap: 0.5rem; padding: 0.75rem 1rem 1rem; }
+    .kr { align-items: start; display: flex; gap: 0.75rem; justify-content: space-between; }
+    .kr p { margin: 0; }
   `
 })
 export class ActivityHostPanelComponent implements OnChanges {
@@ -136,6 +200,9 @@ export class ActivityHostPanelComponent implements OnChanges {
   poll = signal<any[]>([]);
   votes = signal<any[]>([]);
   actions = signal<any[]>([]);
+  expanded = signal<Record<string, boolean>>({});
+  newObjective = '';
+  busy = signal(false);
 
   ngOnChanges() {
     if (!this.session?.id) return;
@@ -146,8 +213,41 @@ export class ActivityHostPanelComponent implements OnChanges {
     this.api.listActions(this.session.id).subscribe((a) => this.actions.set(a));
   }
 
+  isOkr() {
+    return isOkrBoard(this.session?.currentStep);
+  }
+
+  objectives() {
+    return buildOkrTree(this.entries(), this.actions());
+  }
+
+  isOpen(id: string, krCount: number) {
+    const map = this.expanded();
+    if (id in map) return map[id];
+    return krCount < 4;
+  }
+
+  toggle(id: string) {
+    const open = this.isOpen(id, this.objectives().find((o) => o.id === id)?.krs.length || 0);
+    this.expanded.update((m) => ({ ...m, [id]: !open }));
+  }
+
+  addObjective() {
+    const content = this.newObjective.trim();
+    if (!content || !this.session?.id) return;
+    this.busy.set(true);
+    this.api.createHostObjective(this.session.id, { content }).subscribe({
+      next: () => {
+        this.newObjective = '';
+        this.busy.set(false);
+        this.ngOnChanges();
+      },
+      error: () => this.busy.set(false)
+    });
+  }
+
   entriesFor(groupId: string) {
-    return this.entries().filter((e) => e.groupId === groupId);
+    return this.entries().filter((e) => e.groupId === groupId && e.kind !== 'objective' && e.kind !== 'kr');
   }
 
   pct(count: number) {

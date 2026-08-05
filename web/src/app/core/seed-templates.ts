@@ -111,14 +111,14 @@ export const SEED_TEMPLATES = [
     ]
   },
   {
-    key: 'okr',
+    key: 'okr-linked',
     name: 'OKR Alignment',
-    description: 'Align objectives, key results, and dependencies.',
+    description: 'Define objectives, attach key results, vote, and commit actions per KR.',
     steps: [
       {
         type: 'welcome',
         title: 'Welcome',
-        instructions: 'OKR alignment kickoff.',
+        instructions: 'OKR alignment kickoff. Host will seed Objectives; the team adds Key Results.',
         config: {},
         groups: [],
         timerSeconds: null
@@ -139,16 +139,23 @@ export const SEED_TEMPLATES = [
       },
       {
         type: 'input',
-        title: 'OKR wall',
-        instructions: 'Add objectives, key results, and dependencies.',
-        config: { anonymous: false },
-        groups: [{ title: 'Objectives' }, { title: 'Key Results' }, { title: 'Dependencies' }],
+        title: 'OKR board',
+        instructions: 'Host adds Objectives. Participants attach Key Results under each Objective.',
+        config: {
+          anonymous: false,
+          boardMode: 'okr',
+          parentKind: 'objective',
+          childKind: 'kr',
+          parentLabel: 'Objective',
+          childLabel: 'Key Result'
+        },
+        groups: [{ title: 'Objectives' }],
         timerSeconds: 600
       },
       {
         type: 'voting',
-        title: 'Prioritize',
-        instructions: 'Vote on what matters most.',
+        title: 'Prioritize KRs',
+        instructions: 'Vote on the Key Results that matter most.',
         config: { votesPerParticipant: 3 },
         groups: [],
         timerSeconds: 300
@@ -156,8 +163,8 @@ export const SEED_TEMPLATES = [
       {
         type: 'form',
         title: 'Commitments',
-        instructions: 'Owners and due dates for next steps.',
-        config: {},
+        instructions: 'Pick a Key Result and define one action with owner and due date.',
+        config: { linkTo: 'kr', linkLabel: 'Key Result' },
         groups: [],
         timerSeconds: 300
       }

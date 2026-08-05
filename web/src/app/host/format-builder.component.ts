@@ -24,6 +24,8 @@ interface DraftStep {
   instructions: string;
   timerSeconds: number | null;
   anonymous: boolean;
+  linkedBoard: boolean;
+  linkActionToKr: boolean;
   votesPerParticipant: number;
   options: DraftOption[];
   groups: DraftGroup[];
@@ -57,8 +59,8 @@ interface DraftStep {
           <input [(ngModel)]="formatName" placeholder="Product discovery workshop" />
         </label>
         <label>
-          Description
-          <input [(ngModel)]="description" placeholder="Optional short description" />
+          Purpose
+          <input [(ngModel)]="description" placeholder="Why are we running this workshop?" />
         </label>
         <label>
           Workshop title
@@ -131,16 +133,27 @@ interface DraftStep {
                     <input type="checkbox" [(ngModel)]="step.anonymous" />
                     Anonymous sticky notes
                   </label>
-                  <p class="sub-title">Columns</p>
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="step.linkedBoard" (ngModelChange)="onLinkedBoardToggle(step)" />
+                    Linked board (Objective → Key Result)
+                  </label>
+                  @if (step.linkedBoard) {
+                    <p class="hint">Host adds Objectives; participants attach Key Results under each one.</p>
+                  }
+                  <p class="sub-title">{{ step.linkedBoard ? 'Board' : 'Columns' }}</p>
                   @for (g of step.groups; track $index; let gi = $index) {
                     <div class="row">
-                      <input [(ngModel)]="g.title" placeholder="Column title" />
-                      <button type="button" class="icon-btn danger" (click)="removeGroup(step, gi)" aria-label="Remove column">
-                        <app-bosch-icon name="delete" />
-                      </button>
+                      <input [(ngModel)]="g.title" [placeholder]="step.linkedBoard ? 'Objectives' : 'Column title'" [disabled]="step.linkedBoard && gi === 0" />
+                      @if (!step.linkedBoard) {
+                        <button type="button" class="icon-btn danger" (click)="removeGroup(step, gi)" aria-label="Remove column">
+                          <app-bosch-icon name="delete" />
+                        </button>
+                      }
                     </div>
                   }
-                  <app-bosch-button variant="secondary" (click)="addGroup(step)">Add column</app-bosch-button>
+                  @if (!step.linkedBoard) {
+                    <app-bosch-button variant="secondary" (click)="addGroup(step)">Add column</app-bosch-button>
+                  }
                 </div>
               }
 
@@ -149,6 +162,16 @@ interface DraftStep {
                   Votes per participant
                   <input type="number" min="1" max="20" [(ngModel)]="step.votesPerParticipant" />
                 </label>
+              }
+
+              @if (step.type === 'form') {
+                <label class="check">
+                  <input type="checkbox" [(ngModel)]="step.linkActionToKr" />
+                  Link action to Key Result
+                </label>
+                @if (step.linkActionToKr) {
+                  <p class="hint">Participants pick a KR after voting, then define the action.</p>
+                }
               }
             </article>
           }
@@ -326,14 +349,42 @@ export class FormatBuilderComponent {
           .map((o) => ({ id: o.id || this.slug(o.label), label: o.label.trim() }))
       };
     } else if (step.type === 'input') {
-      base.config = { anonymous: !!step.anonymous };
-      base.groups = step.groups
-        .filter((g) => g.title.trim())
-        .map((g) => ({ title: g.title.trim() }));
+      if (step.linkedBoard) {
+        base.config = {
+          anonymous: !!step.anonymous,
+          boardMode: 'okr',
+          parentKind: 'objective',
+          childKind: 'kr',
+          parentLabel: 'Objective',
+          childLabel: 'Key Result'
+        };
+        base.groups = [{ title: step.groups[0]?.title?.trim() || 'Objectives' }];
+      } else {
+        base.config = { anonymous: !!step.anonymous };
+        base.groups = step.groups
+          .filter((g) => g.title.trim())
+          .map((g) => ({ title: g.title.trim() }));
+      }
     } else if (step.type === 'voting') {
       base.config = { votesPerParticipant: Number(step.votesPerParticipant) || 3 };
+    } else if (step.type === 'form') {
+      base.config = step.linkActionToKr
+        ? { linkTo: 'kr', linkLabel: 'Key Result' }
+        : {};
     }
     return base;
+  }
+
+  onLinkedBoardToggle(step: DraftStep) {
+    if (step.linkedBoard) {
+      step.groups = [{ title: 'Objectives' }];
+      step.anonymous = false;
+      if (!step.instructions.trim()) {
+        step.instructions = 'Host adds Objectives. Participants attach Key Results under each Objective.';
+      }
+    } else if (step.groups.length < 2) {
+      step.groups = [{ title: 'Column A' }, { title: 'Column B' }, { title: 'Column C' }];
+    }
   }
 
   private blankStep(type: StepType): DraftStep {
@@ -343,6 +394,8 @@ export class FormatBuilderComponent {
       instructions: '',
       timerSeconds: null,
       anonymous: true,
+      linkedBoard: false,
+      linkActionToKr: false,
       votesPerParticipant: 3,
       options: [
         { id: 'great', label: 'Great' },
