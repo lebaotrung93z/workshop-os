@@ -111,9 +111,9 @@ export const SEED_TEMPLATES = [
     ]
   },
   {
-    key: 'okr-linked',
-    name: 'OKR Alignment',
-    description: 'Define objectives, attach key results, vote, and commit actions per KR.',
+    key: 'okrs',
+    name: 'OKRs',
+    description: 'Host adds Objectives; team attaches Key Results, votes, then commits actions per KR.',
     steps: [
       {
         type: 'welcome',

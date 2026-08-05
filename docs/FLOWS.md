@@ -256,7 +256,7 @@ All three templates share the sequence: **welcome → poll → input → voting 
 | 4 | voting | Prioritize themes | 5 votes |
 | 5 | form | Commitments | |
 
-### OKR Alignment (`okr`)
+### OKRs (`okrs`)
 
 Linked Objective → Key Result → Action workflow:
 
