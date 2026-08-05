@@ -2,6 +2,8 @@
 
 Hybrid workshop facilitation (Host laptop · Participant mobile web · Big Screen).
 
+**Product flows:** [`docs/FLOWS.md`](docs/FLOWS.md).
+
 ## Stack (free)
 
 - **web/** — Angular 18 + Bosch UI + **Firebase Firestore** (Spark) + Anonymous-style host/join tokens
