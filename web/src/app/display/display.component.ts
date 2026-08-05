@@ -62,7 +62,7 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
           @if (objectives().length) {
             <div class="okr-tree" role="tree">
               <div class="tree-node tree-node--root" role="treeitem">
-                <div class="tree-pill">{{ session()?.title || 'OKRs' }}</div>
+                <div class="tree-pill tree-pill--root">{{ session()?.title || 'OKRs' }}</div>
                 <button
                   type="button"
                   class="tree-toggle"
@@ -76,7 +76,7 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
                   <div class="tree-children" role="group">
                     @for (obj of objectives(); track obj.id) {
                       <div class="tree-node" role="treeitem">
-                        <div class="tree-pill">{{ obj.content }}</div>
+                        <div class="tree-pill tree-pill--objective">{{ obj.content }}</div>
                         @if (obj.krs.length) {
                           <button
                             type="button"
@@ -91,7 +91,7 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
                             <div class="tree-children" role="group">
                               @for (kr of obj.krs; track kr.id) {
                                 <div class="tree-node tree-node--leaf" role="treeitem">
-                                  <div class="tree-pill tree-pill--child">{{ kr.content }}</div>
+                                  <div class="tree-pill tree-pill--kr">{{ kr.content }}</div>
                                 </div>
                               }
                             </div>
@@ -329,9 +329,7 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
     }
 
     .tree-pill {
-      background: var(--wos-primary);
       border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0, 86, 210, 0.35);
       color: #fff;
       font-size: 1.05rem;
       font-weight: 700;
@@ -344,19 +342,29 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
       z-index: 1;
     }
 
-    .tree-pill--child {
-      background: color-mix(in srgb, var(--wos-primary) 78%, #020617);
-      box-shadow: 0 6px 18px rgba(0, 86, 210, 0.28);
-      font-size: 0.98rem;
-      font-weight: 600;
-      max-width: 240px;
-    }
-
-    .tree-node--root > .tree-pill {
+    /* Session / workshop root */
+    .tree-pill--root {
+      background: var(--wos-primary);
+      box-shadow: 0 8px 24px rgba(0, 86, 210, 0.4);
       font-size: 1.2rem;
       max-width: 360px;
       min-width: 180px;
       padding: 1rem 1.4rem;
+    }
+
+    /* Objectives */
+    .tree-pill--objective {
+      background: var(--wos-purple);
+      box-shadow: 0 8px 24px rgba(124, 77, 255, 0.4);
+    }
+
+    /* Key Results */
+    .tree-pill--kr {
+      background: var(--wos-success);
+      box-shadow: 0 6px 18px rgba(15, 157, 88, 0.35);
+      font-size: 0.98rem;
+      font-weight: 600;
+      max-width: 240px;
     }
 
     .tree-toggle {
