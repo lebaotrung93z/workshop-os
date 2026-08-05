@@ -110,20 +110,17 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../core/o
                                       @for (a of kr.actions; track a.id) {
                                         <div class="tree-node tree-node--leaf" role="treeitem">
                                           <div class="tree-pill tree-pill--action">
-                                            <span>{{ a.action }}</span>
-                                            @if (a.owner || a.dueDate) {
-                                              <small>
-                                                @if (a.owner) {
-                                                  {{ a.owner }}
-                                                }
-                                                @if (a.owner && a.dueDate) {
-                                                  ·
-                                                }
-                                                @if (a.dueDate) {
-                                                  {{ a.dueDate }}
-                                                }
-                                              </small>
-                                            }
+                                            <span class="action-title">{{ a.action }}</span>
+                                            <div class="action-meta">
+                                              <div>
+                                                <em>Owner</em>
+                                                <strong>{{ actionOwner(a) }}</strong>
+                                              </div>
+                                              <div>
+                                                <em>Due</em>
+                                                <strong>{{ formatDue(a.dueDate) }}</strong>
+                                              </div>
+                                            </div>
                                           </div>
                                         </div>
                                       }
@@ -438,15 +435,42 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../core/o
       background: var(--wos-info);
       box-shadow: 0 6px 18px rgba(26, 115, 232, 0.35);
       display: grid;
-      gap: 0.25rem;
+      gap: 0.45rem;
       font-size: 0.92rem;
       font-weight: 600;
-      max-width: 220px;
+      max-width: 260px;
+      min-width: 180px;
+      text-align: left;
     }
-    .tree-pill--action small {
-      color: rgba(255, 255, 255, 0.85);
-      font-size: 0.78rem;
-      font-weight: 500;
+    .tree-pill--action .action-title {
+      display: block;
+      line-height: 1.3;
+      text-align: center;
+    }
+    .tree-pill--action .action-meta {
+      border-top: 1px solid rgba(255, 255, 255, 0.25);
+      display: grid;
+      gap: 0.3rem;
+      padding-top: 0.4rem;
+    }
+    .tree-pill--action .action-meta > div {
+      align-items: baseline;
+      display: flex;
+      gap: 0.4rem;
+      justify-content: space-between;
+    }
+    .tree-pill--action .action-meta em {
+      color: rgba(255, 255, 255, 0.75);
+      font-size: 0.72rem;
+      font-style: normal;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .tree-pill--action .action-meta strong {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-align: right;
     }
 
     .tree-pill--root.is-empty {
@@ -613,6 +637,19 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   rootLabel() {
     return String(this.session()?.treeRootLabel || '').trim();
+  }
+
+  actionOwner(a: any) {
+    return String(a?.owner || '').trim() || 'Unassigned';
+  }
+
+  formatDue(dueDate: string | null | undefined) {
+    const raw = String(dueDate || '').trim();
+    if (!raw) return 'No due date';
+    // HTML date input stores YYYY-MM-DD — show a clearer label.
+    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return raw;
   }
 
   objectives() {

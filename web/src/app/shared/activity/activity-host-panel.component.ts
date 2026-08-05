@@ -85,14 +85,17 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../cor
                                     @for (a of kr.actions; track a.id) {
                                       <div class="tree-node tree-node--leaf" role="treeitem">
                                         <div class="tree-pill tree-pill--action">
-                                          <span>{{ a.action }}</span>
-                                          @if (a.owner || a.dueDate) {
-                                            <small>
-                                              @if (a.owner) { {{ a.owner }} }
-                                              @if (a.owner && a.dueDate) { · }
-                                              @if (a.dueDate) { {{ a.dueDate }} }
-                                            </small>
-                                          }
+                                          <span class="action-title">{{ a.action }}</span>
+                                          <div class="action-meta">
+                                            <div>
+                                              <em>Owner</em>
+                                              <strong>{{ actionOwner(a) }}</strong>
+                                            </div>
+                                            <div>
+                                              <em>Due</em>
+                                              <strong>{{ formatDue(a.dueDate) }}</strong>
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                     }
@@ -258,9 +261,32 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../cor
       display: grid;
       font-size: 0.85rem;
       font-weight: 600;
-      gap: 0.2rem;
+      gap: 0.4rem;
+      max-width: 240px;
+      min-width: 170px;
+      text-align: left;
     }
-    .tree-pill--action small { color: rgba(255,255,255,0.9); font-size: 0.72rem; font-weight: 500; }
+    .tree-pill--action .action-title { display: block; text-align: center; }
+    .tree-pill--action .action-meta {
+      border-top: 1px solid rgba(255,255,255,0.25);
+      display: grid;
+      gap: 0.25rem;
+      padding-top: 0.35rem;
+    }
+    .tree-pill--action .action-meta > div {
+      align-items: baseline;
+      display: flex;
+      gap: 0.35rem;
+      justify-content: space-between;
+    }
+    .tree-pill--action .action-meta em {
+      color: rgba(255,255,255,0.8);
+      font-size: 0.68rem;
+      font-style: normal;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .tree-pill--action .action-meta strong { font-size: 0.78rem; font-weight: 700; text-align: right; }
     .hide-inline {
       background: rgba(0,0,0,0.18);
       border: 0;
@@ -389,6 +415,18 @@ export class ActivityHostPanelComponent implements OnChanges {
 
   rootLabel() {
     return String(this.session?.treeRootLabel || '').trim();
+  }
+
+  actionOwner(a: any) {
+    return String(a?.owner || '').trim() || 'Unassigned';
+  }
+
+  formatDue(dueDate: string | null | undefined) {
+    const raw = String(dueDate || '').trim();
+    if (!raw) return 'No due date';
+    const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return raw;
   }
 
   objectives() {
