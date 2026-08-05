@@ -15,6 +15,15 @@ export function isOkrBoard(step: any): boolean {
   return parseStepConfig(step).boardMode === 'okr';
 }
 
+/** True when any input step in the session is an OKR linked board. */
+export function sessionHasOkr(session: any): boolean {
+  return (session?.steps || []).some((s: any) => s.type === 'input' && isOkrBoard(s));
+}
+
+export function okrInputStep(session: any): any | null {
+  return (session?.steps || []).find((s: any) => s.type === 'input' && isOkrBoard(s)) || null;
+}
+
 export function formLinksToKr(step: any): boolean {
   return parseStepConfig(step).linkTo === 'kr';
 }

@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../../bosch-ui/bosch-button/bosch-button.component';
 import { BoschAvatarComponent } from '../../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../../core/api.service';
-import { buildOkrTree, isOkrBoard } from '../../core/okr.util';
+import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../core/okr.util';
 
 @Component({
   selector: 'app-activity-host-panel',
@@ -24,50 +24,97 @@ import { buildOkrTree, isOkrBoard } from '../../core/okr.util';
         </div>
       }
 
-      @if (session?.currentStep?.type === 'input' && isOkr()) {
+      @if (isOkrSession()) {
         <div class="okr-head">
-          <h3>OKR board</h3>
+          <h3>OKR workflow</h3>
           <span>{{ objectives().length }} objectives</span>
         </div>
-        <div class="add-obj">
-          <input [(ngModel)]="newObjective" placeholder="Add an Objective…" (keyup.enter)="addObjective()" />
-          <app-bosch-button [disabled]="!newObjective.trim() || busy()" (click)="addObjective()">Add Objective</app-bosch-button>
-        </div>
-        <div class="okr-grid">
-          @for (obj of objectives(); track obj.id) {
-            <article class="obj-card">
-              <header>
-                <div>
-                  <strong>{{ obj.content }}</strong>
-                  <span class="count">{{ obj.krs.length }} key results</span>
-                </div>
-                <div class="obj-actions">
-                  <button type="button" class="link" (click)="toggle(obj.id)">
-                    {{ isOpen(obj.id, obj.krs.length) ? 'Hide KRs' : 'Show KRs' }}
-                  </button>
-                  <button type="button" class="hide" (click)="hide(obj.id)">Hide</button>
-                </div>
-              </header>
-              @if (isOpen(obj.id, obj.krs.length)) {
-                <div class="kr-list">
-                  @for (kr of obj.krs; track kr.id) {
-                    <div class="kr">
-                      <p>{{ kr.content }}</p>
-                      <button type="button" class="hide" (click)="hide(kr.id)">Hide</button>
+        <label class="root-edit">
+          Tree theme (root)
+          <div class="root-edit__row">
+            <input
+              [(ngModel)]="treeRootDraft"
+              placeholder="Edit root theme…"
+              (keyup.enter)="saveTreeRoot()"
+            />
+            <app-bosch-button [disabled]="busy()" (click)="saveTreeRoot()">Save</app-bosch-button>
+          </div>
+        </label>
+        @if (session?.currentStep?.type === 'input') {
+          <div class="add-obj">
+            <input [(ngModel)]="newObjective" placeholder="Add an Objective…" (keyup.enter)="addObjective()" />
+            <app-bosch-button [disabled]="!newObjective.trim() || busy()" (click)="addObjective()">Add Objective</app-bosch-button>
+          </div>
+        }
+        <div class="okr-tree host-tree" role="tree">
+          <div class="tree-node tree-node--root" role="treeitem">
+            <div class="tree-pill tree-pill--root" [class.is-empty]="!rootLabel()">
+              {{ rootLabel() || 'Theme (edit above)' }}
+            </div>
+            @if (objectives().length) {
+              <button type="button" class="tree-toggle" (click)="toggle('__root__')">
+                {{ isOpen('__root__', objectives().length) ? '−' : '+' }}
+              </button>
+            }
+            @if (objectives().length && isOpen('__root__', objectives().length)) {
+              <div class="tree-children" role="group">
+                @for (obj of objectives(); track obj.id) {
+                  <div class="tree-node" role="treeitem">
+                    <div class="tree-pill tree-pill--objective">
+                      <span>{{ obj.content }}</span>
+                      <button type="button" class="hide-inline" (click)="hide(obj.id)">Hide</button>
                     </div>
-                  } @empty {
-                    <p class="empty">No Key Results yet</p>
-                  }
-                </div>
-              }
-            </article>
-          } @empty {
-            <p class="empty">Add an Objective to start the board.</p>
-          }
+                    @if (obj.krs.length) {
+                      <button type="button" class="tree-toggle" (click)="toggle(obj.id)">
+                        {{ isOpen(obj.id, obj.krs.length) ? '−' : '+' }}
+                      </button>
+                      @if (isOpen(obj.id, obj.krs.length)) {
+                        <div class="tree-children" role="group">
+                          @for (kr of obj.krs; track kr.id) {
+                            <div class="tree-node" role="treeitem">
+                              <div class="tree-pill tree-pill--kr">
+                                <span>{{ kr.content }}</span>
+                                <button type="button" class="hide-inline" (click)="hide(kr.id)">Hide</button>
+                              </div>
+                              @if (kr.actions.length) {
+                                <button type="button" class="tree-toggle" (click)="toggle('kr-' + kr.id)">
+                                  {{ isOpen('kr-' + kr.id, kr.actions.length) ? '−' : '+' }}
+                                </button>
+                                @if (isOpen('kr-' + kr.id, kr.actions.length)) {
+                                  <div class="tree-children" role="group">
+                                    @for (a of kr.actions; track a.id) {
+                                      <div class="tree-node tree-node--leaf" role="treeitem">
+                                        <div class="tree-pill tree-pill--action">
+                                          <span>{{ a.action }}</span>
+                                          @if (a.owner || a.dueDate) {
+                                            <small>
+                                              @if (a.owner) { {{ a.owner }} }
+                                              @if (a.owner && a.dueDate) { · }
+                                              @if (a.dueDate) { {{ a.dueDate }} }
+                                            </small>
+                                          }
+                                        </div>
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    }
+                  </div>
+                }
+              </div>
+            } @else {
+              <p class="empty tree-hint">Add an Objective to grow the tree.</p>
+            }
+          </div>
         </div>
       }
 
-      @if (session?.currentStep?.type === 'input' && !isOkr()) {
+      @if (session?.currentStep?.type === 'input' && !isOkrSession()) {
         <h3>Live wall</h3>
         <div class="columns">
           @for (g of session?.currentStep?.groups || []; track g.id; let gi = $index) {
@@ -115,7 +162,7 @@ import { buildOkrTree, isOkrBoard } from '../../core/okr.util';
         </div>
       }
 
-      @if (session?.currentStep?.type === 'form' || actions().length) {
+      @if (!isOkrSession() && (session?.currentStep?.type === 'form' || actions().length)) {
         <h3>Action plan</h3>
         <div class="actions">
           @for (a of actions(); track a.id) {
@@ -179,16 +226,131 @@ import { buildOkrTree, isOkrBoard } from '../../core/okr.util';
     .action__meta em { color: var(--wos-text-muted); font-style: normal; margin-left: auto; }
     .kr-tag { color: var(--wos-primary); display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.35rem; }
     .add-obj { display: grid; gap: 0.5rem; grid-template-columns: 1fr auto; }
-    .add-obj input { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.7rem 0.8rem; }
-    .okr-grid { display: grid; gap: 0.75rem; }
-    .obj-card { background: var(--wos-primary-soft); border: 1px solid #c9dbff; border-radius: var(--wos-radius-lg); overflow: hidden; }
-    .obj-card > header { align-items: start; display: flex; gap: 0.75rem; justify-content: space-between; padding: 0.85rem 1rem; }
-    .obj-card strong { display: block; }
-    .count { color: var(--wos-text-muted); font-size: 0.78rem; font-weight: 600; }
-    .obj-actions { display: flex; flex-direction: column; gap: 0.35rem; align-items: end; }
-    .kr-list { background: #fff; display: grid; gap: 0.5rem; padding: 0.75rem 1rem 1rem; }
-    .kr { align-items: start; display: flex; gap: 0.75rem; justify-content: space-between; }
-    .kr p { margin: 0; }
+    .add-obj input, .root-edit input {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      padding: 0.7rem 0.8rem;
+    }
+    .root-edit { display: grid; font-size: 0.85rem; font-weight: 700; gap: 0.4rem; }
+    .root-edit__row { display: grid; gap: 0.5rem; grid-template-columns: 1fr auto; }
+
+    .host-tree { overflow-x: auto; padding: 0.5rem 0 1rem; }
+    .tree-node { align-items: center; display: flex; flex-direction: column; position: relative; }
+    .tree-pill {
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.92rem;
+      font-weight: 700;
+      line-height: 1.3;
+      max-width: 220px;
+      min-width: 120px;
+      padding: 0.65rem 0.85rem;
+      text-align: center;
+      word-break: break-word;
+      z-index: 1;
+    }
+    .tree-pill--root { background: var(--wos-primary); box-shadow: 0 6px 16px rgba(0, 86, 210, 0.28); }
+    .tree-pill--root.is-empty { background: #94a3b8; font-style: italic; font-weight: 600; }
+    .tree-pill--objective { background: var(--wos-purple); position: relative; }
+    .tree-pill--kr { background: var(--wos-success); font-weight: 600; position: relative; }
+    .tree-pill--action {
+      background: var(--wos-info);
+      display: grid;
+      font-size: 0.85rem;
+      font-weight: 600;
+      gap: 0.2rem;
+    }
+    .tree-pill--action small { color: rgba(255,255,255,0.9); font-size: 0.72rem; font-weight: 500; }
+    .hide-inline {
+      background: rgba(0,0,0,0.18);
+      border: 0;
+      border-radius: 999px;
+      color: #fff;
+      cursor: pointer;
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      margin: 0.35rem auto 0;
+      padding: 0.15rem 0.45rem;
+    }
+    .tree-toggle {
+      align-items: center;
+      background: #fff;
+      border: 2px solid #94a3b8;
+      border-radius: 50%;
+      color: #334155;
+      cursor: pointer;
+      display: inline-flex;
+      font-size: 1rem;
+      font-weight: 700;
+      height: 1.5rem;
+      justify-content: center;
+      margin-top: 0.55rem;
+      padding: 0;
+      position: relative;
+      width: 1.5rem;
+      z-index: 2;
+    }
+    .tree-toggle::before {
+      background: #94a3b8;
+      bottom: 100%;
+      content: '';
+      height: 0.55rem;
+      left: 50%;
+      position: absolute;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+    .tree-children {
+      --tree-gap: 1rem;
+      display: flex;
+      gap: var(--tree-gap);
+      justify-content: center;
+      padding-top: 1.1rem;
+      position: relative;
+    }
+    .tree-children::before {
+      background: #94a3b8;
+      content: '';
+      height: 1.1rem;
+      left: 50%;
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+    .tree-children > .tree-node { padding-top: 0.9rem; }
+    .tree-children > .tree-node::before {
+      background: #94a3b8;
+      content: '';
+      height: 0.9rem;
+      left: 50%;
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+    .tree-children > .tree-node:not(:only-child)::after {
+      background: #94a3b8;
+      content: '';
+      height: 2px;
+      position: absolute;
+      top: 0;
+    }
+    .tree-children > .tree-node:first-child:not(:only-child)::after {
+      left: 50%;
+      width: calc(50% + var(--tree-gap) / 2);
+    }
+    .tree-children > .tree-node:last-child:not(:only-child)::after {
+      left: auto;
+      right: 50%;
+      width: calc(50% + var(--tree-gap) / 2);
+    }
+    .tree-children > .tree-node:not(:first-child):not(:last-child)::after {
+      left: calc(var(--tree-gap) / -2);
+      width: calc(100% + var(--tree-gap));
+    }
+    .tree-hint { margin-top: 0.75rem; text-align: center; }
   `
 })
 export class ActivityHostPanelComponent implements OnChanges {
@@ -202,12 +364,16 @@ export class ActivityHostPanelComponent implements OnChanges {
   actions = signal<any[]>([]);
   expanded = signal<Record<string, boolean>>({});
   newObjective = '';
+  treeRootDraft = '';
   busy = signal(false);
 
   ngOnChanges() {
     if (!this.session?.id) return;
     const stepId = this.session.currentStepId;
-    this.api.listEntries(this.session.id, stepId).subscribe((e) => this.entries.set(e));
+    const okrStep = okrInputStep(this.session);
+    const entryStepId = this.isOkrSession() && okrStep ? okrStep.id : stepId;
+    this.treeRootDraft = String(this.session.treeRootLabel || '');
+    this.api.listEntries(this.session.id, entryStepId).subscribe((e) => this.entries.set(e));
     this.api.pollTally(this.session.id, stepId).subscribe((p) => this.poll.set(p));
     this.api.tallyVotes(this.session.id, stepId).subscribe((v) => this.votes.set(v));
     this.api.listActions(this.session.id).subscribe((a) => this.actions.set(a));
@@ -217,19 +383,56 @@ export class ActivityHostPanelComponent implements OnChanges {
     return isOkrBoard(this.session?.currentStep);
   }
 
+  isOkrSession() {
+    return sessionHasOkr(this.session);
+  }
+
+  rootLabel() {
+    return String(this.session?.treeRootLabel || '').trim();
+  }
+
   objectives() {
     return buildOkrTree(this.entries(), this.actions());
   }
 
-  isOpen(id: string, krCount: number) {
+  isOpen(id: string, childCount: number) {
     const map = this.expanded();
     if (id in map) return map[id];
-    return krCount < 4;
+    if (id === '__root__') return true;
+    return childCount < 6;
   }
 
   toggle(id: string) {
-    const open = this.isOpen(id, this.objectives().find((o) => o.id === id)?.krs.length || 0);
+    let childCount = 0;
+    if (id === '__root__') {
+      childCount = this.objectives().length;
+    } else if (id.startsWith('kr-')) {
+      const krId = id.slice(3);
+      for (const obj of this.objectives()) {
+        const kr = obj.krs.find((k: any) => k.id === krId);
+        if (kr) {
+          childCount = kr.actions.length;
+          break;
+        }
+      }
+    } else {
+      childCount = this.objectives().find((o) => o.id === id)?.krs.length || 0;
+    }
+    const open = this.isOpen(id, childCount);
     this.expanded.update((m) => ({ ...m, [id]: !open }));
+  }
+
+  saveTreeRoot() {
+    if (!this.session?.id) return;
+    this.busy.set(true);
+    this.api.updateTreeRootLabel(this.session.id, this.treeRootDraft).subscribe({
+      next: (s) => {
+        this.session = { ...this.session, ...s };
+        this.treeRootDraft = String(s.treeRootLabel || '');
+        this.busy.set(false);
+      },
+      error: () => this.busy.set(false)
+    });
   }
 
   addObjective() {

@@ -244,6 +244,7 @@ export class ApiService {
         const session = {
           code,
           title: title?.trim() || tpl.name,
+          treeRootLabel: '',
           status: 'LOBBY',
           hostToken,
           hostUid: hostToken.slice(0, 32),
@@ -446,6 +447,19 @@ export class ApiService {
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'End failed' } }));
+    });
+  }
+
+  /** Host-editable label for the OKR tree root node (theme / focus). */
+  updateTreeRootLabel(id: string, label: string): Observable<any> {
+    return new Observable((sub) => {
+      this.hostUpdate(id, { treeRootLabel: label.trim() })
+        .then(() => this.snapSession(id))
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Update failed' } }));
     });
   }
 

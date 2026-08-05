@@ -7,7 +7,7 @@ import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { buildJoinUrl } from '../core/join-url';
-import { buildOkrTree, isOkrBoard } from '../core/okr.util';
+import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../core/okr.util';
 
 @Component({
   selector: 'app-display',
@@ -56,13 +56,15 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
         </section>
       }
 
-      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && isOkr()) {
+      @if (!showJoinScreen() && isOkrSession()) {
         <section class="tree-section">
-          <h2>{{ session()?.currentStep?.title }}</h2>
-          @if (objectives().length) {
-            <div class="okr-tree" role="tree">
-              <div class="tree-node tree-node--root" role="treeitem">
-                <div class="tree-pill tree-pill--root">{{ session()?.title || 'OKRs' }}</div>
+          <h2>OKR workflow</h2>
+          <div class="okr-tree" role="tree">
+            <div class="tree-node tree-node--root" role="treeitem">
+              <div class="tree-pill tree-pill--root" [class.is-empty]="!rootLabel()">
+                {{ rootLabel() || 'Theme (set by host)' }}
+              </div>
+              @if (objectives().length) {
                 <button
                   type="button"
                   class="tree-toggle"
@@ -72,44 +74,79 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
                 >
                   {{ isOpen('__root__', objectives().length) ? '−' : '+' }}
                 </button>
-                @if (isOpen('__root__', objectives().length)) {
-                  <div class="tree-children" role="group">
-                    @for (obj of objectives(); track obj.id) {
-                      <div class="tree-node" role="treeitem">
-                        <div class="tree-pill tree-pill--objective">{{ obj.content }}</div>
-                        @if (obj.krs.length) {
-                          <button
-                            type="button"
-                            class="tree-toggle"
-                            [attr.aria-expanded]="isOpen(obj.id, obj.krs.length)"
-                            (click)="toggle(obj.id)"
-                            [attr.aria-label]="isOpen(obj.id, obj.krs.length) ? 'Collapse key results' : 'Expand key results'"
-                          >
-                            {{ isOpen(obj.id, obj.krs.length) ? '−' : '+' }}
-                          </button>
-                          @if (isOpen(obj.id, obj.krs.length)) {
-                            <div class="tree-children" role="group">
-                              @for (kr of obj.krs; track kr.id) {
-                                <div class="tree-node tree-node--leaf" role="treeitem">
-                                  <div class="tree-pill tree-pill--kr">{{ kr.content }}</div>
-                                </div>
-                              }
-                            </div>
-                          }
+              }
+              @if (objectives().length && isOpen('__root__', objectives().length)) {
+                <div class="tree-children" role="group">
+                  @for (obj of objectives(); track obj.id) {
+                    <div class="tree-node" role="treeitem">
+                      <div class="tree-pill tree-pill--objective">{{ obj.content }}</div>
+                      @if (obj.krs.length) {
+                        <button
+                          type="button"
+                          class="tree-toggle"
+                          [attr.aria-expanded]="isOpen(obj.id, obj.krs.length)"
+                          (click)="toggle(obj.id)"
+                          [attr.aria-label]="isOpen(obj.id, obj.krs.length) ? 'Collapse key results' : 'Expand key results'"
+                        >
+                          {{ isOpen(obj.id, obj.krs.length) ? '−' : '+' }}
+                        </button>
+                        @if (isOpen(obj.id, obj.krs.length)) {
+                          <div class="tree-children" role="group">
+                            @for (kr of obj.krs; track kr.id) {
+                              <div class="tree-node" role="treeitem">
+                                <div class="tree-pill tree-pill--kr">{{ kr.content }}</div>
+                                @if (kr.actions.length) {
+                                  <button
+                                    type="button"
+                                    class="tree-toggle"
+                                    [attr.aria-expanded]="isOpen('kr-' + kr.id, kr.actions.length)"
+                                    (click)="toggle('kr-' + kr.id)"
+                                    [attr.aria-label]="isOpen('kr-' + kr.id, kr.actions.length) ? 'Collapse actions' : 'Expand actions'"
+                                  >
+                                    {{ isOpen('kr-' + kr.id, kr.actions.length) ? '−' : '+' }}
+                                  </button>
+                                  @if (isOpen('kr-' + kr.id, kr.actions.length)) {
+                                    <div class="tree-children" role="group">
+                                      @for (a of kr.actions; track a.id) {
+                                        <div class="tree-node tree-node--leaf" role="treeitem">
+                                          <div class="tree-pill tree-pill--action">
+                                            <span>{{ a.action }}</span>
+                                            @if (a.owner || a.dueDate) {
+                                              <small>
+                                                @if (a.owner) {
+                                                  {{ a.owner }}
+                                                }
+                                                @if (a.owner && a.dueDate) {
+                                                  ·
+                                                }
+                                                @if (a.dueDate) {
+                                                  {{ a.dueDate }}
+                                                }
+                                              </small>
+                                            }
+                                          </div>
+                                        </div>
+                                      }
+                                    </div>
+                                  }
+                                }
+                              </div>
+                            }
+                          </div>
                         }
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
+                      }
+                    </div>
+                  }
+                </div>
+              } @else if (!objectives().length) {
+                <p class="muted tree-hint">Waiting for Objectives…</p>
+              }
             </div>
-          } @else {
-            <p class="muted">Waiting for Objectives…</p>
-          }
+          </div>
         </section>
       }
 
-      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && !isOkr()) {
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && !isOkrSession()) {
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
           <div class="columns">
@@ -137,9 +174,9 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
         </section>
       }
 
-      @if (!showJoinScreen() && session()?.currentStep?.type === 'voting') {
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'voting' && !isOkrSession()) {
         <section>
-          <h2>{{ isOkr() ? 'Top Key Results' : 'Top issues' }}</h2>
+          <h2>Top issues</h2>
           <div class="vote-bars">
             @for (v of votes(); track v.entryId; let i = $index) {
               <div class="vote-row">
@@ -160,7 +197,25 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
         </section>
       }
 
-      @if (!showJoinScreen() && (session()?.currentStep?.type === 'form' || summary())) {
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'voting' && isOkrSession()) {
+        <section class="vote-compact">
+          <h2>Prioritize KRs</h2>
+          <div class="vote-bars">
+            @for (v of votes(); track v.entryId; let i = $index) {
+              <div class="vote-row">
+                <span class="rank">{{ i + 1 }}</span>
+                <div class="vote-row__body">
+                  <div class="vote-row__label">{{ v.content }}</div>
+                  <div class="track"><div class="fill" [style.width.%]="votePct(v.votes)"></div></div>
+                </div>
+                <strong>{{ v.votes }}</strong>
+              </div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (!showJoinScreen() && !isOkrSession() && (session()?.currentStep?.type === 'form' || summary())) {
         <section class="split">
           <div>
             <h2>Action plan</h2>
@@ -194,6 +249,17 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
               </ul>
             </div>
           }
+        </section>
+      }
+
+      @if (!showJoinScreen() && isOkrSession() && summary()?.insights) {
+        <section>
+          <h2>AI summary</h2>
+          <ul class="insights">
+            @for (i of summary()?.insights || []; track i) {
+              <li><span class="check">✓</span> {{ i }}</li>
+            }
+          </ul>
         </section>
       }
     </div>
@@ -367,6 +433,34 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
       max-width: 240px;
     }
 
+    /* Action plan leaves */
+    .tree-pill--action {
+      background: var(--wos-info);
+      box-shadow: 0 6px 18px rgba(26, 115, 232, 0.35);
+      display: grid;
+      gap: 0.25rem;
+      font-size: 0.92rem;
+      font-weight: 600;
+      max-width: 220px;
+    }
+    .tree-pill--action small {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+
+    .tree-pill--root.is-empty {
+      background: #334155;
+      box-shadow: none;
+      color: #cbd5e1;
+      font-style: italic;
+      font-weight: 600;
+    }
+
+    .tree-hint { margin-top: 0.75rem; text-align: center; }
+
+    .vote-compact { margin-top: 1.5rem; }
+
     .tree-toggle {
       align-items: center;
       background: #0b1220;
@@ -510,7 +604,15 @@ export class DisplayComponent implements OnInit, OnDestroy {
   isOkr() {
     const step = this.session()?.currentStep;
     if (step?.type === 'input') return isOkrBoard(step);
-    return (this.session()?.steps || []).some((s: any) => s.type === 'input' && isOkrBoard(s));
+    return sessionHasOkr(this.session());
+  }
+
+  isOkrSession() {
+    return sessionHasOkr(this.session());
+  }
+
+  rootLabel() {
+    return String(this.session()?.treeRootLabel || '').trim();
   }
 
   objectives() {
@@ -520,16 +622,27 @@ export class DisplayComponent implements OnInit, OnDestroy {
   isOpen(id: string, childCount: number) {
     const map = this.expanded();
     if (id in map) return map[id];
-    // Root starts expanded; deep KR branches collapse when crowded.
     if (id === '__root__') return true;
-    return childCount < 4;
+    // Keep workflow visible by default; collapse only very crowded branches.
+    return childCount < 6;
   }
 
   toggle(id: string) {
-    const childCount =
-      id === '__root__'
-        ? this.objectives().length
-        : this.objectives().find((o) => o.id === id)?.krs.length || 0;
+    let childCount = 0;
+    if (id === '__root__') {
+      childCount = this.objectives().length;
+    } else if (id.startsWith('kr-')) {
+      const krId = id.slice(3);
+      for (const obj of this.objectives()) {
+        const kr = obj.krs.find((k: any) => k.id === krId);
+        if (kr) {
+          childCount = kr.actions.length;
+          break;
+        }
+      }
+    } else {
+      childCount = this.objectives().find((o) => o.id === id)?.krs.length || 0;
+    }
     const open = this.isOpen(id, childCount);
     this.expanded.update((m) => ({ ...m, [id]: !open }));
   }
@@ -612,9 +725,12 @@ export class DisplayComponent implements OnInit, OnDestroy {
   }
 
   loadExtras() {
-    const stepId = this.session()?.currentStepId;
-    if (!this.session()?.id) return;
-    this.api.listEntries(this.id, stepId).subscribe((e) => this.entries.set(e));
+    const s = this.session();
+    if (!s?.id) return;
+    const stepId = s.currentStepId;
+    const okrStep = okrInputStep(s);
+    const entryStepId = this.isOkrSession() && okrStep ? okrStep.id : stepId;
+    this.api.listEntries(this.id, entryStepId).subscribe((e) => this.entries.set(e));
     this.api.pollTally(this.id, stepId).subscribe((p) => this.poll.set(p));
     this.api.tallyVotes(this.id, stepId).subscribe((v) => this.votes.set(v));
     this.api.listActions(this.id).subscribe((a) => this.actions.set(a));
