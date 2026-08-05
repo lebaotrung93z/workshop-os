@@ -7,6 +7,7 @@ import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { buildJoinUrl } from '../core/join-url';
+import { buildOkrTree, isOkrBoard } from '../core/okr.util';
 
 @Component({
   selector: 'app-display',
@@ -55,7 +56,39 @@ import { buildJoinUrl } from '../core/join-url';
         </section>
       }
 
-      @if (!showJoinScreen() && session()?.currentStep?.type === 'input') {
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && isOkr()) {
+        <section>
+          <h2>{{ session()?.currentStep?.title }}</h2>
+          <div class="okr-grid">
+            @for (obj of objectives(); track obj.id) {
+              <article class="obj-card">
+                <header>
+                  <div>
+                    <strong>{{ obj.content }}</strong>
+                    <span class="count">{{ obj.krs.length }} key results</span>
+                  </div>
+                  <button type="button" class="toggle" (click)="toggle(obj.id)">
+                    {{ isOpen(obj.id, obj.krs.length) ? 'Hide KRs' : 'Show KRs' }}
+                  </button>
+                </header>
+                @if (isOpen(obj.id, obj.krs.length)) {
+                  <div class="kr-list">
+                    @for (kr of obj.krs; track kr.id) {
+                      <div class="kr">{{ kr.content }}</div>
+                    } @empty {
+                      <p class="muted">No Key Results yet</p>
+                    }
+                  </div>
+                }
+              </article>
+            } @empty {
+              <p class="muted">Waiting for Objectives…</p>
+            }
+          </div>
+        </section>
+      }
+
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && !isOkr()) {
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
           <div class="columns">
@@ -85,7 +118,7 @@ import { buildJoinUrl } from '../core/join-url';
 
       @if (!showJoinScreen() && session()?.currentStep?.type === 'voting') {
         <section>
-          <h2>Top issues</h2>
+          <h2>{{ isOkr() ? 'Top Key Results' : 'Top issues' }}</h2>
           <div class="vote-bars">
             @for (v of votes(); track v.entryId; let i = $index) {
               <div class="vote-row">
@@ -113,6 +146,9 @@ import { buildJoinUrl } from '../core/join-url';
             <div class="actions">
               @for (a of actions(); track a.id) {
                 <article class="action">
+                  @if (a.sourceLabel) {
+                    <span class="kr-tag">KR · {{ a.sourceLabel }}</span>
+                  }
                   <p>{{ a.action }}</p>
                   <div class="action__meta">
                     @if (a.owner) {
@@ -254,6 +290,42 @@ import { buildJoinUrl } from '../core/join-url';
       gap: 0.5rem;
     }
     .action__meta em { color: var(--wos-screen-muted); font-style: normal; margin-left: auto; }
+    .kr-tag { color: #93c5fd; display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.4rem; }
+
+    .okr-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    .obj-card {
+      background: var(--wos-screen-surface);
+      border: 1px solid var(--wos-screen-border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .obj-card > header {
+      align-items: start;
+      display: flex;
+      gap: 1rem;
+      justify-content: space-between;
+      padding: 1rem 1.1rem;
+    }
+    .obj-card strong { display: block; font-size: 1.25rem; }
+    .count { color: var(--wos-screen-muted); font-size: 0.9rem; }
+    .toggle {
+      background: transparent;
+      border: 1px solid #334155;
+      border-radius: 999px;
+      color: #93c5fd;
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0.4rem 0.75rem;
+      white-space: nowrap;
+    }
+    .kr-list { border-top: 1px solid var(--wos-screen-border); display: grid; gap: 0.55rem; padding: 0.85rem 1.1rem 1.1rem; }
+    .kr {
+      background: #182338;
+      border: 1px solid var(--wos-screen-border);
+      border-radius: 10px;
+      font-size: 1.05rem;
+      padding: 0.75rem 0.85rem;
+    }
 
     .insights { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
     .insights li { align-items: start; display: flex; font-size: 1.25rem; gap: 0.65rem; }
@@ -293,6 +365,29 @@ export class DisplayComponent implements OnInit, OnDestroy {
   votes = signal<any[]>([]);
   actions = signal<any[]>([]);
   summary = signal<any>(null);
+  expanded = signal<Record<string, boolean>>({});
+
+  isOkr() {
+    const step = this.session()?.currentStep;
+    if (step?.type === 'input') return isOkrBoard(step);
+    return (this.session()?.steps || []).some((s: any) => s.type === 'input' && isOkrBoard(s));
+  }
+
+  objectives() {
+    return buildOkrTree(this.entries(), this.actions());
+  }
+
+  isOpen(id: string, krCount: number) {
+    const map = this.expanded();
+    if (id in map) return map[id];
+    return krCount < 4;
+  }
+
+  toggle(id: string) {
+    const obj = this.objectives().find((o) => o.id === id);
+    const open = this.isOpen(id, obj?.krs.length || 0);
+    this.expanded.update((m) => ({ ...m, [id]: !open }));
+  }
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('sessionId') || '';
