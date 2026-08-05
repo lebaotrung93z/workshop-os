@@ -248,6 +248,44 @@ export class ApiService {
     });
   }
 
+  listParticipants(id: string): Observable<{ id: string; displayName: string; createdAt?: string }[]> {
+    return new Observable((sub) => {
+      getDocs(query(collection(db, 'sessions', id, 'participants'), orderBy('createdAt')))
+        .then((snap) => {
+          sub.next(
+            snap.docs.map((d) => {
+              const data = d.data();
+              return {
+                id: d.id,
+                displayName: (data['displayName'] as string) || 'Participant',
+                createdAt: data['createdAt'] as string | undefined
+              };
+            })
+          );
+          sub.complete();
+        })
+        .catch(async () => {
+          // Fallback without orderBy if index missing
+          try {
+            const snap = await getDocs(collection(db, 'sessions', id, 'participants'));
+            sub.next(
+              snap.docs.map((d) => {
+                const data = d.data();
+                return {
+                  id: d.id,
+                  displayName: (data['displayName'] as string) || 'Participant',
+                  createdAt: data['createdAt'] as string | undefined
+                };
+              })
+            );
+            sub.complete();
+          } catch (e: any) {
+            sub.error({ error: { message: e?.message || 'Failed to list participants' } });
+          }
+        });
+    });
+  }
+
   join(code: string, displayName: string): Observable<any> {
     return new Observable((sub) => {
       (async () => {
@@ -267,7 +305,12 @@ export class ApiService {
         });
         const count = (sessionSnap.data()!['participantCount'] || 0) + 1;
         await updateDoc(sessionRef, { participantCount: count });
-        return { sessionId, participantId, joinToken };
+        return {
+          sessionId,
+          participantId,
+          joinToken,
+          displayName: displayName.trim()
+        };
       })()
         .then((r) => {
           sub.next(r);
@@ -361,12 +404,34 @@ export class ApiService {
 
   listEntries(id: string, stepId?: string): Observable<any[]> {
     return new Observable((sub) => {
-      let qy = query(collection(db, 'sessions', id, 'entries'), orderBy('createdAt'));
-      getDocs(qy)
-        .then((snap) => {
-          let rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-          rows = rows.filter((r: any) => !r.hidden);
-          if (stepId) rows = rows.filter((r: any) => r.stepId === stepId);
+      (async () => {
+        const [entrySnap, people] = await Promise.all([
+          getDocs(query(collection(db, 'sessions', id, 'entries'), orderBy('createdAt'))),
+          new Promise<Map<string, string>>((resolve) => {
+            this.listParticipants(id).subscribe({
+              next: (list) => {
+                const map = new Map<string, string>();
+                list.forEach((p) => map.set(p.id, p.displayName));
+                resolve(map);
+              },
+              error: () => resolve(new Map())
+            });
+          })
+        ]);
+        let rows = entrySnap.docs.map((d) => {
+          const data = d.data() as any;
+          const authorName =
+            data.authorName ||
+            (data.authorUid ? people.get(data.authorUid) : null) ||
+            (data.participantId ? people.get(data.participantId) : null) ||
+            null;
+          return { id: d.id, ...data, authorName };
+        });
+        rows = rows.filter((r: any) => !r.hidden);
+        if (stepId) rows = rows.filter((r: any) => r.stepId === stepId);
+        return rows;
+      })()
+        .then((rows) => {
           sub.next(rows);
           sub.complete();
         })
@@ -391,6 +456,7 @@ export class ApiService {
         }
         const participantId = this.participantId();
         const joinToken = this.joinToken();
+        const authorName = localStorage.getItem('wos_display_name') || '';
         const entryId = randomId();
         await setDoc(doc(db, 'sessions', id, 'entries', entryId), {
           stepId: body.stepId,
@@ -399,10 +465,11 @@ export class ApiService {
           participantId,
           joinToken,
           authorUid: participantId,
+          authorName: authorName || null,
           hidden: false,
           createdAt: nowIso()
         });
-        return { id: entryId };
+        return { id: entryId, authorName: authorName || null };
       })()
         .then((r) => {
           sub.next(r);

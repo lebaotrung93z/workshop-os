@@ -3,7 +3,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
 import { BoschCardComponent } from '../bosch-ui/bosch-card/bosch-card.component';
 import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
-import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.component';
+import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar-stack.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { Subscription } from 'rxjs';
@@ -19,30 +19,61 @@ import { buildJoinUrl } from '../core/join-url';
     BoschButtonComponent,
     BoschCardComponent,
     BoschLogoComponent,
-    BoschIconComponent,
+    BoschAvatarStackComponent,
     ActivityHostPanelComponent
   ],
   template: `
     <div class="page">
       <header class="top">
         <app-bosch-logo />
-        <div>
+        <div class="top__meta">
           <h1>{{ session()?.title || 'Live control' }}</h1>
-          <p>Code <strong>{{ session()?.code }}</strong> · {{ session()?.participantCount || 0 }} participants · {{ session()?.status }}</p>
+          <p>
+            Code <strong class="code">{{ session()?.code }}</strong>
+            · {{ session()?.status }}
+          </p>
         </div>
         <a class="display-link" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
       </header>
 
+      <section class="participants card-block">
+        <div class="participants__head">
+          <h2>{{ session()?.participantCount || 0 }} Participants</h2>
+          <app-bosch-avatar-stack [people]="participants()" [max]="7" size="md" />
+        </div>
+      </section>
+
+      <section class="steps card-block">
+        <h2>Session progress</h2>
+        <ol class="step-rail">
+          @for (s of session()?.steps || []; track s.id; let i = $index) {
+            <li
+              class="step"
+              [class.step--done]="s.status === 'DONE'"
+              [class.step--active]="s.status === 'ACTIVE'"
+              [class.step--pending]="s.status !== 'DONE' && s.status !== 'ACTIVE'"
+            >
+              <span class="step__num">{{ i + 1 }}</span>
+              <div class="step__body">
+                <strong>{{ s.title }}</strong>
+                <span class="step__type">{{ s.type }}</span>
+                <span class="step__status">{{ stepLabel(s) }}</span>
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+
       <div class="grid">
         <app-bosch-card title="Lobby / QR" subtitle="Share with participants">
           @if (qrDataUrl()) {
-            <img [src]="qrDataUrl()" alt="Join QR" width="180" height="180" />
+            <img class="qr" [src]="qrDataUrl()" alt="Join QR" width="180" height="180" />
           }
           <p class="join-url">{{ joinUrl }}</p>
         </app-bosch-card>
 
-        <app-bosch-card title="Step control" [subtitle]="session()?.currentStep?.title || 'Not started'">
-          <p>{{ session()?.currentStep?.instructions }}</p>
+        <app-bosch-card title="Live control" [subtitle]="session()?.currentStep?.title || 'Not started'">
+          <p class="instructions">{{ session()?.currentStep?.instructions || 'Start when everyone has joined.' }}</p>
           <div class="controls">
             @if (session()?.status === 'LOBBY') {
               <app-bosch-button icon="dashboard" (click)="start()">Start session</app-bosch-button>
@@ -61,7 +92,7 @@ import { buildJoinUrl } from '../core/join-url';
         </app-bosch-card>
       </div>
 
-      <app-activity-host-panel [session]="session()" />
+      <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
 
       @if (summary()) {
         <app-bosch-card title="AI summary" [subtitle]="summary()?.provider + ' / ' + summary()?.model">
@@ -81,16 +112,34 @@ import { buildJoinUrl } from '../core/join-url';
     </div>
   `,
   styles: `
-    .page { max-width: 1100px; margin: 0 auto; padding: 1.25rem; display: grid; gap: 1rem; }
-    .top { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-    .top h1 { margin: 0; font-size: 1.35rem; }
-    .top p { margin: 0.2rem 0 0; color: var(--bosch-text-muted); }
-    .display-link { margin-left: auto; color: var(--bosch-accent); font-weight: 700; }
-    .grid { display: grid; grid-template-columns: 260px 1fr; gap: 1rem; }
+    .page { display: grid; gap: 1rem; margin: 0 auto; max-width: 1100px; padding: 1.25rem; }
+    .top { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; }
+    .top__meta h1 { font-size: 1.35rem; margin: 0; }
+    .top__meta p { color: var(--bosch-text-muted); margin: 0.2rem 0 0; }
+    .code { color: var(--bosch-accent); letter-spacing: 0.08em; }
+    .display-link { color: var(--bosch-accent); font-weight: 700; margin-left: auto; }
+    .card-block { background: var(--bosch-surface); border: 1px solid var(--bosch-border); padding: 1rem 1.1rem; }
+    .card-block h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+    .participants__head { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
+    .participants__head h2 { margin: 0; }
+    .step-rail { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); list-style: none; margin: 0; padding: 0; }
+    .step { background: var(--bosch-bg-muted); border: 1px solid var(--bosch-border); border-left: 4px solid var(--bosch-gray-70); display: grid; gap: 0.65rem; grid-template-columns: auto 1fr; padding: 0.75rem; }
+    .step--done { border-left-color: var(--bosch-positive); }
+    .step--active { background: var(--bosch-accent-soft); border-left-color: var(--bosch-accent); }
+    .step__num { align-items: center; background: var(--bosch-surface); border: 1px solid var(--bosch-border-strong); display: inline-flex; font-size: 0.85rem; font-weight: 800; height: 1.75rem; justify-content: center; width: 1.75rem; }
+    .step--active .step__num { background: var(--bosch-accent); border-color: var(--bosch-accent); color: var(--bosch-on-accent); }
+    .step--done .step__num { background: var(--bosch-positive); border-color: var(--bosch-positive); color: var(--bosch-on-accent); }
+    .step__body { display: grid; gap: 0.15rem; }
+    .step__body strong { font-size: 0.92rem; }
+    .step__type, .step__status { color: var(--bosch-text-muted); font-size: 0.78rem; text-transform: capitalize; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: 260px 1fr; }
     @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    .qr { display: block; }
+    .join-url { color: var(--bosch-text-secondary); font-size: 0.85rem; word-break: break-all; }
+    .instructions { color: var(--bosch-text-secondary); margin: 0; }
     .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
-    .join-url { word-break: break-all; font-size: 0.85rem; color: var(--bosch-text-secondary); }
     .msg { color: var(--bosch-accent); }
+    h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; }
   `
 })
 export class HostLiveComponent implements OnInit, OnDestroy {
@@ -101,9 +150,11 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   id = '';
   session = signal<any>(null);
+  participants = signal<{ id: string; displayName: string }[]>([]);
   qrDataUrl = signal('');
   summary = signal<any>(null);
   message = signal('');
+  panelTick = signal(0);
   joinUrl = '';
 
   ngOnInit() {
@@ -112,12 +163,16 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.refresh();
     this.realtime.connect(this.id);
     this.sub = this.realtime.events$.subscribe((e) => {
-      if (e.type === 'step.changed' || e.type === 'session.ended' || e.type === 'participant.joined') {
-        if (e.type === 'step.changed' || e.type === 'session.ended') {
-          this.session.set(e.data);
-        } else {
-          this.refresh();
-        }
+      if (e.type === 'step.changed' || e.type === 'session.ended') {
+        this.session.set(e.data);
+        this.panelTick.update((n) => n + 1);
+      }
+      if (e.type === 'participant.joined') {
+        this.refreshParticipants();
+        this.refresh();
+      }
+      if (e.type === 'entry.created' || e.type === 'entry.hidden' || e.type === 'vote.updated' || e.type === 'action.created') {
+        this.panelTick.update((n) => n + 1);
       }
       if (e.type === 'summary.ready') {
         this.summary.set(e.data);
@@ -130,6 +185,12 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.realtime.disconnect();
   }
 
+  stepLabel(step: any): string {
+    if (step.status === 'DONE') return 'Completed';
+    if (step.status === 'ACTIVE') return 'In progress';
+    return 'Pending';
+  }
+
   refresh() {
     this.api.getHostSession(this.id).subscribe({
       next: (s) => {
@@ -138,12 +199,21 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         QRCode.toDataURL(this.joinUrl, { width: 180, margin: 1, errorCorrectionLevel: 'M' }).then((url) =>
           this.qrDataUrl.set(url)
         );
+        this.panelTick.update((n) => n + 1);
       }
     });
+    this.refreshParticipants();
     this.api.getSummary(this.id).subscribe({
       next: (s) => {
         if (s?.insights) this.summary.set(s);
       }
+    });
+  }
+
+  refreshParticipants() {
+    this.api.listParticipants(this.id).subscribe({
+      next: (list) => this.participants.set(list || []),
+      error: () => this.participants.set([])
     });
   }
 
@@ -170,8 +240,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     });
   }
   download(kind: 'xlsx' | 'pdf') {
-    const run =
-      kind === 'xlsx' ? this.api.exportCsv(this.id) : this.api.exportPdfText(this.id);
+    const run = kind === 'xlsx' ? this.api.exportCsv(this.id) : this.api.exportPdfText(this.id);
     run
       .then((blob) => {
         const a = document.createElement('a');
