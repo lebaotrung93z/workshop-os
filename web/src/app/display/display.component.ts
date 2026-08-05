@@ -34,9 +34,7 @@ import { RealtimeService } from '../core/realtime.service';
             <app-bosch-avatar-stack [people]="participants()" [max]="10" size="lg" />
           </div>
         </section>
-      }
-
-      @if (session()?.currentStep?.type === 'welcome') {
+      } @else if (session()?.currentStep?.type === 'welcome') {
         <section class="hero welcome">
           <h2>{{ session()?.currentStep?.title || 'Welcome!' }}</h2>
           <p class="lede">{{ session()?.currentStep?.instructions }}</p>
@@ -46,7 +44,7 @@ import { RealtimeService } from '../core/realtime.service';
         </section>
       }
 
-      @if (session()?.currentStep?.type === 'poll') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'poll') {
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
           <div class="bars">
@@ -61,7 +59,7 @@ import { RealtimeService } from '../core/realtime.service';
         </section>
       }
 
-      @if (session()?.currentStep?.type === 'input') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'input') {
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
           <div class="columns">
@@ -87,7 +85,7 @@ import { RealtimeService } from '../core/realtime.service';
         </section>
       }
 
-      @if (session()?.currentStep?.type === 'voting') {
+      @if (session()?.status !== 'LOBBY' && session()?.currentStep?.type === 'voting') {
         <section>
           <h2>Top issues (by votes)</h2>
           <div class="vote-bars">
@@ -105,7 +103,7 @@ import { RealtimeService } from '../core/realtime.service';
         </section>
       }
 
-      @if (session()?.currentStep?.type === 'form' || summary()) {
+      @if (session()?.status !== 'LOBBY' && (session()?.currentStep?.type === 'form' || summary())) {
         <section class="split">
           <div>
             <h2>Action plan</h2>

@@ -49,8 +49,8 @@ import { ActivityHostPanelComponent } from '../shared/activity/activity-host-pan
             <li
               class="step"
               [class.step--done]="s.status === 'DONE'"
-              [class.step--active]="s.status === 'ACTIVE' || s.id === session()?.currentStepId"
-              [class.step--pending]="s.status === 'PENDING'"
+              [class.step--active]="s.status === 'ACTIVE'"
+              [class.step--pending]="s.status !== 'DONE' && s.status !== 'ACTIVE'"
             >
               <span class="step__num">{{ i + 1 }}</span>
               <div class="step__body">
@@ -333,7 +333,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   stepLabel(step: any): string {
     if (step.status === 'DONE') return 'Completed';
-    if (step.status === 'ACTIVE' || step.id === this.session()?.currentStepId) return 'In progress';
+    if (step.status === 'ACTIVE') return 'In progress';
     return 'Pending';
   }
 

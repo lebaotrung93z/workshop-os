@@ -23,6 +23,16 @@ There is **no traditional login** (no users / passwords / OAuth / JWT). Access i
 
 Join codes are 6 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I/O/0/1).
 
+### Avatars
+
+When no photo is available, UI shows a circular Bosch avatar with **2-letter initials** from the display name (`Minh Hoang` → `MH`, single word → first two letters). Used on:
+
+- Join preview, participant header
+- Host / big-screen participant roster (`app-bosch-avatar-stack` with `+N` overflow)
+- Sticky notes, votes, and action owners (when not anonymous)
+
+Roster data comes from `GET /api/sessions/{id}/participants`.
+
 ---
 
 ## 2. Happy path (end-to-end)
@@ -284,6 +294,7 @@ Base: `/api`. Health: `GET /actuator/health`.
 | GET | `/sessions/{id}` | `X-Host-Token` | — | Full host view |
 | GET | `/sessions/by-code/{code}` | none | — | Public preview |
 | GET | `/sessions/{id}/display` | none | — | Display / participant view |
+| GET | `/sessions/{id}/participants` | none | — | `{ id, displayName }[]` for avatar roster |
 | POST | `/sessions/{code}/join` | none | `{ displayName }` | Returns `joinToken` |
 | POST | `/sessions/{id}/start` | `X-Host-Token` | `{}` | Start |
 | POST | `/sessions/{id}/advance` | `X-Host-Token` | `{}` | Next |
