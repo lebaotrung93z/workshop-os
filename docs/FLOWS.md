@@ -268,7 +268,7 @@ Linked Objective → Key Result → Action workflow:
 | 4 | voting | Prioritize KRs | 3 votes; **KRs only** |
 | 5 | form | Commitments | `linkTo: 'kr'`; action stores `sourceEntryId` + `sourceLabel` |
 
-**Big screen:** Objective cards with expand/collapse Key Results (collapsed when ≥ 4 KRs). Action plan shows each action tagged with its KR.
+**Big screen:** Top-down collapsible tree (session → Objectives → Key Results) with `+`/`−` toggles; nodes use brand `--wos-primary`. KR branches start collapsed when ≥ 4 KRs. Action plan shows each action tagged with its KR.
 
 **Format builder:** Purpose field + “Linked board (Objective → KR)” on input steps + “Link action to Key Result” on form steps.
 

@@ -57,34 +57,55 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
       }
 
       @if (!showJoinScreen() && session()?.currentStep?.type === 'input' && isOkr()) {
-        <section>
+        <section class="tree-section">
           <h2>{{ session()?.currentStep?.title }}</h2>
-          <div class="okr-grid">
-            @for (obj of objectives(); track obj.id) {
-              <article class="obj-card">
-                <header>
-                  <div>
-                    <strong>{{ obj.content }}</strong>
-                    <span class="count">{{ obj.krs.length }} key results</span>
-                  </div>
-                  <button type="button" class="toggle" (click)="toggle(obj.id)">
-                    {{ isOpen(obj.id, obj.krs.length) ? 'Hide KRs' : 'Show KRs' }}
-                  </button>
-                </header>
-                @if (isOpen(obj.id, obj.krs.length)) {
-                  <div class="kr-list">
-                    @for (kr of obj.krs; track kr.id) {
-                      <div class="kr">{{ kr.content }}</div>
-                    } @empty {
-                      <p class="muted">No Key Results yet</p>
+          @if (objectives().length) {
+            <div class="okr-tree" role="tree">
+              <div class="tree-node tree-node--root" role="treeitem">
+                <div class="tree-pill">{{ session()?.title || 'OKRs' }}</div>
+                <button
+                  type="button"
+                  class="tree-toggle"
+                  [attr.aria-expanded]="isOpen('__root__', objectives().length)"
+                  (click)="toggle('__root__')"
+                  [attr.aria-label]="isOpen('__root__', objectives().length) ? 'Collapse objectives' : 'Expand objectives'"
+                >
+                  {{ isOpen('__root__', objectives().length) ? '−' : '+' }}
+                </button>
+                @if (isOpen('__root__', objectives().length)) {
+                  <div class="tree-children" role="group">
+                    @for (obj of objectives(); track obj.id) {
+                      <div class="tree-node" role="treeitem">
+                        <div class="tree-pill">{{ obj.content }}</div>
+                        @if (obj.krs.length) {
+                          <button
+                            type="button"
+                            class="tree-toggle"
+                            [attr.aria-expanded]="isOpen(obj.id, obj.krs.length)"
+                            (click)="toggle(obj.id)"
+                            [attr.aria-label]="isOpen(obj.id, obj.krs.length) ? 'Collapse key results' : 'Expand key results'"
+                          >
+                            {{ isOpen(obj.id, obj.krs.length) ? '−' : '+' }}
+                          </button>
+                          @if (isOpen(obj.id, obj.krs.length)) {
+                            <div class="tree-children" role="group">
+                              @for (kr of obj.krs; track kr.id) {
+                                <div class="tree-node tree-node--leaf" role="treeitem">
+                                  <div class="tree-pill tree-pill--child">{{ kr.content }}</div>
+                                </div>
+                              }
+                            </div>
+                          }
+                        }
+                      </div>
                     }
                   </div>
                 }
-              </article>
-            } @empty {
-              <p class="muted">Waiting for Objectives…</p>
-            }
-          </div>
+              </div>
+            </div>
+          } @else {
+            <p class="muted">Waiting for Objectives…</p>
+          }
         </section>
       }
 
@@ -292,39 +313,148 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
     .action__meta em { color: var(--wos-screen-muted); font-style: normal; margin-left: auto; }
     .kr-tag { color: #93c5fd; display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.4rem; }
 
-    .okr-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .obj-card {
-      background: var(--wos-screen-surface);
-      border: 1px solid var(--wos-screen-border);
-      border-radius: 16px;
-      overflow: hidden;
-    }
-    .obj-card > header {
-      align-items: start;
+    .okr-tree {
       display: flex;
-      gap: 1rem;
-      justify-content: space-between;
-      padding: 1rem 1.1rem;
+      justify-content: center;
+      overflow-x: auto;
+      padding: 1rem 0.5rem 2.5rem;
+      width: 100%;
     }
-    .obj-card strong { display: block; font-size: 1.25rem; }
-    .count { color: var(--wos-screen-muted); font-size: 0.9rem; }
-    .toggle {
-      background: transparent;
-      border: 1px solid #334155;
-      border-radius: 999px;
-      color: #93c5fd;
-      cursor: pointer;
-      font-weight: 700;
-      padding: 0.4rem 0.75rem;
-      white-space: nowrap;
+
+    .tree-node {
+      align-items: center;
+      display: flex;
+      flex-direction: column;
+      position: relative;
     }
-    .kr-list { border-top: 1px solid var(--wos-screen-border); display: grid; gap: 0.55rem; padding: 0.85rem 1.1rem 1.1rem; }
-    .kr {
-      background: #182338;
-      border: 1px solid var(--wos-screen-border);
-      border-radius: 10px;
+
+    .tree-pill {
+      background: var(--wos-primary);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 86, 210, 0.35);
+      color: #fff;
       font-size: 1.05rem;
-      padding: 0.75rem 0.85rem;
+      font-weight: 700;
+      line-height: 1.35;
+      max-width: 280px;
+      min-width: 140px;
+      padding: 0.85rem 1.15rem;
+      text-align: center;
+      word-break: break-word;
+      z-index: 1;
+    }
+
+    .tree-pill--child {
+      background: color-mix(in srgb, var(--wos-primary) 78%, #020617);
+      box-shadow: 0 6px 18px rgba(0, 86, 210, 0.28);
+      font-size: 0.98rem;
+      font-weight: 600;
+      max-width: 240px;
+    }
+
+    .tree-node--root > .tree-pill {
+      font-size: 1.2rem;
+      max-width: 360px;
+      min-width: 180px;
+      padding: 1rem 1.4rem;
+    }
+
+    .tree-toggle {
+      align-items: center;
+      background: #0b1220;
+      border: 2px solid #94a3b8;
+      border-radius: 50%;
+      color: #e2e8f0;
+      cursor: pointer;
+      display: inline-flex;
+      font-size: 1.2rem;
+      font-weight: 700;
+      height: 1.75rem;
+      justify-content: center;
+      line-height: 1;
+      margin-top: 0.75rem;
+      padding: 0;
+      position: relative;
+      width: 1.75rem;
+      z-index: 2;
+    }
+    .tree-toggle::before {
+      background: #94a3b8;
+      bottom: 100%;
+      content: '';
+      height: 0.75rem;
+      left: 50%;
+      position: absolute;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+    .tree-toggle:hover {
+      border-color: #fff;
+      color: #fff;
+    }
+
+    .tree-children {
+      --tree-gap: 1.75rem;
+      display: flex;
+      gap: var(--tree-gap);
+      justify-content: center;
+      margin-top: 0;
+      padding-top: 1.35rem;
+      position: relative;
+    }
+
+    /* Stem from toggle down to the sibling bar */
+    .tree-children::before {
+      background: #94a3b8;
+      content: '';
+      height: 1.35rem;
+      left: 50%;
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+
+    .tree-children > .tree-node {
+      padding-top: 1.1rem;
+    }
+
+    /* Drop from bar into each child */
+    .tree-children > .tree-node::before {
+      background: #94a3b8;
+      content: '';
+      height: 1.1rem;
+      left: 50%;
+      position: absolute;
+      top: 0;
+      transform: translateX(-50%);
+      width: 2px;
+    }
+
+    /* Sibling horizontal connectors */
+    .tree-children > .tree-node:not(:only-child)::after {
+      background: #94a3b8;
+      content: '';
+      height: 2px;
+      position: absolute;
+      top: 0;
+    }
+    .tree-children > .tree-node:first-child:not(:only-child)::after {
+      left: 50%;
+      width: calc(50% + var(--tree-gap) / 2);
+    }
+    .tree-children > .tree-node:last-child:not(:only-child)::after {
+      left: auto;
+      right: 50%;
+      width: calc(50% + var(--tree-gap) / 2);
+    }
+    .tree-children > .tree-node:not(:first-child):not(:last-child)::after {
+      left: calc(var(--tree-gap) / -2);
+      width: calc(100% + var(--tree-gap));
+    }
+
+    .tree-section {
+      overflow-x: auto;
     }
 
     .insights { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
@@ -346,6 +476,8 @@ import { buildOkrTree, isOkrBoard } from '../core/okr.util';
 
     @media (max-width: 900px) {
       .columns, .split { grid-template-columns: 1fr; }
+      .tree-children { --tree-gap: 1rem; flex-wrap: wrap; }
+      .tree-pill { max-width: 220px; }
     }
   `
 })
@@ -377,15 +509,20 @@ export class DisplayComponent implements OnInit, OnDestroy {
     return buildOkrTree(this.entries(), this.actions());
   }
 
-  isOpen(id: string, krCount: number) {
+  isOpen(id: string, childCount: number) {
     const map = this.expanded();
     if (id in map) return map[id];
-    return krCount < 4;
+    // Root starts expanded; deep KR branches collapse when crowded.
+    if (id === '__root__') return true;
+    return childCount < 4;
   }
 
   toggle(id: string) {
-    const obj = this.objectives().find((o) => o.id === id);
-    const open = this.isOpen(id, obj?.krs.length || 0);
+    const childCount =
+      id === '__root__'
+        ? this.objectives().length
+        : this.objectives().find((o) => o.id === id)?.krs.length || 0;
+    const open = this.isOpen(id, childCount);
     this.expanded.update((m) => ({ ...m, [id]: !open }));
   }
 
