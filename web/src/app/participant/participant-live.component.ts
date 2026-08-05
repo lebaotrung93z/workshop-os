@@ -193,7 +193,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   options = signal<any[]>([]);
   picked = signal('');
   votesLeft = signal(3);
-  displayName = signal(localStorage.getItem('wos_display_name') || 'You');
+  displayName = signal(this.api.displayName() || 'You');
   done = signal(false);
   content = '';
   groupId = '';
@@ -205,6 +205,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || this.api.sessionId();
+    if (this.api.displayName()) this.displayName.set(this.api.displayName());
     if (!this.owner && this.displayName() !== 'You') this.owner = this.displayName();
     this.realtime.connect(this.id);
     this.refresh();

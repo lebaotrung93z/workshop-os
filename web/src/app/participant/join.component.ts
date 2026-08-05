@@ -132,8 +132,7 @@ export class JoinComponent implements OnInit {
     this.busy.set(true);
     this.api.join(code, name).subscribe({
       next: (r) => {
-        this.api.setParticipant(r.sessionId, r.participantId, r.joinToken);
-        localStorage.setItem('wos_display_name', r.displayName || name);
+        this.api.setParticipant(r.sessionId, r.participantId, r.joinToken, r.displayName || name);
         this.router.navigate(['/p', r.sessionId]);
       },
       error: (e) => {

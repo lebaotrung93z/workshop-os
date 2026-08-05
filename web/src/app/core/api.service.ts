@@ -38,12 +38,32 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/** Participant identity is per-tab (sessionStorage) so two joins in the same browser do not clobber each other. */
+function readParticipantStore(key: string): string {
+  try {
+    return sessionStorage.getItem(key) || localStorage.getItem(key) || '';
+  } catch {
+    return localStorage.getItem(key) || '';
+  }
+}
+
+function writeParticipantStore(key: string, value: string) {
+  try {
+    sessionStorage.setItem(key, value);
+    // Remove shared localStorage copy so another tab's join cannot clobber this identity.
+    localStorage.removeItem(key);
+  } catch {
+    localStorage.setItem(key, value);
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   readonly hostToken = signal(localStorage.getItem('wos_host_token') || '');
-  readonly joinToken = signal(localStorage.getItem('wos_join_token') || '');
+  readonly joinToken = signal(readParticipantStore('wos_join_token'));
   readonly sessionId = signal(localStorage.getItem('wos_session_id') || '');
-  readonly participantId = signal(localStorage.getItem('wos_participant_id') || '');
+  readonly participantId = signal(readParticipantStore('wos_participant_id'));
+  readonly displayName = signal(readParticipantStore('wos_display_name'));
 
   private events = new Subject<{ type: string; data: any }>();
   readonly events$ = this.events.asObservable();
@@ -56,13 +76,15 @@ export class ApiService {
     this.hostToken.set(hostToken);
   }
 
-  setParticipant(sessionId: string, participantId: string, joinToken: string) {
+  setParticipant(sessionId: string, participantId: string, joinToken: string, displayName = '') {
     localStorage.setItem('wos_session_id', sessionId);
-    localStorage.setItem('wos_participant_id', participantId);
-    localStorage.setItem('wos_join_token', joinToken);
+    writeParticipantStore('wos_participant_id', participantId);
+    writeParticipantStore('wos_join_token', joinToken);
+    if (displayName) writeParticipantStore('wos_display_name', displayName);
     this.sessionId.set(sessionId);
     this.participantId.set(participantId);
     this.joinToken.set(joinToken);
+    if (displayName) this.displayName.set(displayName);
   }
 
   private async ensureTemplates(): Promise<void> {
@@ -420,10 +442,12 @@ export class ApiService {
         ]);
         let rows = entrySnap.docs.map((d) => {
           const data = d.data() as any;
+          // Prefer roster lookup by participant id — stored authorName can be wrong when
+          // multiple participants join in the same browser (shared localStorage).
           const authorName =
-            data.authorName ||
-            (data.authorUid ? people.get(data.authorUid) : null) ||
             (data.participantId ? people.get(data.participantId) : null) ||
+            (data.authorUid ? people.get(data.authorUid) : null) ||
+            data.authorName ||
             null;
           return { id: d.id, ...data, authorName };
         });
@@ -456,7 +480,10 @@ export class ApiService {
         }
         const participantId = this.participantId();
         const joinToken = this.joinToken();
-        const authorName = localStorage.getItem('wos_display_name') || '';
+        const authorName = this.displayName() || readParticipantStore('wos_display_name') || '';
+        if (!participantId || !joinToken) {
+          throw new Error('Join the session before submitting');
+        }
         const entryId = randomId();
         await setDoc(doc(db, 'sessions', id, 'entries', entryId), {
           stepId: body.stepId,
