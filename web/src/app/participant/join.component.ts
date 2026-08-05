@@ -13,91 +13,203 @@ import { readJoinCodeFromLocation } from '../core/join-url';
   template: `
     <div class="page">
       <div class="phone">
-        <div class="brand">Workshop OS</div>
-        <h1>Join workshop</h1>
-        <p class="lede">{{ sessionTitle() || 'Enter the code from the big screen' }}</p>
+        <header class="hero">
+          <p class="brand">Workshop OS</p>
+          <h1>Join workshop</h1>
+          <p class="lede">{{ sessionTitle() || 'Enter the code from the big screen' }}</p>
+        </header>
 
         <div class="preview">
           <app-bosch-avatar [name]="name || 'You'" size="lg" />
-          <div>
+          <div class="preview__copy">
             <strong>{{ name || 'Your name' }}</strong>
             <span>Avatar uses 2 letters from your name</span>
           </div>
         </div>
 
-        <label>
-          Enter session code
-          <input [(ngModel)]="code" maxlength="6" placeholder="AIOS12" autocomplete="off" />
-        </label>
-        <label>
-          Your name
-          <input class="name" [(ngModel)]="name" placeholder="Minh Hoang" autocomplete="name" />
-        </label>
+        <div class="fields">
+          <label class="field">
+            <span class="field__label">Session code</span>
+            <input [(ngModel)]="code" maxlength="6" placeholder="AIOS12" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span class="field__label">Your name</span>
+            <input class="name" [(ngModel)]="name" placeholder="Minh Hoang" autocomplete="name" />
+          </label>
+        </div>
 
         @if (error()) {
-          <p class="err">{{ error() }}</p>
+          <p class="err" role="alert">{{ error() }}</p>
         }
 
-        <app-bosch-button [block]="true" [disabled]="busy() || !code.trim() || !name.trim()" (click)="join()">
-          Join
-        </app-bosch-button>
+        <div class="actions">
+          <app-bosch-button [block]="true" [disabled]="busy() || !code.trim() || !name.trim()" (click)="join()">
+            Join
+          </app-bosch-button>
+        </div>
       </div>
     </div>
   `,
   styles: `
+    :host {
+      --gap-xs: 0.25rem;
+      --gap-sm: 0.5rem;
+      --gap-md: 0.75rem;
+      --gap-lg: 1.25rem;
+      --gap-xl: 1.75rem;
+    }
+
     .page {
       align-items: center;
-      background: linear-gradient(180deg, #dbe7ff 0%, var(--wos-bg) 45%, var(--wos-bg) 100%);
+      background: linear-gradient(180deg, #dbe7ff 0%, #eef3fb 45%, var(--wos-bg) 100%);
       display: flex;
       justify-content: center;
       min-height: 100vh;
-      padding: 1.25rem;
+      padding: 0.75rem;
     }
 
     .phone {
       background: #fff;
       border: 1px solid var(--wos-border);
-      border-radius: 24px;
+      border-radius: 28px;
       box-shadow: var(--wos-shadow-lg);
-      display: grid;
-      gap: 0.85rem;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-lg);
       max-width: 390px;
-      padding: 1.5rem 1.25rem 1.75rem;
+      padding: 1.35rem 1.15rem 1.5rem;
       width: 100%;
+    }
+
+    .hero {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-xs);
     }
 
     .brand {
       color: var(--wos-primary);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 800;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
+      margin: 0;
       text-transform: uppercase;
     }
 
-    h1 { font-size: 1.55rem; margin: 0; }
-    .lede { color: var(--wos-text-muted); margin: 0; }
+    h1 {
+      font-size: 1.55rem;
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .lede {
+      color: var(--wos-text-muted);
+      font-size: 0.95rem;
+      line-height: 1.4;
+      margin: 0.15rem 0 0;
+    }
 
     .preview {
       align-items: center;
       background: var(--wos-primary-soft);
-      border-radius: var(--wos-radius-lg);
+      border-radius: 14px;
       display: flex;
       gap: 0.85rem;
-      padding: 0.85rem;
+      padding: 0.95rem 1rem;
     }
 
-    .preview strong { display: block; }
-    .preview span { color: var(--wos-text-muted); font-size: 0.8rem; }
+    .preview__copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 0;
+    }
 
-    label { display: grid; font-weight: 600; gap: 0.35rem; }
+    .preview strong {
+      display: block;
+      font-size: 1rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .preview span {
+      color: var(--wos-text-muted);
+      font-size: 0.8rem;
+      line-height: 1.35;
+    }
+
+    .fields {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-md);
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap-sm);
+      margin: 0;
+    }
+
+    .field__label {
+      color: var(--wos-text-secondary);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
     input {
       border: 1px solid var(--wos-border-strong);
       border-radius: var(--wos-radius);
-      padding: 0.8rem 0.85rem;
+      font: inherit;
+      letter-spacing: 0.08em;
+      padding: 0.85rem 0.9rem;
       text-transform: uppercase;
     }
-    input.name { text-transform: none; }
-    .err { color: var(--wos-danger); margin: 0; }
+
+    input.name {
+      letter-spacing: normal;
+      text-transform: none;
+    }
+
+    input:focus {
+      border-color: var(--wos-primary);
+      box-shadow: 0 0 0 3px var(--wos-primary-ring);
+      outline: none;
+    }
+
+    .err {
+      background: var(--wos-danger-soft);
+      border-radius: var(--wos-radius);
+      color: var(--wos-danger-ink);
+      font-size: 0.9rem;
+      font-weight: 600;
+      margin: 0;
+      padding: 0.7rem 0.85rem;
+    }
+
+    .actions {
+      margin-top: 0.15rem;
+    }
+
+    @media (max-width: 480px) {
+      .page {
+        padding: 0;
+      }
+
+      .phone {
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        max-width: none;
+        min-height: 100vh;
+        padding: 1.35rem 1.1rem 1.6rem;
+      }
+    }
   `
 })
 export class JoinComponent implements OnInit {
