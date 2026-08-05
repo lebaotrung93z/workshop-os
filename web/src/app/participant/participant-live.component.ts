@@ -195,16 +195,17 @@ import { RealtimeService } from '../core/realtime.service';
       box-shadow: var(--wos-shadow-lg);
       display: flex;
       flex-direction: column;
-      gap: var(--gap-lg);
+      gap: var(--gap-md);
       max-width: 420px;
-      padding: 1.25rem 1.1rem 1.5rem;
+      padding: 1.15rem 1rem 1.35rem;
       width: 100%;
     }
 
     .hero {
       display: flex;
       flex-direction: column;
-      gap: var(--gap-md);
+      gap: var(--gap-sm);
+      padding-bottom: var(--gap-xs);
     }
 
     .hero__row {
@@ -305,9 +306,9 @@ import { RealtimeService } from '../core/realtime.service';
     .compose {
       display: flex;
       flex-direction: column;
-      gap: var(--gap-md);
-      margin-top: var(--gap-sm);
-      padding-top: var(--gap-md);
+      gap: var(--gap-sm);
+      margin-top: var(--gap-xs);
+      padding-top: var(--gap-lg);
       border-top: 1px solid var(--wos-border);
     }
 
@@ -317,7 +318,7 @@ import { RealtimeService } from '../core/realtime.service';
     .form-fields {
       display: flex;
       flex-direction: column;
-      gap: var(--gap-sm);
+      gap: 0.65rem;
     }
 
     .option {
@@ -402,7 +403,7 @@ import { RealtimeService } from '../core/realtime.service';
     .field {
       display: flex;
       flex-direction: column;
-      gap: var(--gap-sm);
+      gap: 0.4rem;
       margin: 0;
     }
 

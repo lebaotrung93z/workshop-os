@@ -75,7 +75,7 @@ import { readJoinCodeFromLocation } from '../core/join-url';
       box-shadow: var(--wos-shadow-lg);
       display: flex;
       flex-direction: column;
-      gap: var(--gap-lg);
+      gap: var(--gap-md);
       max-width: 390px;
       padding: 1.35rem 1.15rem 1.5rem;
       width: 100%;
@@ -85,6 +85,7 @@ import { readJoinCodeFromLocation } from '../core/join-url';
       display: flex;
       flex-direction: column;
       gap: var(--gap-xs);
+      margin-bottom: var(--gap-xs);
     }
 
     .brand {
@@ -145,12 +146,13 @@ import { readJoinCodeFromLocation } from '../core/join-url';
       display: flex;
       flex-direction: column;
       gap: var(--gap-md);
+      margin-top: var(--gap-xs);
     }
 
     .field {
       display: flex;
       flex-direction: column;
-      gap: var(--gap-sm);
+      gap: 0.4rem;
       margin: 0;
     }
 
@@ -193,7 +195,7 @@ import { readJoinCodeFromLocation } from '../core/join-url';
     }
 
     .actions {
-      margin-top: 0.15rem;
+      margin-top: var(--gap-sm);
     }
 
     @media (max-width: 480px) {
