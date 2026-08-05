@@ -663,6 +663,63 @@ export class ApiService {
     });
   }
 
+  /** Owner (or host for objectives) updates entry text / parent. */
+  updateEntry(
+    id: string,
+    entryId: string,
+    patch: { content: string; parentId?: string | null; groupId?: string | null }
+  ): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const payload: any = {
+          content: patch.content.trim(),
+          updatedAt: nowIso()
+        };
+        if (this.hostToken()) {
+          payload.hostToken = this.hostToken();
+        } else {
+          const participantId = this.participantId();
+          const joinToken = this.joinToken();
+          if (!participantId || !joinToken) throw new Error('Join the session before editing');
+          payload.participantId = participantId;
+          payload.joinToken = joinToken;
+          if (patch.parentId !== undefined) payload.parentId = patch.parentId;
+          if (patch.groupId !== undefined) payload.groupId = patch.groupId;
+        }
+        await updateDoc(doc(db, 'sessions', id, 'entries', entryId), payload);
+        return { id: entryId, ...payload };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Update failed' } }));
+    });
+  }
+
+  /** Owner soft-deletes their own entry (sets hidden). Host should use hideEntry. */
+  removeOwnEntry(id: string, entryId: string): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const participantId = this.participantId();
+        const joinToken = this.joinToken();
+        if (!participantId || !joinToken) throw new Error('Join the session before deleting');
+        await updateDoc(doc(db, 'sessions', id, 'entries', entryId), {
+          hidden: true,
+          participantId,
+          joinToken,
+          updatedAt: nowIso()
+        });
+        return { ok: true };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Delete failed' } }));
+    });
+  }
+
   castVote(id: string, entryIdOrBody: string | { stepId: string; entryId: string }): Observable<any> {
     return new Observable((sub) => {
       (async () => {
@@ -764,7 +821,11 @@ export class ApiService {
     return new Observable((sub) => {
       getDocs(query(collection(db, 'sessions', id, 'actions'), orderBy('createdAt')))
         .then((snap) => {
-          sub.next(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+          sub.next(
+            snap.docs
+              .map((d) => ({ id: d.id, ...d.data() }))
+              .filter((a: any) => !a.hidden)
+          );
           sub.complete();
         })
         .catch((e) => sub.error(e));
@@ -783,6 +844,7 @@ export class ApiService {
         dueDate: body.dueDate || '',
         sourceEntryId: body.sourceEntryId || null,
         sourceLabel: body.sourceLabel || null,
+        hidden: false,
         createdAt: nowIso()
       };
       if (this.hostToken()) {
@@ -799,6 +861,68 @@ export class ApiService {
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Action failed' } }));
+    });
+  }
+
+  updateAction(
+    id: string,
+    actionId: string,
+    body: { action: string; owner?: string; dueDate?: string; sourceEntryId?: string; sourceLabel?: string }
+  ): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const payload: any = {
+          action: body.action.trim(),
+          owner: body.owner || '',
+          dueDate: body.dueDate || '',
+          updatedAt: nowIso()
+        };
+        if (body.sourceEntryId !== undefined) payload.sourceEntryId = body.sourceEntryId || null;
+        if (body.sourceLabel !== undefined) payload.sourceLabel = body.sourceLabel || null;
+        if (this.hostToken()) {
+          payload.hostToken = this.hostToken();
+        } else {
+          const participantId = this.participantId();
+          const joinToken = this.joinToken();
+          if (!participantId || !joinToken) throw new Error('Join the session before editing');
+          payload.participantId = participantId;
+          payload.joinToken = joinToken;
+        }
+        await updateDoc(doc(db, 'sessions', id, 'actions', actionId), payload);
+        return { id: actionId, ...payload };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Update failed' } }));
+    });
+  }
+
+  removeOwnAction(id: string, actionId: string): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const payload: any = {
+          hidden: true,
+          updatedAt: nowIso()
+        };
+        if (this.hostToken()) {
+          payload.hostToken = this.hostToken();
+        } else {
+          const participantId = this.participantId();
+          const joinToken = this.joinToken();
+          if (!participantId || !joinToken) throw new Error('Join the session before deleting');
+          payload.participantId = participantId;
+          payload.joinToken = joinToken;
+        }
+        await updateDoc(doc(db, 'sessions', id, 'actions', actionId), payload);
+        return { ok: true };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Delete failed' } }));
     });
   }
 

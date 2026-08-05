@@ -26,6 +26,28 @@ service cloud.firestore {
           == request.resource.data.joinToken;
     }
 
+    function isEntryOwner(sessionId) {
+      return resource.data.participantId is string
+        && resource.data.joinToken is string
+        && request.resource.data.participantId == resource.data.participantId
+        && request.resource.data.joinToken == resource.data.joinToken
+        && participantDoc(sessionId, resource.data.participantId).data.joinToken
+          == resource.data.joinToken;
+    }
+
+    function isActionOwner(sessionId) {
+      return resource.data.participantId is string
+        && resource.data.joinToken is string
+        && request.resource.data.participantId == resource.data.participantId
+        && request.resource.data.joinToken == resource.data.joinToken
+        && participantDoc(sessionId, resource.data.participantId).data.joinToken
+          == resource.data.joinToken;
+    }
+
+    function isHost(sessionId) {
+      return request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken;
+    }
+
     match /templates/{templateId} {
       allow read: if true;
       // Create + seedRevision bumps for built-in templates (client-side ensureTemplates).
@@ -62,15 +84,42 @@ service cloud.firestore {
         allow create: if (
             isParticipantWrite(sessionId)
             || (
-              request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken
+              isHost(sessionId)
               && request.resource.data.kind == 'objective'
             )
           )
           && request.resource.data.hidden == false
           && request.resource.data.content is string
           && request.resource.data.stepId is string;
-        allow update: if request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden', 'hostToken']);
+        allow update: if
+          // Host soft-hide
+          (
+            isHost(sessionId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden', 'hostToken'])
+          )
+          // Owner edits content / parent / group
+          || (
+            isEntryOwner(sessionId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['content', 'parentId', 'groupId', 'participantId', 'joinToken', 'updatedAt'])
+            && request.resource.data.content is string
+            && request.resource.data.hidden == resource.data.hidden
+          )
+          // Owner soft-deletes own entry
+          || (
+            isEntryOwner(sessionId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['hidden', 'participantId', 'joinToken', 'updatedAt'])
+            && request.resource.data.hidden == true
+          )
+          // Host edits objective text
+          || (
+            isHost(sessionId)
+            && resource.data.kind == 'objective'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['content', 'hostToken', 'updatedAt'])
+            && request.resource.data.content is string
+          );
         allow delete: if false;
       }
 
@@ -84,8 +133,18 @@ service cloud.firestore {
       match /actions/{actionId} {
         allow read: if true;
         allow create: if isParticipantWrite(sessionId)
-          || (request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken);
-        allow update, delete: if request.resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken;
+          || isHost(sessionId);
+        allow update: if
+          isHost(sessionId)
+          || (
+            isActionOwner(sessionId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly([
+                'action', 'owner', 'dueDate', 'sourceEntryId', 'sourceLabel',
+                'participantId', 'joinToken', 'updatedAt', 'hidden'
+              ])
+          );
+        allow delete: if false;
       }
 
       match /summary/{docId} {
