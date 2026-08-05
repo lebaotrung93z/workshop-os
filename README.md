@@ -2,6 +2,8 @@
 
 Hybrid workshop facilitation platform (Host laptop · Participant mobile web · Big Screen).
 
+**All product flows** (session lifecycle, host / participant / display, step types, REST + STOMP): [`docs/FLOWS.md`](docs/FLOWS.md).
+
 ## Stack
 
 - **web/** — Angular 18 + Bosch UI (`bosch-ui` / `bosch-icon` / `bosch-theme.scss`)
