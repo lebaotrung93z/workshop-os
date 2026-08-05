@@ -1016,7 +1016,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     const text = this.editContent.trim();
     if (!text) return;
     this.busy.set(true);
-    this.api.updateEntry(this.id, e.id, { content: text, parentId: e.parentId, groupId: e.groupId }).subscribe({
+    this.api.updateEntry(this.id, e.id, { content: text, parentId: e.parentId, groupId: e.groupId }, { role: 'participant' }).subscribe({
       next: () => {
         this.busy.set(false);
         this.cancelEdit();
