@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../../bosch-ui/bosch-button/bosch-button.component';
 import { BoschAvatarComponent } from '../../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../../core/api.service';
-import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../core/okr.util';
+import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../../core/okr.util';
 
 @Component({
   selector: 'app-activity-host-panel',
@@ -85,6 +85,10 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../cor
                             <div class="tree-node" role="treeitem">
                               <div class="tree-pill tree-pill--kr">
                                 <span>{{ kr.content }}</span>
+                                <span class="kr-vote" [attr.aria-label]="voteCount(kr.id) + ' votes'">
+                                  <strong>{{ voteCount(kr.id) }}</strong>
+                                  <em>{{ voteCount(kr.id) === 1 ? 'vote' : 'votes' }}</em>
+                                </span>
                                 <button type="button" class="hide-inline" (click)="hide(kr.id)">Hide</button>
                               </div>
                               @if (kr.actions.length) {
@@ -266,7 +270,30 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../cor
     .tree-pill--root { background: var(--wos-primary); box-shadow: 0 6px 16px rgba(0, 86, 210, 0.28); }
     .tree-pill--root.is-empty { background: #94a3b8; font-style: italic; font-weight: 600; }
     .tree-pill--objective { background: var(--wos-purple); position: relative; }
-    .tree-pill--kr { background: var(--wos-success); font-weight: 600; position: relative; }
+    .tree-pill--kr {
+      background: var(--wos-success);
+      display: grid;
+      font-weight: 600;
+      gap: 0.35rem;
+      justify-items: center;
+      position: relative;
+    }
+    .kr-vote {
+      align-items: baseline;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: var(--wos-radius-pill);
+      color: var(--wos-success-ink, #0a7a3e);
+      display: inline-flex;
+      gap: 0.22rem;
+      padding: 0.2rem 0.55rem;
+    }
+    .kr-vote strong { font-size: 0.95rem; font-weight: 800; line-height: 1; }
+    .kr-vote em {
+      font-size: 0.65rem;
+      font-style: normal;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
     .tree-pill--action {
       background: var(--wos-info);
       display: grid;
@@ -423,8 +450,14 @@ export class ActivityHostPanelComponent implements OnChanges {
     this.treeRootDraft = String(this.session.treeRootLabel || '');
     this.api.listEntries(this.session.id, entryStepId).subscribe((e) => this.entries.set(e));
     this.api.pollTally(this.session.id, stepId).subscribe((p) => this.poll.set(p));
-    this.api.tallyVotes(this.session.id, stepId).subscribe((v) => this.votes.set(v));
+    const votingStep = okrVotingStep(this.session);
+    const voteStepId = this.isOkrSession() && votingStep ? votingStep.id : stepId;
+    this.api.tallyVotes(this.session.id, voteStepId).subscribe((v) => this.votes.set(v));
     this.api.listActions(this.session.id).subscribe((a) => this.actions.set(a));
+  }
+
+  voteCount(entryId: string) {
+    return this.votes().find((v) => v.entryId === entryId)?.votes || 0;
   }
 
   isOkr() {

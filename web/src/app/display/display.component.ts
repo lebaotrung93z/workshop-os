@@ -7,7 +7,7 @@ import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { buildJoinUrl } from '../core/join-url';
-import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../core/okr.util';
+import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../core/okr.util';
 
 @Component({
   selector: 'app-display',
@@ -94,7 +94,13 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../core/o
                           <div class="tree-children" role="group">
                             @for (kr of obj.krs; track kr.id) {
                               <div class="tree-node" role="treeitem">
-                                <div class="tree-pill tree-pill--kr">{{ kr.content }}</div>
+                                <div class="tree-pill tree-pill--kr">
+                                  <span>{{ kr.content }}</span>
+                                  <span class="kr-vote" [attr.aria-label]="voteCount(kr.id) + ' votes'">
+                                    <strong>{{ voteCount(kr.id) }}</strong>
+                                    <em>{{ voteCount(kr.id) === 1 ? 'vote' : 'votes' }}</em>
+                                  </span>
+                                </div>
                                 @if (kr.actions.length) {
                                   <button
                                     type="button"
@@ -425,9 +431,28 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../core/o
     .tree-pill--kr {
       background: var(--wos-success);
       box-shadow: 0 6px 18px rgba(15, 157, 88, 0.35);
+      display: grid;
       font-size: 0.98rem;
       font-weight: 600;
+      gap: 0.4rem;
+      justify-items: center;
       max-width: 240px;
+    }
+    .kr-vote {
+      align-items: baseline;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: var(--wos-radius-pill);
+      color: var(--wos-success-ink, #0a7a3e);
+      display: inline-flex;
+      gap: 0.25rem;
+      padding: 0.25rem 0.65rem;
+    }
+    .kr-vote strong { font-size: 1.1rem; font-weight: 800; line-height: 1; }
+    .kr-vote em {
+      font-size: 0.72rem;
+      font-style: normal;
+      font-weight: 700;
+      text-transform: uppercase;
     }
 
     /* Action plan leaves */
@@ -769,8 +794,14 @@ export class DisplayComponent implements OnInit, OnDestroy {
     const entryStepId = this.isOkrSession() && okrStep ? okrStep.id : stepId;
     this.api.listEntries(this.id, entryStepId).subscribe((e) => this.entries.set(e));
     this.api.pollTally(this.id, stepId).subscribe((p) => this.poll.set(p));
-    this.api.tallyVotes(this.id, stepId).subscribe((v) => this.votes.set(v));
+    const votingStep = okrVotingStep(s);
+    const voteStepId = this.isOkrSession() && votingStep ? votingStep.id : stepId;
+    this.api.tallyVotes(this.id, voteStepId).subscribe((v) => this.votes.set(v));
     this.api.listActions(this.id).subscribe((a) => this.actions.set(a));
+  }
+
+  voteCount(entryId: string) {
+    return this.votes().find((v) => v.entryId === entryId)?.votes || 0;
   }
 
   entriesFor(groupId: string) {

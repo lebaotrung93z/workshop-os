@@ -24,6 +24,11 @@ export function okrInputStep(session: any): any | null {
   return (session?.steps || []).find((s: any) => s.type === 'input' && isOkrBoard(s)) || null;
 }
 
+/** Voting step used for KR tallies (OKR sessions vote on Key Results). */
+export function okrVotingStep(session: any): any | null {
+  return (session?.steps || []).find((s: any) => s.type === 'voting') || null;
+}
+
 export function formLinksToKr(step: any): boolean {
   return parseStepConfig(step).linkTo === 'kr';
 }
