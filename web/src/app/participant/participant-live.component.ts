@@ -189,15 +189,21 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
               <span class="votes-left">{{ votesLeft() }} left</span>
             </div>
             <div class="vote-list">
-              @for (e of entries(); track e.id) {
+              @for (e of voteEntries(); track e.id) {
                 <button type="button" class="vote" (click)="vote(e.id)">
-                  <div class="vote__meta">
-                    @if (e.authorName) {
-                      <app-bosch-avatar [name]="e.authorName" size="sm" />
-                      <span>{{ e.authorName }}</span>
-                    } @else {
-                      <span class="muted">Anonymous</span>
-                    }
+                  <div class="vote__top">
+                    <div class="vote__meta">
+                      @if (e.authorName) {
+                        <app-bosch-avatar [name]="e.authorName" size="sm" />
+                        <span>{{ e.authorName }}</span>
+                      } @else {
+                        <span class="muted">Anonymous</span>
+                      }
+                    </div>
+                    <span class="vote__count" [attr.aria-label]="voteCount(e.id) + ' votes'">
+                      <strong>{{ voteCount(e.id) }}</strong>
+                      <em>{{ voteCount(e.id) === 1 ? 'vote' : 'votes' }}</em>
+                    </span>
                   </div>
                   @if (parentLabel(e); as pl) {
                     <span class="vote__parent">{{ pl }}</span>
@@ -597,6 +603,13 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
       box-shadow: 0 0 0 3px var(--wos-primary-ring);
     }
 
+    .vote__top {
+      align-items: center;
+      display: flex;
+      gap: 0.65rem;
+      justify-content: space-between;
+    }
+
     .vote__meta {
       align-items: center;
       color: var(--wos-text-secondary);
@@ -604,6 +617,29 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
       font-size: 0.8rem;
       font-weight: 650;
       gap: 0.45rem;
+      min-width: 0;
+    }
+
+    .vote__count {
+      align-items: baseline;
+      background: var(--wos-purple-soft);
+      border-radius: var(--wos-radius-pill);
+      color: var(--wos-purple);
+      display: inline-flex;
+      flex: 0 0 auto;
+      gap: 0.25rem;
+      padding: 0.3rem 0.65rem;
+    }
+    .vote__count strong {
+      font-size: 1rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .vote__count em {
+      font-size: 0.68rem;
+      font-style: normal;
+      font-weight: 700;
+      text-transform: uppercase;
     }
 
     .vote p {
@@ -887,6 +923,18 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     );
   }
 
+  voteCount(entryId: string) {
+    return this.voteTallies().find((t) => t.entryId === entryId)?.votes || 0;
+  }
+
+  /** Voting cards sorted by current vote count (highest first). */
+  voteEntries() {
+    const tallies = new Map(this.voteTallies().map((t) => [t.entryId, t.votes]));
+    return [...this.entries()].sort(
+      (a, b) => (tallies.get(b.id) || 0) - (tallies.get(a.id) || 0) || String(a.content).localeCompare(String(b.content))
+    );
+  }
+
   statusLabel() {
     if (this.done() || this.session()?.status === 'CLOSED') return 'Done';
     const status = this.session()?.status;
@@ -1154,6 +1202,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       next: (r) => {
         this.votesLeft.set(r.votesRemaining);
         this.msg.set('Vote cast');
+        this.reloadBoardData();
       },
       error: (e) => this.msg.set(e?.error?.message)
     });
