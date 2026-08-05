@@ -2,10 +2,9 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
-import { BoschCardComponent } from '../bosch-ui/bosch-card/bosch-card.component';
-import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
 import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.component';
 import { ApiService } from '../core/api.service';
+import { HostShellComponent } from './host-shell.component';
 
 type StepType = 'welcome' | 'poll' | 'input' | 'voting' | 'form';
 
@@ -38,209 +37,331 @@ interface DraftStep {
     FormsModule,
     RouterLink,
     BoschButtonComponent,
-    BoschCardComponent,
-    BoschLogoComponent,
-    BoschIconComponent
+    BoschIconComponent,
+    HostShellComponent
   ],
   template: `
-    <div class="page">
-      <header class="top">
-        <app-bosch-logo />
-        <div>
-          <h1>{{ customizing() ? 'Customize template' : 'Manual format' }}</h1>
-          <p>
-            @if (customizing()) {
-              Edit any step, then save as your custom template
-            } @else {
-              Build your own workshop flow, then start a session
-            }
-          </p>
-        </div>
-        <a routerLink="/" class="back">Back to templates</a>
-      </header>
-
-      @if (customizing() && sourceName()) {
-        <p class="source-banner">
-          Based on <strong>{{ sourceName() }}</strong> — edits save as a new custom template.
-        </p>
-      }
-
-      <app-bosch-card title="Format details" subtitle="Name this format for your team">
-        <label>
-          Format name
-          <input [(ngModel)]="formatName" placeholder="Product discovery workshop" />
-        </label>
-        <label>
-          Purpose
-          <input [(ngModel)]="description" placeholder="Why are we running this workshop?" />
-        </label>
-        <label>
-          Workshop title
-          <input [(ngModel)]="workshopTitle" placeholder="Discovery – Q3 planning" />
-        </label>
-      </app-bosch-card>
-
-      <app-bosch-card title="Steps" subtitle="Order matters — participants move through these in sequence">
-        <div class="add-row">
-          <label class="inline">
-            Add step
-            <select [(ngModel)]="addType">
-              @for (t of stepTypes; track t.value) {
-                <option [value]="t.value">{{ t.label }}</option>
+    <app-host-shell>
+      <div class="page">
+        <header class="hero">
+          <div>
+            <p class="eyebrow">{{ customizing() ? 'Edit template' : 'Templates' }}</p>
+            <h1>{{ customizing() ? 'Customize template' : 'Build a custom format' }}</h1>
+            <p class="lede">
+              @if (customizing()) {
+                Edit any step, then save as your custom template
+              } @else {
+                Name the format, configure the flow, then save or start a session
               }
-            </select>
-          </label>
-          <app-bosch-button variant="secondary" icon="plus" (click)="addStep()">Add</app-bosch-button>
-        </div>
+            </p>
+          </div>
+          <a class="ghost" routerLink="/">Back to templates</a>
+        </header>
 
-        @if (steps().length === 0) {
-          <p class="hint">No steps yet. Add a welcome step to start.</p>
+        @if (customizing() && sourceName()) {
+          <p class="banner">
+            Based on <strong>{{ sourceName() }}</strong> — edits save as a new custom template.
+          </p>
         }
 
-        <div class="steps">
-          @for (step of steps(); track $index; let i = $index) {
-            <article class="step">
-              <header class="step-head">
-                <strong>{{ i + 1 }}. {{ typeLabel(step.type) }}</strong>
-                <div class="step-actions">
-                  <button type="button" class="icon-btn" [disabled]="i === 0" (click)="move(i, -1)" aria-label="Move up">
-                    <app-bosch-icon name="chevron-down" class="flip" />
-                  </button>
-                  <button type="button" class="icon-btn" [disabled]="i === steps().length - 1" (click)="move(i, 1)" aria-label="Move down">
-                    <app-bosch-icon name="chevron-down" />
-                  </button>
-                  <button type="button" class="icon-btn danger" (click)="remove(i)" aria-label="Remove step">
-                    <app-bosch-icon name="delete" />
-                  </button>
-                </div>
-              </header>
+        <section class="panel">
+          <p class="section-label">Format details</p>
+          <label>
+            Format name
+            <input [(ngModel)]="formatName" placeholder="Product discovery workshop" />
+          </label>
+          <label>
+            Purpose
+            <input [(ngModel)]="description" placeholder="Why are we running this workshop?" />
+          </label>
+          <label class="last">
+            Workshop title
+            <input [(ngModel)]="workshopTitle" placeholder="Discovery – Q3 planning" />
+          </label>
+        </section>
 
-              <label>
-                Title
-                <input [(ngModel)]="step.title" />
-              </label>
-              <label>
-                Instructions
-                <input [(ngModel)]="step.instructions" />
-              </label>
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <p class="section-label">Steps</p>
+              <p class="hint">Order matters — participants move through these in sequence</p>
+            </div>
+            <span class="count">{{ steps().length }} steps</span>
+          </div>
 
-              @if (step.type === 'poll') {
-                <div class="sub">
-                  <p class="sub-title">Options</p>
-                  @for (opt of step.options; track $index; let oi = $index) {
-                    <div class="row">
-                      <input [(ngModel)]="opt.label" placeholder="Option label" (ngModelChange)="syncOptionId(opt)" />
-                      <button type="button" class="icon-btn danger" (click)="removeOption(step, oi)" aria-label="Remove option">
-                        <app-bosch-icon name="delete" />
-                      </button>
-                    </div>
-                  }
-                  <app-bosch-button variant="secondary" (click)="addOption(step)">Add option</app-bosch-button>
-                </div>
-              }
+          <div class="add-row">
+            <label class="inline">
+              Add step
+              <select [(ngModel)]="addType">
+                @for (t of stepTypes; track t.value) {
+                  <option [value]="t.value">{{ t.label }}</option>
+                }
+              </select>
+            </label>
+            <app-bosch-button variant="secondary" icon="plus" (click)="addStep()">Add</app-bosch-button>
+          </div>
 
-              @if (step.type === 'input') {
-                <div class="sub">
-                  <label class="check">
-                    <input type="checkbox" [(ngModel)]="step.anonymous" />
-                    Anonymous sticky notes
-                  </label>
-                  <label class="check">
-                    <input type="checkbox" [(ngModel)]="step.linkedBoard" (ngModelChange)="onLinkedBoardToggle(step)" />
-                    Linked board (Objective → Key Result)
-                  </label>
-                  @if (step.linkedBoard) {
-                    <p class="hint">Host adds Objectives; participants attach Key Results under each one.</p>
-                  }
-                  <p class="sub-title">{{ step.linkedBoard ? 'Board' : 'Columns' }}</p>
-                  @for (g of step.groups; track $index; let gi = $index) {
-                    <div class="row">
-                      <input [(ngModel)]="g.title" [placeholder]="step.linkedBoard ? 'Objectives' : 'Column title'" [disabled]="step.linkedBoard && gi === 0" />
-                      @if (!step.linkedBoard) {
-                        <button type="button" class="icon-btn danger" (click)="removeGroup(step, gi)" aria-label="Remove column">
+          @if (steps().length === 0) {
+            <p class="hint">No steps yet. Add a welcome step to start.</p>
+          }
+
+          <div class="steps">
+            @for (step of steps(); track $index; let i = $index) {
+              <article class="step">
+                <header class="step-head">
+                  <div class="step-title">
+                    <span class="step-num">{{ i + 1 }}</span>
+                    <strong>{{ typeLabel(step.type) }}</strong>
+                  </div>
+                  <div class="step-actions">
+                    <button type="button" class="icon-btn" [disabled]="i === 0" (click)="move(i, -1)" aria-label="Move up">
+                      <app-bosch-icon name="chevron-down" class="flip" />
+                    </button>
+                    <button type="button" class="icon-btn" [disabled]="i === steps().length - 1" (click)="move(i, 1)" aria-label="Move down">
+                      <app-bosch-icon name="chevron-down" />
+                    </button>
+                    <button type="button" class="icon-btn danger" (click)="remove(i)" aria-label="Remove step">
+                      <app-bosch-icon name="delete" />
+                    </button>
+                  </div>
+                </header>
+
+                <label>
+                  Title
+                  <input [(ngModel)]="step.title" />
+                </label>
+                <label>
+                  Instructions
+                  <input [(ngModel)]="step.instructions" />
+                </label>
+
+                @if (step.type === 'poll') {
+                  <div class="sub">
+                    <p class="sub-title">Options</p>
+                    @for (opt of step.options; track $index; let oi = $index) {
+                      <div class="row">
+                        <input [(ngModel)]="opt.label" placeholder="Option label" (ngModelChange)="syncOptionId(opt)" />
+                        <button type="button" class="icon-btn danger" (click)="removeOption(step, oi)" aria-label="Remove option">
                           <app-bosch-icon name="delete" />
                         </button>
-                      }
-                    </div>
-                  }
-                  @if (!step.linkedBoard) {
-                    <app-bosch-button variant="secondary" (click)="addGroup(step)">Add column</app-bosch-button>
-                  }
-                </div>
-              }
-
-              @if (step.type === 'voting') {
-                <label>
-                  Votes per participant
-                  <input type="number" min="1" max="20" [(ngModel)]="step.votesPerParticipant" />
-                </label>
-              }
-
-              @if (step.type === 'form') {
-                <label class="check">
-                  <input type="checkbox" [(ngModel)]="step.linkActionToKr" />
-                  Link action to Key Result
-                </label>
-                @if (step.linkActionToKr) {
-                  <p class="hint">Participants pick a KR after voting, then define the action.</p>
+                      </div>
+                    }
+                    <app-bosch-button variant="secondary" (click)="addOption(step)">Add option</app-bosch-button>
+                  </div>
                 }
-              }
-            </article>
-          }
+
+                @if (step.type === 'input') {
+                  <div class="sub">
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="step.anonymous" />
+                      Anonymous sticky notes
+                    </label>
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="step.linkedBoard" (ngModelChange)="onLinkedBoardToggle(step)" />
+                      Linked board (Objective → Key Result)
+                    </label>
+                    @if (step.linkedBoard) {
+                      <p class="hint">Host adds Objectives; participants attach Key Results under each one.</p>
+                    }
+                    <p class="sub-title">{{ step.linkedBoard ? 'Board' : 'Columns' }}</p>
+                    @for (g of step.groups; track $index; let gi = $index) {
+                      <div class="row">
+                        <input
+                          [(ngModel)]="g.title"
+                          [placeholder]="step.linkedBoard ? 'Objectives' : 'Column title'"
+                          [disabled]="step.linkedBoard && gi === 0"
+                        />
+                        @if (!step.linkedBoard) {
+                          <button type="button" class="icon-btn danger" (click)="removeGroup(step, gi)" aria-label="Remove column">
+                            <app-bosch-icon name="delete" />
+                          </button>
+                        }
+                      </div>
+                    }
+                    @if (!step.linkedBoard) {
+                      <app-bosch-button variant="secondary" (click)="addGroup(step)">Add column</app-bosch-button>
+                    }
+                  </div>
+                }
+
+                @if (step.type === 'voting') {
+                  <label>
+                    Votes per participant
+                    <input type="number" min="1" max="20" [(ngModel)]="step.votesPerParticipant" />
+                  </label>
+                }
+
+                @if (step.type === 'form') {
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="step.linkActionToKr" />
+                    Link action to Key Result
+                  </label>
+                  @if (step.linkActionToKr) {
+                    <p class="hint">Participants pick a KR after voting, then define the action.</p>
+                  }
+                }
+              </article>
+            }
+          </div>
+        </section>
+
+        @if (error()) {
+          <p class="err">{{ error() }}</p>
+        }
+
+        <div class="actions">
+          <app-bosch-button
+            variant="secondary"
+            icon="plus"
+            [disabled]="busy()"
+            (click)="saveAsCustom()"
+          >
+            {{ busy() && saveMode() === 'template' ? 'Saving…' : 'Save as custom template' }}
+          </app-bosch-button>
+          <app-bosch-button icon="dashboard" [disabled]="busy()" (click)="createAndStart()">
+            {{ busy() && saveMode() === 'session' ? 'Starting…' : 'Save & start workshop' }}
+          </app-bosch-button>
         </div>
-      </app-bosch-card>
-
-      @if (error()) {
-        <p class="err">{{ error() }}</p>
-      }
-
-      <div class="actions">
-        <app-bosch-button
-          variant="secondary"
-          icon="plus"
-          [disabled]="busy()"
-          (click)="saveAsCustom()"
-        >
-          {{ busy() && saveMode() === 'template' ? 'Saving…' : 'Save as custom template' }}
-        </app-bosch-button>
-        <app-bosch-button icon="dashboard" [disabled]="busy()" (click)="createAndStart()">
-          {{ busy() && saveMode() === 'session' ? 'Starting…' : 'Save & start workshop' }}
-        </app-bosch-button>
       </div>
-    </div>
+    </app-host-shell>
   `,
   styles: `
-    .page { max-width: 820px; margin: 0 auto; padding: 1.5rem 1rem 3rem; display: grid; gap: 1rem; }
-    .top { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
-    .top h1 { margin: 0; font-size: 1.4rem; }
-    .top p { margin: 0.2rem 0 0; color: var(--bosch-text-muted); }
-    .back { margin-left: auto; color: var(--bosch-accent); font-weight: 700; }
-    label { display: grid; gap: 0.35rem; margin-bottom: 0.85rem; font-weight: 600; }
-    label.inline { margin: 0; }
-    label.check { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; }
-    input, select { border: 1px solid var(--bosch-border-strong); padding: 0.65rem 0.75rem; font: inherit; }
-    .add-row { display: flex; gap: 0.75rem; align-items: end; margin-bottom: 1rem; flex-wrap: wrap; }
-    .hint { color: var(--bosch-text-muted); }
-    .steps { display: grid; gap: 0.85rem; }
-    .step { border: 1px solid var(--bosch-border); background: var(--bosch-bg-muted); padding: 0.9rem; }
-    .step-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-    .step-actions { display: flex; gap: 0.25rem; }
-    .icon-btn { border: 1px solid var(--bosch-border); background: #fff; padding: 0.35rem; cursor: pointer; }
-    .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .icon-btn.danger { color: var(--bosch-error); }
-    .flip { transform: rotate(180deg); display: inline-flex; }
-    .sub { margin-top: 0.5rem; display: grid; gap: 0.5rem; }
-    .sub-title { margin: 0; font-weight: 700; }
-    .row { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center; }
-    .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-    .err { color: var(--bosch-error); margin: 0; }
-    .source-banner {
+    .page { display: grid; gap: 1.25rem; max-width: 880px; }
+    .hero { align-items: end; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
+    .eyebrow { color: var(--wos-primary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; margin: 0 0 0.35rem; text-transform: uppercase; }
+    h1 { font-size: 1.85rem; margin: 0; }
+    .lede { color: var(--wos-text-muted); margin: 0.35rem 0 0; }
+    .ghost {
+      background: var(--wos-surface);
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text);
+      font-weight: 600;
+      padding: 0.65rem 0.9rem;
+      text-decoration: none;
+    }
+    .banner {
+      background: var(--wos-primary-soft);
+      border: 1px solid color-mix(in srgb, var(--wos-primary) 28%, #fff);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text);
       margin: 0;
       padding: 0.75rem 1rem;
-      background: color-mix(in srgb, var(--bosch-primary) 8%, #fff);
-      border: 1px solid color-mix(in srgb, var(--bosch-primary) 25%, #fff);
-      color: var(--bosch-text);
     }
+    .panel {
+      background: var(--wos-surface);
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius-lg);
+      box-shadow: var(--wos-shadow);
+      padding: 1.25rem;
+    }
+    .panel-head {
+      align-items: start;
+      display: flex;
+      gap: 1rem;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    .section-label {
+      color: var(--wos-text-secondary);
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin: 0 0 0.65rem;
+    }
+    .panel-head .section-label { margin-bottom: 0.25rem; }
+    .count {
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius-pill);
+      color: var(--wos-primary);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      white-space: nowrap;
+    }
+    label { display: grid; font-weight: 600; gap: 0.4rem; margin-bottom: 1.1rem; }
+    label.last { margin-bottom: 0; }
+    label.inline { margin: 0; }
+    label.check {
+      align-items: center;
+      display: flex;
+      font-weight: 600;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    input, select {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.75rem 0.85rem;
+    }
+    input:disabled { background: #f1f5f9; color: var(--wos-text-muted); }
+    .add-row {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .hint { color: var(--wos-text-muted); margin: 0 0 0.75rem; }
+    .steps { display: grid; gap: 0.85rem; }
+    .step {
+      background: #f8fafc;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius-lg);
+      padding: 1rem;
+    }
+    .step-head {
+      align-items: center;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+    .step-title { align-items: center; display: flex; gap: 0.65rem; }
+    .step-num {
+      align-items: center;
+      background: var(--wos-primary-soft);
+      border-radius: 8px;
+      color: var(--wos-primary);
+      display: inline-flex;
+      font-size: 0.8rem;
+      font-weight: 800;
+      height: 1.75rem;
+      justify-content: center;
+      width: 1.75rem;
+    }
+    .step-actions { display: flex; gap: 0.35rem; }
+    .icon-btn {
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      justify-content: center;
+      padding: 0.4rem;
+    }
+    .icon-btn:hover:not(:disabled) { border-color: #9db7ef; color: var(--wos-primary); }
+    .icon-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+    .icon-btn.danger { color: var(--wos-danger); }
+    .icon-btn.danger:hover:not(:disabled) { border-color: var(--wos-danger); }
+    .flip { display: inline-flex; transform: rotate(180deg); }
+    .sub { display: grid; gap: 0.5rem; margin-top: 0.35rem; }
+    .sub-title { font-weight: 700; margin: 0.25rem 0 0; }
+    .row {
+      align-items: center;
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: 1fr auto;
+    }
+    .actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .err { color: var(--wos-danger); font-weight: 600; margin: 0; }
   `
 })
 export class FormatBuilderComponent implements OnInit {
