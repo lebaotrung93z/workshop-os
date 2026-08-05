@@ -130,6 +130,8 @@ import { RealtimeService } from '../core/realtime.service';
                   <p>{{ e.content }}</p>
                   <span class="vote__cta">Tap to vote</span>
                 </button>
+              } @empty {
+                <p class="empty">No ideas to vote on yet. Wait for the board to fill, then try again.</p>
               }
             </div>
           </section>
@@ -501,6 +503,18 @@ import { RealtimeService } from '../core/realtime.service';
       color: var(--wos-text-muted);
     }
 
+    .empty {
+      background: #fff;
+      border: 1px dashed var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text-muted);
+      font-size: 0.9rem;
+      line-height: 1.4;
+      margin: 0;
+      padding: 1rem 0.9rem;
+      text-align: center;
+    }
+
     .done {
       align-items: center;
       gap: var(--gap-lg);
@@ -594,9 +608,14 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
         this.loadStepData();
         if (e.type === 'session.ended') this.done.set(true);
       }
-      if (e.type === 'vote.updated') {
-        this.votesLeft.set(e.data?.votesRemaining ?? this.votesLeft());
-        this.api.listEntries(this.id).subscribe((list) => this.entries.set(list));
+      if (e.type === 'vote.updated' || e.type === 'entry.created') {
+        const step = this.session()?.currentStep;
+        if (step?.type === 'voting' || step?.type === 'input') {
+          this.api.listEntries(this.id, step.id).subscribe((list) => this.entries.set(list));
+        }
+        if (e.type === 'vote.updated' && e.data?.votesRemaining != null) {
+          this.votesLeft.set(e.data.votesRemaining);
+        }
       }
     });
   }
@@ -642,14 +661,21 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
 
   loadStepData() {
     const step = this.session()?.currentStep;
-    if (!step) return;
+    if (!step) {
+      this.entries.set([]);
+      return;
+    }
     if (step.type === 'poll') {
       const cfg = this.parseConfig(step);
       this.options.set(cfg.options || []);
     }
     if (step.type === 'voting' || step.type === 'input') {
       this.api.listEntries(this.id, step.id).subscribe((e) => this.entries.set(e));
-      if (step.groups?.length && !this.groupId) this.groupId = step.groups[0].id;
+      if (step.type === 'input' && step.groups?.length && !this.groupId) {
+        this.groupId = step.groups[0].id;
+      }
+    } else {
+      this.entries.set([]);
     }
     if (step.type === 'voting') {
       const cfg = this.parseConfig(step);

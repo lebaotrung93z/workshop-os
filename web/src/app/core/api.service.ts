@@ -427,6 +427,12 @@ export class ApiService {
   listEntries(id: string, stepId?: string): Observable<any[]> {
     return new Observable((sub) => {
       (async () => {
+        const sessionSnap = await getDoc(doc(db, 'sessions', id));
+        const sessionData = sessionSnap.data() || {};
+        const steps = (sessionData['steps'] || []) as any[];
+        const resolvedStepId = stepId || (sessionData['currentStepId'] as string | undefined);
+        const targetStep = steps.find((st) => st.id === resolvedStepId) || null;
+
         const [entrySnap, people] = await Promise.all([
           getDocs(query(collection(db, 'sessions', id, 'entries'), orderBy('createdAt'))),
           new Promise<Map<string, string>>((resolve) => {
@@ -452,7 +458,15 @@ export class ApiService {
           return { id: d.id, ...data, authorName };
         });
         rows = rows.filter((r: any) => !r.hidden);
-        if (stepId) rows = rows.filter((r: any) => r.stepId === stepId);
+
+        // Voting lists stickies from input steps (not the voting step itself).
+        // See docs/FLOWS.md — matches legacy Spring ActivityService.listEntries.
+        if (targetStep?.type === 'voting') {
+          const inputStepIds = new Set(steps.filter((st) => st.type === 'input').map((st) => st.id));
+          rows = rows.filter((r: any) => inputStepIds.has(r.stepId));
+        } else if (resolvedStepId) {
+          rows = rows.filter((r: any) => r.stepId === resolvedStepId);
+        }
         return rows;
       })()
         .then((rows) => {
@@ -558,22 +572,34 @@ export class ApiService {
 
   tallyVotes(id: string, stepId?: string): Observable<any[]> {
     return new Observable((sub) => {
-      getDocs(collection(db, 'sessions', id, 'votes'))
-        .then(async (votesSnap) => {
-          const entriesSnap = await getDocs(collection(db, 'sessions', id, 'entries'));
-          const entries = new Map(entriesSnap.docs.map((d) => [d.id, d.data()]));
-          const tallies = new Map<string, { entryId: string; content: string; votes: number }>();
-          for (const v of votesSnap.docs) {
-            const data = v.data();
-            if (stepId && data['stepId'] !== stepId) continue;
-            const entryId = data['entryId'];
-            const entry = entries.get(entryId);
-            if (!entry || entry['hidden']) continue;
-            const cur = tallies.get(entryId) || { entryId, content: entry['content'], votes: 0 };
-            cur.votes += 1;
-            tallies.set(entryId, cur);
-          }
-          sub.next([...tallies.values()].sort((a, b) => b.votes - a.votes));
+      (async () => {
+        const session = await getDoc(doc(db, 'sessions', id));
+        const votingStepId = stepId || (session.data()?.['currentStepId'] as string);
+        const [votable, votesSnap] = await Promise.all([
+          new Promise<any[]>((resolve, reject) => {
+            this.listEntries(id, votingStepId).subscribe({ next: resolve, error: reject });
+          }),
+          getDocs(collection(db, 'sessions', id, 'votes'))
+        ]);
+        const counts = new Map<string, number>();
+        for (const v of votesSnap.docs) {
+          const data = v.data();
+          if (votingStepId && data['stepId'] !== votingStepId) continue;
+          const entryId = data['entryId'] as string;
+          counts.set(entryId, (counts.get(entryId) || 0) + 1);
+        }
+        const tallies = votable.map((e) => ({
+          entryId: e.id,
+          content: e.content,
+          groupId: e.groupId || null,
+          authorName: e.authorName || null,
+          votes: counts.get(e.id) || 0
+        }));
+        tallies.sort((a, b) => b.votes - a.votes || String(a.content).localeCompare(String(b.content)));
+        return tallies;
+      })()
+        .then((rows) => {
+          sub.next(rows);
           sub.complete();
         })
         .catch((e) => sub.error(e));
