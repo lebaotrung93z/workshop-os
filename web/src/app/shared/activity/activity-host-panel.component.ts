@@ -61,8 +61,19 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../cor
                 @for (obj of objectives(); track obj.id) {
                   <div class="tree-node" role="treeitem">
                     <div class="tree-pill tree-pill--objective">
-                      <span>{{ obj.content }}</span>
-                      <button type="button" class="hide-inline" (click)="hide(obj.id)">Hide</button>
+                      @if (editingObjectiveId === obj.id) {
+                        <input class="obj-edit" [(ngModel)]="editObjectiveText" (keyup.enter)="saveObjective(obj)" />
+                        <div class="obj-edit-actions">
+                          <button type="button" class="hide-inline" (click)="saveObjective(obj)">Save</button>
+                          <button type="button" class="hide-inline" (click)="cancelObjectiveEdit()">Cancel</button>
+                        </div>
+                      } @else {
+                        <span>{{ obj.content }}</span>
+                        <div class="obj-edit-actions">
+                          <button type="button" class="hide-inline" (click)="startObjectiveEdit(obj)">Edit</button>
+                          <button type="button" class="hide-inline" (click)="hide(obj.id)">Hide</button>
+                        </div>
+                      }
                     </div>
                     @if (obj.krs.length) {
                       <button type="button" class="tree-toggle" (click)="toggle(obj.id)">
@@ -377,6 +388,15 @@ import { buildOkrTree, isOkrBoard, okrInputStep, sessionHasOkr } from '../../cor
       width: calc(100% + var(--tree-gap));
     }
     .tree-hint { margin-top: 0.75rem; text-align: center; }
+    .obj-edit {
+      border: 0;
+      border-radius: 6px;
+      font: inherit;
+      font-weight: 700;
+      padding: 0.35rem 0.45rem;
+      width: 100%;
+    }
+    .obj-edit-actions { display: flex; gap: 0.35rem; justify-content: center; margin-top: 0.35rem; }
   `
 })
 export class ActivityHostPanelComponent implements OnChanges {
@@ -391,6 +411,8 @@ export class ActivityHostPanelComponent implements OnChanges {
   expanded = signal<Record<string, boolean>>({});
   newObjective = '';
   treeRootDraft = '';
+  editingObjectiveId = '';
+  editObjectiveText = '';
   busy = signal(false);
 
   ngOnChanges() {
@@ -503,6 +525,30 @@ export class ActivityHostPanelComponent implements OnChanges {
 
   totalVotes() {
     return this.votes().reduce((sum, v) => sum + (Number(v.votes) || 0), 0);
+  }
+
+  startObjectiveEdit(obj: any) {
+    this.editingObjectiveId = obj.id;
+    this.editObjectiveText = obj.content || '';
+  }
+
+  cancelObjectiveEdit() {
+    this.editingObjectiveId = '';
+    this.editObjectiveText = '';
+  }
+
+  saveObjective(obj: any) {
+    const content = this.editObjectiveText.trim();
+    if (!content || !this.session?.id) return;
+    this.busy.set(true);
+    this.api.updateEntry(this.session.id, obj.id, { content }).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.cancelObjectiveEdit();
+        this.ngOnChanges();
+      },
+      error: () => this.busy.set(false)
+    });
   }
 
   hide(entryId: string) {

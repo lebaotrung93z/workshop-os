@@ -29,7 +29,7 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
           </div>
         </header>
 
-        @if (session()?.status === 'CLOSED' || done()) {
+        @if (session()?.status === 'CLOSED') {
           <section class="panel done">
             <div class="done__icon">✓</div>
             <div class="done__copy">
@@ -109,6 +109,28 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
                   Add Key Result
                 </app-bosch-button>
               </div>
+              @if (myEntries().length) {
+                <div class="mine">
+                  <p class="field__label">Your Key Results</p>
+                  @for (e of myEntries(); track e.id) {
+                    <div class="mine-card">
+                      @if (editingEntryId === e.id) {
+                        <textarea [(ngModel)]="editContent" rows="2"></textarea>
+                        <div class="mine-actions">
+                          <app-bosch-button [disabled]="!editContent.trim() || busy()" (click)="saveEntry(e)">Save</app-bosch-button>
+                          <button type="button" class="link" (click)="cancelEdit()">Cancel</button>
+                        </div>
+                      } @else {
+                        <p>{{ e.content }}</p>
+                        <div class="mine-actions">
+                          <button type="button" class="link" (click)="startEditEntry(e)">Edit</button>
+                          <button type="button" class="danger" (click)="deleteEntry(e.id)">Delete</button>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
             } @else {
               <div class="group-cards">
                 @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
@@ -133,6 +155,28 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
                   Add idea
                 </app-bosch-button>
               </div>
+              @if (myEntries().length) {
+                <div class="mine">
+                  <p class="field__label">Your ideas</p>
+                  @for (e of myEntries(); track e.id) {
+                    <div class="mine-card">
+                      @if (editingEntryId === e.id) {
+                        <textarea [(ngModel)]="editContent" rows="2"></textarea>
+                        <div class="mine-actions">
+                          <app-bosch-button [disabled]="!editContent.trim() || busy()" (click)="saveEntry(e)">Save</app-bosch-button>
+                          <button type="button" class="link" (click)="cancelEdit()">Cancel</button>
+                        </div>
+                      } @else {
+                        <p>{{ e.content }}</p>
+                        <div class="mine-actions">
+                          <button type="button" class="link" (click)="startEditEntry(e)">Edit</button>
+                          <button type="button" class="danger" (click)="deleteEntry(e.id)">Delete</button>
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+              }
             }
           </section>
         } @else if (session()?.currentStep?.type === 'voting') {
@@ -169,12 +213,12 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
         } @else if (session()?.currentStep?.type === 'form') {
           <section class="panel">
             <div class="panel__head">
-              <h2>Define 1 action</h2>
+              <h2>{{ editingActionId ? 'Update action' : 'Define 1 action' }}</h2>
               <p class="hint">
                 {{
                   linksToKr()
-                    ? 'Pick a Key Result, then capture the commitment.'
-                    : 'Capture one commitment before you wrap up.'
+                    ? 'Pick a Key Result, then capture the commitment. You can edit or delete later.'
+                    : 'Capture a commitment. You can edit or delete it anytime on this step.'
                 }}
               </p>
             </div>
@@ -210,12 +254,35 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
               <app-bosch-button
                 icon="save"
                 [block]="true"
-                [disabled]="!action.trim() || (linksToKr() && !sourceEntryId)"
-                (click)="submitAction()"
+                [disabled]="!action.trim() || (linksToKr() && !sourceEntryId) || busy()"
+                (click)="editingActionId ? saveAction() : submitAction()"
               >
-                Submit
+                {{ editingActionId ? 'Save changes' : 'Submit' }}
               </app-bosch-button>
+              @if (editingActionId) {
+                <button type="button" class="link cancel-edit" (click)="cancelActionEdit()">Cancel edit</button>
+              }
             </div>
+            @if (myActions().length) {
+              <div class="mine">
+                <p class="field__label">Your actions</p>
+                @for (a of myActions(); track a.id) {
+                  <div class="mine-card">
+                    <p>{{ a.action }}</p>
+                    <p class="mine-meta">
+                      {{ a.owner || 'Unassigned' }}
+                      @if (a.dueDate) {
+                        · {{ a.dueDate }}
+                      }
+                    </p>
+                    <div class="mine-actions">
+                      <button type="button" class="link" (click)="startEditAction(a)">Edit</button>
+                      <button type="button" class="danger" (click)="deleteAction(a.id)">Delete</button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
           </section>
         }
 
@@ -657,6 +724,49 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
       text-align: center;
     }
 
+    .mine {
+      display: grid;
+      gap: var(--gap-sm);
+      margin-top: var(--gap-md);
+    }
+    .mine-card {
+      background: #f8fafc;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      display: grid;
+      gap: 0.45rem;
+      padding: 0.75rem;
+    }
+    .mine-card p { margin: 0; }
+    .mine-card textarea {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.55rem 0.65rem;
+      width: 100%;
+    }
+    .mine-meta { color: var(--wos-text-muted); font-size: 0.8rem; }
+    .mine-actions { display: flex; gap: 0.85rem; }
+    .mine-actions .link, .cancel-edit {
+      background: transparent;
+      border: 0;
+      color: var(--wos-primary);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0;
+    }
+    .mine-actions .danger {
+      background: transparent;
+      border: 0;
+      color: var(--wos-danger);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0;
+    }
+    .cancel-edit { display: block; margin-top: 0.5rem; text-align: center; width: 100%; }
+
     @media (max-width: 480px) {
       .page {
         padding: 0;
@@ -695,9 +805,14 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   owner = '';
   dueDate = '';
   msg = signal('');
+  busy = signal(false);
+  editingEntryId = '';
+  editContent = '';
+  editingActionId = '';
   private myEntryCounts = signal<Record<string, number>>({});
   private boardEntries = signal<any[]>([]); // all entries on OKR input step for objectives/parents
   private voteTallies = signal<any[]>([]);
+  private myActionsList = signal<any[]>([]);
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || this.api.sessionId();
@@ -711,8 +826,9 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
         this.loadStepData();
         if (e.type === 'session.ended') this.done.set(true);
       }
-      if (e.type === 'vote.updated' || e.type === 'entry.created') {
+      if (e.type === 'vote.updated' || e.type === 'entry.created' || e.type === 'action.created') {
         this.reloadBoardData();
+        this.reloadMyActions();
         if (e.type === 'vote.updated' && e.data?.votesRemaining != null) {
           this.votesLeft.set(e.data.votesRemaining);
         }
@@ -743,6 +859,18 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
 
   krsUnder(objectiveId: string) {
     return this.boardEntries().filter((e) => e.kind === 'kr' && e.parentId === objectiveId);
+  }
+
+  myEntries() {
+    const pid = this.api.participantId();
+    if (!pid) return [];
+    const step = this.session()?.currentStep;
+    const pool = step?.type === 'input' ? this.entries() : this.boardEntries();
+    return pool.filter((e) => e.participantId === pid && e.kind !== 'objective');
+  }
+
+  myActions() {
+    return this.myActionsList();
   }
 
   parentLabel(entry: any): string | null {
@@ -799,12 +927,16 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     const step = this.session()?.currentStep;
     if (!step) return;
     if (step.type === 'voting' || step.type === 'input') {
-      this.api.listEntries(this.id, step.id).subscribe((list) => this.entries.set(list));
+      this.api.listEntries(this.id, step.id).subscribe((list) => {
+        this.entries.set(list);
+        this.syncMyCounts(list);
+      });
     }
     const inputId = this.inputStepId();
     if (inputId) {
       this.api.listEntries(this.id, inputId).subscribe((list) => {
         this.boardEntries.set(list);
+        if (step.type === 'input') this.syncMyCounts(list);
         if (this.isOkr() && !this.parentId && list.some((e) => e.kind === 'objective')) {
           this.parentId = list.find((e) => e.kind === 'objective')!.id;
         }
@@ -816,6 +948,27 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
         this.api.tallyVotes(this.id, voting.id).subscribe((t) => this.voteTallies.set(t));
       }
     }
+    if (step.type === 'form') this.reloadMyActions();
+  }
+
+  private syncMyCounts(list: any[]) {
+    const pid = this.api.participantId();
+    if (!pid) return;
+    const counts: Record<string, number> = {};
+    list
+      .filter((e) => e.participantId === pid && e.kind !== 'objective')
+      .forEach((e) => {
+        const gid = e.groupId || '_';
+        counts[gid] = (counts[gid] || 0) + 1;
+      });
+    this.myEntryCounts.set(counts);
+  }
+
+  private reloadMyActions() {
+    this.api.listActions(this.id).subscribe((list) => {
+      const pid = this.api.participantId();
+      this.myActionsList.set(pid ? list.filter((a) => a.participantId === pid) : []);
+    });
   }
 
   loadStepData() {
@@ -824,12 +977,17 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       this.entries.set([]);
       return;
     }
+    this.cancelEdit();
+    this.cancelActionEdit();
     if (step.type === 'poll') {
       const cfg = this.parseConfig(step);
       this.options.set(cfg.options || []);
     }
     if (step.type === 'voting' || step.type === 'input') {
-      this.api.listEntries(this.id, step.id).subscribe((e) => this.entries.set(e));
+      this.api.listEntries(this.id, step.id).subscribe((e) => {
+        this.entries.set(e);
+        this.syncMyCounts(e);
+      });
       if (step.type === 'input' && step.groups?.length && !this.groupId) {
         this.groupId = step.groups[0].id;
       }
@@ -841,6 +999,108 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       this.votesLeft.set(cfg.votesPerParticipant ?? 3);
     }
     this.reloadBoardData();
+    if (step.type === 'form') this.reloadMyActions();
+  }
+
+  startEditEntry(e: any) {
+    this.editingEntryId = e.id;
+    this.editContent = e.content || '';
+  }
+
+  cancelEdit() {
+    this.editingEntryId = '';
+    this.editContent = '';
+  }
+
+  saveEntry(e: any) {
+    const text = this.editContent.trim();
+    if (!text) return;
+    this.busy.set(true);
+    this.api.updateEntry(this.id, e.id, { content: text, parentId: e.parentId, groupId: e.groupId }).subscribe({
+      next: () => {
+        this.busy.set(false);
+        this.cancelEdit();
+        this.msg.set('Updated');
+        this.reloadBoardData();
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.msg.set(err?.error?.message || 'Update failed');
+      }
+    });
+  }
+
+  deleteEntry(entryId: string) {
+    this.busy.set(true);
+    this.api.removeOwnEntry(this.id, entryId).subscribe({
+      next: () => {
+        this.busy.set(false);
+        if (this.editingEntryId === entryId) this.cancelEdit();
+        this.msg.set('Deleted');
+        this.reloadBoardData();
+      },
+      error: (err) => {
+        this.busy.set(false);
+        this.msg.set(err?.error?.message || 'Delete failed');
+      }
+    });
+  }
+
+  startEditAction(a: any) {
+    this.editingActionId = a.id;
+    this.action = a.action || '';
+    this.owner = a.owner || this.displayName();
+    this.dueDate = a.dueDate || '';
+    this.sourceEntryId = a.sourceEntryId || '';
+  }
+
+  cancelActionEdit() {
+    this.editingActionId = '';
+    this.action = '';
+    this.sourceEntryId = '';
+  }
+
+  saveAction() {
+    if (!this.editingActionId || !this.action.trim()) return;
+    const owner = this.owner || this.displayName();
+    const kr = this.krChoices().find((e) => e.id === this.sourceEntryId);
+    this.busy.set(true);
+    this.api
+      .updateAction(this.id, this.editingActionId, {
+        action: this.action,
+        owner,
+        dueDate: this.dueDate,
+        sourceEntryId: this.sourceEntryId || undefined,
+        sourceLabel: kr?.content
+      })
+      .subscribe({
+        next: () => {
+          this.busy.set(false);
+          this.cancelActionEdit();
+          this.msg.set('Action updated');
+          this.reloadMyActions();
+        },
+        error: (e) => {
+          this.busy.set(false);
+          this.msg.set(e?.error?.message || 'Update failed');
+        }
+      });
+  }
+
+  deleteAction(actionId: string) {
+    this.busy.set(true);
+    this.api.removeOwnAction(this.id, actionId).subscribe({
+      next: () => {
+        this.busy.set(false);
+        if (this.editingActionId === actionId) this.cancelActionEdit();
+        this.msg.set('Action deleted');
+        this.reloadMyActions();
+      },
+      error: (e) => {
+        this.busy.set(false);
+        this.msg.set(e?.error?.message || 'Delete failed');
+      }
+    });
   }
 
   answerPoll(optionId: string) {
@@ -860,8 +1120,8 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     this.api.submitEntry(this.id, text, gid).subscribe({
       next: () => {
         this.content = '';
-        this.myEntryCounts.update((m) => ({ ...m, [gid]: (m[gid] || 0) + 1 }));
         this.msg.set('Idea added');
+        this.reloadBoardData();
       },
       error: (e) => this.msg.set(e?.error?.message)
     });
@@ -902,6 +1162,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   submitAction() {
     const owner = this.owner || this.displayName();
     const kr = this.krChoices().find((e) => e.id === this.sourceEntryId);
+    this.busy.set(true);
     this.api
       .submitAction(this.id, {
         action: this.action,
@@ -912,11 +1173,16 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       })
       .subscribe({
         next: () => {
+          this.busy.set(false);
           this.action = '';
-          this.done.set(true);
+          this.sourceEntryId = '';
           this.msg.set('Action saved');
+          this.reloadMyActions();
         },
-        error: (e) => this.msg.set(e?.error?.message)
+        error: (e) => {
+          this.busy.set(false);
+          this.msg.set(e?.error?.message);
+        }
       });
   }
 }
