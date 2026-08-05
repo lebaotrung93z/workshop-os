@@ -1,0 +1,99 @@
+/* Workshop OS mockup design tokens (hybrid flow UI) */
+:root,
+:root[data-theme='workshop'] {
+  --wos-primary: #0056d2;
+  --wos-primary-hover: #0046b0;
+  --wos-primary-soft: #e8f0ff;
+  --wos-primary-ring: rgba(0, 86, 210, 0.28);
+
+  --wos-success: #0f9d58;
+  --wos-success-soft: #e6f7ee;
+  --wos-success-ink: #0b6b3c;
+
+  --wos-danger: #d93025;
+  --wos-danger-soft: #fce8e6;
+  --wos-danger-ink: #a50e0e;
+
+  --wos-info: #1a73e8;
+  --wos-info-soft: #e8f0fe;
+  --wos-info-ink: #174ea6;
+
+  --wos-purple: #7c4dff;
+  --wos-purple-soft: #f0ebff;
+
+  --wos-bg: #f5f7fb;
+  --wos-surface: #ffffff;
+  --wos-border: #e3e8f0;
+  --wos-border-strong: #c9d2e0;
+  --wos-text: #111827;
+  --wos-text-secondary: #4b5563;
+  --wos-text-muted: #6b7280;
+  --wos-on-primary: #ffffff;
+
+  --wos-radius: 8px;
+  --wos-radius-lg: 12px;
+  --wos-radius-pill: 999px;
+  --wos-shadow: 0 1px 2px rgba(16, 24, 40, 0.06), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --wos-shadow-lg: 0 8px 32px rgba(16, 24, 40, 0.12);
+
+  --wos-sidebar: #0f172a;
+  --wos-sidebar-text: #cbd5e1;
+  --wos-sidebar-active: #1e293b;
+
+  --wos-screen-bg: #0b1220;
+  --wos-screen-surface: #121a2b;
+  --wos-screen-border: #243049;
+  --wos-screen-text: #f8fafc;
+  --wos-screen-muted: #94a3b8;
+
+  --wos-font: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Map Bosch component tokens → mockup so existing bosch-* components pick up style */
+  --bosch-bg: var(--wos-bg);
+  --bosch-bg-muted: #eef2f8;
+  --bosch-surface: var(--wos-surface);
+  --bosch-border: var(--wos-border);
+  --bosch-border-strong: var(--wos-border-strong);
+  --bosch-text: var(--wos-text);
+  --bosch-text-secondary: var(--wos-text-secondary);
+  --bosch-text-muted: var(--wos-text-muted);
+  --bosch-accent: var(--wos-primary);
+  --bosch-accent-hover: var(--wos-primary-hover);
+  --bosch-accent-soft: var(--wos-primary-soft);
+  --bosch-accent-ring: var(--wos-primary-ring);
+  --bosch-on-accent: var(--wos-on-primary);
+  --bosch-positive: var(--wos-success);
+  --bosch-error: var(--wos-danger);
+  --bosch-card-radius: var(--wos-radius-lg);
+  --bosch-card-shadow: var(--wos-shadow);
+  --bosch-font-family: var(--wos-font);
+  --bosch-line-height: 1.5;
+}
+
+.badge {
+  border-radius: var(--wos-radius-pill);
+  display: inline-flex;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+}
+
+.badge--live {
+  background: var(--wos-success-soft);
+  color: var(--wos-success-ink);
+}
+
+.badge--done {
+  background: var(--wos-success-soft);
+  color: var(--wos-success-ink);
+}
+
+.badge--active {
+  background: var(--wos-primary-soft);
+  color: var(--wos-primary);
+}
+
+.badge--pending {
+  background: #eef1f6;
+  color: var(--wos-text-muted);
+}

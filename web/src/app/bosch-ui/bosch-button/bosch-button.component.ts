@@ -38,7 +38,7 @@ import { BoschIconComponent } from '../../bosch-icon/bosch-icon/bosch-icon.compo
       align-items: center;
       background: transparent;
       border: 1px solid transparent;
-      border-radius: 0;
+      border-radius: var(--wos-radius, 8px);
       cursor: pointer;
       display: inline-flex;
       font: inherit;
@@ -48,6 +48,7 @@ import { BoschIconComponent } from '../../bosch-icon/bosch-icon/bosch-icon.compo
       justify-content: center;
       min-height: 2.5rem;
       padding: 0 1rem;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
     }
 
     .bosch-button--block {

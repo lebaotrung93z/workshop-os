@@ -2,8 +2,6 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
-import { BoschCardComponent } from '../bosch-ui/bosch-card/bosch-card.component';
-import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
 import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../core/api.service';
 import { readJoinCodeFromLocation } from '../core/join-url';
@@ -11,17 +9,14 @@ import { readJoinCodeFromLocation } from '../core/join-url';
 @Component({
   selector: 'app-join',
   standalone: true,
-  imports: [FormsModule, BoschButtonComponent, BoschCardComponent, BoschLogoComponent, BoschAvatarComponent],
+  imports: [FormsModule, BoschButtonComponent, BoschAvatarComponent],
   template: `
     <div class="page">
-      <app-bosch-logo />
-      <h1>Join workshop</h1>
-      <p class="lede">Enter the session code from the host or big screen.</p>
+      <div class="phone">
+        <div class="brand">Workshop OS</div>
+        <h1>Join workshop</h1>
+        <p class="lede">{{ sessionTitle() || 'Enter the code from the big screen' }}</p>
 
-      <app-bosch-card
-        title="Enter session"
-        [subtitle]="sessionTitle() || 'You’ll appear on the live wall with your initials'"
-      >
         <div class="preview">
           <app-bosch-avatar [name]="name || 'You'" size="lg" />
           <div>
@@ -31,33 +26,78 @@ import { readJoinCodeFromLocation } from '../core/join-url';
         </div>
 
         <label>
-          Session code
-          <input [(ngModel)]="code" maxlength="6" autocomplete="off" />
+          Enter session code
+          <input [(ngModel)]="code" maxlength="6" placeholder="AIOS12" autocomplete="off" />
         </label>
         <label>
           Your name
-          <input class="name" [(ngModel)]="name" name="displayName" placeholder="Minh Hoang" autocomplete="name" />
+          <input class="name" [(ngModel)]="name" placeholder="Minh Hoang" autocomplete="name" />
         </label>
+
         @if (error()) {
           <p class="err">{{ error() }}</p>
         }
+
         <app-bosch-button [block]="true" [disabled]="busy() || !code.trim() || !name.trim()" (click)="join()">
           Join
         </app-bosch-button>
-      </app-bosch-card>
+      </div>
     </div>
   `,
   styles: `
-    .page { display: grid; gap: 0.85rem; margin: 0 auto; max-width: 420px; padding: 1.5rem 1rem; }
-    h1 { margin: 0; }
-    .lede { color: var(--bosch-text-muted); margin: 0; }
-    .preview { align-items: center; background: var(--bosch-bg-muted); display: flex; gap: 0.85rem; margin-bottom: 1rem; padding: 0.85rem; }
+    .page {
+      align-items: center;
+      background: linear-gradient(180deg, #dbe7ff 0%, var(--wos-bg) 45%, var(--wos-bg) 100%);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.25rem;
+    }
+
+    .phone {
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: 24px;
+      box-shadow: var(--wos-shadow-lg);
+      display: grid;
+      gap: 0.85rem;
+      max-width: 390px;
+      padding: 1.5rem 1.25rem 1.75rem;
+      width: 100%;
+    }
+
+    .brand {
+      color: var(--wos-primary);
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    h1 { font-size: 1.55rem; margin: 0; }
+    .lede { color: var(--wos-text-muted); margin: 0; }
+
+    .preview {
+      align-items: center;
+      background: var(--wos-primary-soft);
+      border-radius: var(--wos-radius-lg);
+      display: flex;
+      gap: 0.85rem;
+      padding: 0.85rem;
+    }
+
     .preview strong { display: block; }
-    .preview span { color: var(--bosch-text-muted); font-size: 0.82rem; }
-    label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
-    input { border: 1px solid var(--bosch-border-strong); font: inherit; padding: 0.75rem; text-transform: uppercase; }
-    input.name, input[name='displayName'] { text-transform: none; }
-    .err { color: var(--bosch-error); }
+    .preview span { color: var(--wos-text-muted); font-size: 0.8rem; }
+
+    label { display: grid; font-weight: 600; gap: 0.35rem; }
+    input {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      padding: 0.8rem 0.85rem;
+      text-transform: uppercase;
+    }
+    input.name { text-transform: none; }
+    .err { color: var(--wos-danger); margin: 0; }
   `
 })
 export class JoinComponent implements OnInit {
@@ -85,12 +125,8 @@ export class JoinComponent implements OnInit {
     this.error.set('');
     const code = this.code.trim().toUpperCase();
     const name = this.name.trim();
-    if (!code) {
-      this.error.set('Enter the session code');
-      return;
-    }
-    if (!name) {
-      this.error.set('Enter your name');
+    if (!code || !name) {
+      this.error.set(!code ? 'Enter the session code' : 'Enter your name');
       return;
     }
     this.busy.set(true);

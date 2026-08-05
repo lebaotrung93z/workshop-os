@@ -1,15 +1,15 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
-import { BoschCardComponent } from '../bosch-ui/bosch-card/bosch-card.component';
-import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
 import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar-stack.component';
+import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { Subscription } from 'rxjs';
 import QRCode from 'qrcode';
 import { ActivityHostPanelComponent } from '../shared/activity/activity-host-panel.component';
 import { buildJoinUrl } from '../core/join-url';
+import { HostShellComponent } from './host-shell.component';
 
 @Component({
   selector: 'app-host-live',
@@ -17,129 +17,207 @@ import { buildJoinUrl } from '../core/join-url';
   imports: [
     RouterLink,
     BoschButtonComponent,
-    BoschCardComponent,
-    BoschLogoComponent,
     BoschAvatarStackComponent,
-    ActivityHostPanelComponent
+    BoschAvatarComponent,
+    ActivityHostPanelComponent,
+    HostShellComponent
   ],
   template: `
-    <div class="page">
-      <header class="top">
-        <app-bosch-logo />
-        <div class="top__meta">
-          <h1>{{ session()?.title || 'Live control' }}</h1>
-          <p>
-            Code <strong class="code">{{ session()?.code }}</strong>
-            · {{ session()?.status }}
-          </p>
-        </div>
-        <a class="display-link" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
-      </header>
-
-      <section class="participants card-block">
-        <div class="participants__head">
-          <h2>{{ session()?.participantCount || 0 }} Participants</h2>
-          <app-bosch-avatar-stack [people]="participants()" [max]="7" size="md" />
-        </div>
-      </section>
-
-      <section class="steps card-block">
-        <h2>Session progress</h2>
-        <ol class="step-rail">
-          @for (s of session()?.steps || []; track s.id; let i = $index) {
-            <li
-              class="step"
-              [class.step--done]="s.status === 'DONE'"
-              [class.step--active]="s.status === 'ACTIVE'"
-              [class.step--pending]="s.status !== 'DONE' && s.status !== 'ACTIVE'"
-            >
-              <span class="step__num">{{ i + 1 }}</span>
-              <div class="step__body">
-                <strong>{{ s.title }}</strong>
-                <span class="step__type">{{ s.type }}</span>
-                <span class="step__status">{{ stepLabel(s) }}</span>
-              </div>
-            </li>
-          }
-        </ol>
-      </section>
-
-      <div class="grid">
-        <app-bosch-card title="Lobby / QR" subtitle="Share with participants">
-          @if (qrDataUrl()) {
-            <img class="qr" [src]="qrDataUrl()" alt="Join QR" width="180" height="180" />
-          }
-          <p class="join-url">{{ joinUrl }}</p>
-        </app-bosch-card>
-
-        <app-bosch-card title="Live control" [subtitle]="session()?.currentStep?.title || 'Not started'">
-          <p class="instructions">{{ session()?.currentStep?.instructions || 'Start when everyone has joined.' }}</p>
-          <div class="controls">
-            @if (session()?.status === 'LOBBY') {
-              <app-bosch-button icon="dashboard" (click)="start()">Start session</app-bosch-button>
-            } @else {
-              <app-bosch-button variant="secondary" icon="chevron-left" (click)="back()">Back</app-bosch-button>
-              <app-bosch-button icon="chevron-right" (click)="advance()">Next step</app-bosch-button>
-            }
-            <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
-            <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
-            <app-bosch-button variant="secondary" icon="export" (click)="download('pdf')">Report</app-bosch-button>
-            <app-bosch-button variant="danger" (click)="end()">End</app-bosch-button>
+    <app-host-shell>
+      <div class="page">
+        <header class="top">
+          <div>
+            <div class="title-row">
+              <h1>{{ session()?.title || 'Live session' }}</h1>
+              @if (session()?.status && session()?.status !== 'CLOSED') {
+                <span class="badge badge--live">Live</span>
+              }
+            </div>
+            <p>
+              Code <strong class="code">{{ session()?.code }}</strong>
+              · Step {{ currentIndex() }} of {{ (session()?.steps || []).length || 0 }}
+            </p>
           </div>
-          @if (message()) {
-            <p class="msg">{{ message() }}</p>
-          }
-        </app-bosch-card>
+          <a class="ghost" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
+        </header>
+
+        <section class="participants card">
+          <div class="participants__head">
+            <h2>{{ session()?.participantCount || 0 }} Participants</h2>
+            <app-bosch-avatar-stack [people]="participants()" [max]="7" size="md" />
+          </div>
+        </section>
+
+        <div class="layout">
+          <section class="card steps">
+            <h2>Session steps</h2>
+            <ol>
+              @for (s of session()?.steps || []; track s.id; let i = $index) {
+                <li [class.done]="s.status === 'DONE'" [class.active]="s.status === 'ACTIVE'">
+                  <span class="num">{{ i + 1 }}</span>
+                  <div>
+                    <strong>{{ s.title }}</strong>
+                    <small>{{ s.type }}</small>
+                  </div>
+                  <span class="badge" [class.badge--done]="s.status === 'DONE'" [class.badge--active]="s.status === 'ACTIVE'" [class.badge--pending]="s.status !== 'DONE' && s.status !== 'ACTIVE'">
+                    {{ stepLabel(s) }}
+                  </span>
+                </li>
+              }
+            </ol>
+          </section>
+
+          <section class="card control">
+            <div class="control__head">
+              <div>
+                <p class="eyebrow">Live control · Step {{ currentIndex() }} of {{ (session()?.steps || []).length || 0 }}</p>
+                <h2>{{ session()?.currentStep?.title || 'Lobby' }}</h2>
+              </div>
+              @if (timerLabel()) {
+                <div class="timer">{{ timerLabel() }}</div>
+              }
+            </div>
+
+            <div class="tabs">
+              <button type="button" class="tab" [class.on]="tab() === 'preview'" (click)="tab.set('preview')">Big Screen Preview</button>
+              <button type="button" class="tab" [class.on]="tab() === 'settings'" (click)="tab.set('settings')">Step Settings</button>
+            </div>
+
+            @if (tab() === 'preview') {
+              <div class="qr-block">
+                @if (qrDataUrl()) {
+                  <img [src]="qrDataUrl()" alt="Join QR" width="160" height="160" />
+                }
+                <div>
+                  <p class="join-url">{{ joinUrl }}</p>
+                  <p class="hint">{{ session()?.currentStep?.instructions || 'Share the QR or code with participants.' }}</p>
+                </div>
+              </div>
+
+              <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
+            } @else {
+              <div class="settings">
+                <label>Activity type <input [value]="session()?.currentStep?.type || ''" readonly /></label>
+                <p class="section-label">Section groups</p>
+                <ul class="groups">
+                  @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
+                    <li [attr.data-tone]="gi % 3">{{ g.title }}</li>
+                  } @empty {
+                    <li class="empty">No groups on this step</li>
+                  }
+                </ul>
+              </div>
+            }
+
+            <div class="controls">
+              @if (session()?.status === 'LOBBY') {
+                <app-bosch-button icon="dashboard" (click)="start()">Start session</app-bosch-button>
+              } @else {
+                <app-bosch-button variant="secondary" icon="chevron-left" (click)="back()">Previous</app-bosch-button>
+                <app-bosch-button icon="chevron-right" (click)="advance()">Next Step</app-bosch-button>
+              }
+              <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
+              <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
+              <app-bosch-button variant="danger" (click)="end()">End Session</app-bosch-button>
+            </div>
+            @if (message()) {
+              <p class="msg">{{ message() }}</p>
+            }
+          </section>
+        </div>
+
+        @if (summary()) {
+          <section class="card summary">
+            <div class="summary__tabs">
+              <button type="button" class="tab" [class.on]="summaryTab() === 'insights'" (click)="summaryTab.set('insights')">Summary</button>
+              <button type="button" class="tab" [class.on]="summaryTab() === 'actions'" (click)="summaryTab.set('actions')">Actions</button>
+            </div>
+            @if (summaryTab() === 'insights') {
+              <h2>Key Insights</h2>
+              <ul class="insights">
+                @for (i of summary()?.insights || []; track i) {
+                  <li><span class="check">✓</span> {{ i }}</li>
+                }
+              </ul>
+            } @else {
+              <h2>Suggested Actions</h2>
+              <ol class="actions-list">
+                @for (a of summary()?.suggestedActions || []; track a.title; let i = $index) {
+                  <li>
+                    <span class="actions-list__n">{{ i + 1 }}</span>
+                    <div>
+                      <strong>{{ a.title }}</strong>
+                      <div class="owner">
+                        @if (a.owner) {
+                          <app-bosch-avatar [name]="a.owner" size="sm" />
+                          <span>{{ a.owner }}</span>
+                        }
+                        @if (a.dueDate) {
+                          <em>{{ a.dueDate }}</em>
+                        }
+                      </div>
+                    </div>
+                  </li>
+                }
+              </ol>
+            }
+          </section>
+        }
       </div>
-
-      <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
-
-      @if (summary()) {
-        <app-bosch-card title="AI summary" [subtitle]="summary()?.provider + ' / ' + summary()?.model">
-          <ul>
-            @for (i of summary()?.insights || []; track i) {
-              <li>{{ i }}</li>
-            }
-          </ul>
-          <h3>Suggested actions</h3>
-          <ul>
-            @for (a of summary()?.suggestedActions || []; track a.title) {
-              <li>{{ a.title }} — {{ a.owner }} {{ a.dueDate }}</li>
-            }
-          </ul>
-        </app-bosch-card>
-      }
-    </div>
+    </app-host-shell>
   `,
   styles: `
-    .page { display: grid; gap: 1rem; margin: 0 auto; max-width: 1100px; padding: 1.25rem; }
-    .top { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; }
-    .top__meta h1 { font-size: 1.35rem; margin: 0; }
-    .top__meta p { color: var(--bosch-text-muted); margin: 0.2rem 0 0; }
-    .code { color: var(--bosch-accent); letter-spacing: 0.08em; }
-    .display-link { color: var(--bosch-accent); font-weight: 700; margin-left: auto; }
-    .card-block { background: var(--bosch-surface); border: 1px solid var(--bosch-border); padding: 1rem 1.1rem; }
-    .card-block h2 { font-size: 1rem; margin: 0 0 0.75rem; }
+    .page { display: grid; gap: 1rem; }
+    .top { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
+    .title-row { align-items: center; display: flex; gap: 0.65rem; }
+    h1 { font-size: 1.55rem; margin: 0; }
+    .top p { color: var(--wos-text-muted); margin: 0.25rem 0 0; }
+    .code { color: var(--wos-primary); letter-spacing: 0.06em; }
+    .ghost { background: #fff; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); color: var(--wos-text); font-weight: 600; padding: 0.6rem 0.9rem; text-decoration: none; }
+    .card { background: var(--wos-surface); border: 1px solid var(--wos-border); border-radius: var(--wos-radius-lg); box-shadow: var(--wos-shadow); padding: 1rem 1.1rem; }
     .participants__head { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
-    .participants__head h2 { margin: 0; }
-    .step-rail { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); list-style: none; margin: 0; padding: 0; }
-    .step { background: var(--bosch-bg-muted); border: 1px solid var(--bosch-border); border-left: 4px solid var(--bosch-gray-70); display: grid; gap: 0.65rem; grid-template-columns: auto 1fr; padding: 0.75rem; }
-    .step--done { border-left-color: var(--bosch-positive); }
-    .step--active { background: var(--bosch-accent-soft); border-left-color: var(--bosch-accent); }
-    .step__num { align-items: center; background: var(--bosch-surface); border: 1px solid var(--bosch-border-strong); display: inline-flex; font-size: 0.85rem; font-weight: 800; height: 1.75rem; justify-content: center; width: 1.75rem; }
-    .step--active .step__num { background: var(--bosch-accent); border-color: var(--bosch-accent); color: var(--bosch-on-accent); }
-    .step--done .step__num { background: var(--bosch-positive); border-color: var(--bosch-positive); color: var(--bosch-on-accent); }
-    .step__body { display: grid; gap: 0.15rem; }
-    .step__body strong { font-size: 0.92rem; }
-    .step__type, .step__status { color: var(--bosch-text-muted); font-size: 0.78rem; text-transform: capitalize; }
-    .grid { display: grid; gap: 1rem; grid-template-columns: 260px 1fr; }
-    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
-    .qr { display: block; }
-    .join-url { color: var(--bosch-text-secondary); font-size: 0.85rem; word-break: break-all; }
-    .instructions { color: var(--bosch-text-secondary); margin: 0; }
-    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
-    .msg { color: var(--bosch-accent); }
-    h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+    .participants__head h2, .steps h2, .summary h2 { font-size: 1rem; margin: 0 0 0.85rem; }
+    .layout { display: grid; gap: 1rem; grid-template-columns: 300px 1fr; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+    .steps ol { display: grid; gap: 0.55rem; list-style: none; margin: 0; padding: 0; }
+    .steps li { align-items: center; background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); display: grid; gap: 0.65rem; grid-template-columns: auto 1fr auto; padding: 0.7rem; }
+    .steps li.active { background: var(--wos-primary-soft); border-color: #9db7ef; }
+    .steps li.done { opacity: 0.92; }
+    .num { align-items: center; background: #fff; border: 1px solid var(--wos-border-strong); border-radius: 50%; display: inline-flex; font-size: 0.8rem; font-weight: 800; height: 1.7rem; justify-content: center; width: 1.7rem; }
+    .steps li.active .num { background: var(--wos-primary); border-color: var(--wos-primary); color: #fff; }
+    .steps li.done .num { background: var(--wos-success); border-color: var(--wos-success); color: #fff; }
+    .steps strong { display: block; font-size: 0.9rem; }
+    .steps small { color: var(--wos-text-muted); text-transform: capitalize; }
+    .control__head { align-items: start; display: flex; gap: 1rem; justify-content: space-between; margin-bottom: 0.85rem; }
+    .eyebrow { color: var(--wos-primary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin: 0 0 0.25rem; text-transform: uppercase; }
+    .control h2 { margin: 0; }
+    .timer { background: #0f172a; border-radius: var(--wos-radius); color: #fff; font-variant-numeric: tabular-nums; font-weight: 800; padding: 0.55rem 0.75rem; }
+    .tabs { display: flex; gap: 0.35rem; margin-bottom: 0.9rem; }
+    .tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--wos-text-muted); cursor: pointer; font-weight: 700; padding: 0.45rem 0.35rem; }
+    .tab.on { border-bottom-color: var(--wos-primary); color: var(--wos-primary); }
+    .qr-block { align-items: center; background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); display: flex; gap: 1rem; margin-bottom: 1rem; padding: 0.85rem; }
+    .join-url { font-size: 0.85rem; margin: 0 0 0.35rem; word-break: break-all; }
+    .hint { color: var(--wos-text-muted); margin: 0; }
+    .settings label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
+    .settings input { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.65rem; }
+    .section-label { font-size: 0.85rem; font-weight: 700; margin: 0 0 0.5rem; }
+    .groups { display: grid; gap: 0.45rem; list-style: none; margin: 0; padding: 0; }
+    .groups li { background: #f8fafc; border-left: 4px solid var(--wos-primary); border-radius: var(--wos-radius); padding: 0.65rem 0.75rem; }
+    .groups li[data-tone='0'] { background: var(--wos-success-soft); border-left-color: var(--wos-success); color: var(--wos-success-ink); }
+    .groups li[data-tone='1'] { background: var(--wos-danger-soft); border-left-color: var(--wos-danger); color: var(--wos-danger-ink); }
+    .groups li[data-tone='2'] { background: var(--wos-info-soft); border-left-color: var(--wos-info); color: var(--wos-info-ink); }
+    .groups .empty { border-left-color: var(--wos-border-strong); color: var(--wos-text-muted); }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+    .msg { color: var(--wos-primary); }
+    .insights { display: grid; gap: 0.55rem; list-style: none; margin: 0; padding: 0; }
+    .insights li { align-items: start; display: flex; gap: 0.55rem; }
+    .check { align-items: center; background: var(--wos-success-soft); border-radius: 50%; color: var(--wos-success-ink); display: inline-flex; flex: 0 0 1.35rem; font-weight: 800; height: 1.35rem; justify-content: center; width: 1.35rem; }
+    .actions-list { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
+    .actions-list li { align-items: start; background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); display: flex; gap: 0.75rem; padding: 0.85rem; }
+    .actions-list__n { align-items: center; background: var(--wos-primary); border-radius: 50%; color: #fff; display: inline-flex; flex: 0 0 1.6rem; font-weight: 800; height: 1.6rem; justify-content: center; width: 1.6rem; }
+    .owner { align-items: center; color: var(--wos-text-secondary); display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.4rem; }
+    .owner em { color: var(--wos-text-muted); font-style: normal; margin-left: auto; }
+    .summary__tabs { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; }
   `
 })
 export class HostLiveComponent implements OnInit, OnDestroy {
@@ -155,7 +233,16 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   summary = signal<any>(null);
   message = signal('');
   panelTick = signal(0);
+  tab = signal<'preview' | 'settings'>('preview');
+  summaryTab = signal<'insights' | 'actions'>('insights');
   joinUrl = '';
+
+  currentIndex = computed(() => {
+    const steps = this.session()?.steps || [];
+    const id = this.session()?.currentStepId;
+    const idx = steps.findIndex((s: any) => s.id === id);
+    return idx >= 0 ? idx + 1 : 0;
+  });
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
@@ -174,9 +261,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       if (e.type === 'entry.created' || e.type === 'entry.hidden' || e.type === 'vote.updated' || e.type === 'action.created') {
         this.panelTick.update((n) => n + 1);
       }
-      if (e.type === 'summary.ready') {
-        this.summary.set(e.data);
-      }
+      if (e.type === 'summary.ready') this.summary.set(e.data);
     });
   }
 
@@ -185,9 +270,13 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.realtime.disconnect();
   }
 
+  timerLabel() {
+    return '';
+  }
+
   stepLabel(step: any): string {
     if (step.status === 'DONE') return 'Completed';
-    if (step.status === 'ACTIVE') return 'In progress';
+    if (step.status === 'ACTIVE') return 'In Progress';
     return 'Pending';
   }
 
@@ -196,7 +285,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       next: (s) => {
         this.session.set(s);
         this.joinUrl = buildJoinUrl(location.origin, s.code);
-        QRCode.toDataURL(this.joinUrl, { width: 180, margin: 1, errorCorrectionLevel: 'M' }).then((url) =>
+        QRCode.toDataURL(this.joinUrl, { width: 160, margin: 1, errorCorrectionLevel: 'M' }).then((url) =>
           this.qrDataUrl.set(url)
         );
         this.panelTick.update((n) => n + 1);
@@ -234,6 +323,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.api.generateSummary(this.id).subscribe({
       next: (s) => {
         this.summary.set(s);
+        this.summaryTab.set('insights');
         this.message.set('Summary ready');
       },
       error: (e) => this.message.set(e?.error?.message || 'Summary failed')

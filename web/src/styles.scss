@@ -1,13 +1,15 @@
 @use './bosch-theme.scss';
+@use './styles/workshop-theme';
 
 html,
 body {
   margin: 0;
   min-height: 100%;
-  background: var(--bosch-bg);
-  color: var(--bosch-text);
-  font-family: var(--bosch-font-family);
-  line-height: var(--bosch-line-height);
+  background: var(--wos-bg, var(--bosch-bg));
+  color: var(--wos-text, var(--bosch-text));
+  font-family: var(--wos-font, var(--bosch-font-family));
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 * {
@@ -15,5 +17,12 @@ body {
 }
 
 a {
-  color: var(--bosch-accent);
+  color: var(--wos-primary, var(--bosch-accent));
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }

@@ -2,7 +2,6 @@ import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import QRCode from 'qrcode';
-import { BoschLogoComponent } from '../bosch-ui/bosch-logo/bosch-logo.component';
 import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar-stack.component';
 import { ApiService } from '../core/api.service';
@@ -12,30 +11,29 @@ import { buildJoinUrl } from '../core/join-url';
 @Component({
   selector: 'app-display',
   standalone: true,
-  imports: [BoschLogoComponent, BoschAvatarComponent, BoschAvatarStackComponent],
+  imports: [BoschAvatarComponent, BoschAvatarStackComponent],
   template: `
     <div class="screen">
       <header>
-        <app-bosch-logo />
-        <div class="header__meta">
+        <div>
+          <p class="brand">Workshop OS</p>
           <h1>{{ session()?.title }}</h1>
-          <p>
+          <p class="meta">
             Code <span class="code">{{ session()?.code }}</span>
             · {{ session()?.participantCount || 0 }} online
           </p>
         </div>
-        <app-bosch-avatar-stack [people]="participants()" [max]="8" size="md" />
+        <app-bosch-avatar-stack [people]="participants()" [max]="8" size="lg" />
       </header>
 
       @if (showJoinScreen()) {
         <section class="hero">
           <h2>{{ joinHeadline() }}</h2>
           @if (qrDataUrl()) {
-            <img class="qr" [src]="qrDataUrl()" alt="Scan to join workshop" width="360" height="360" />
+            <img class="qr" [src]="qrDataUrl()" alt="Scan to join" width="320" height="320" />
           }
           <p class="code-lg">{{ session()?.code }}</p>
-          <p class="join-url">{{ joinUrl }}</p>
-          <p>{{ joinSubline() }}</p>
+          <p class="sub">{{ joinSubline() }}</p>
           <div class="hero__people">
             <app-bosch-avatar-stack [people]="participants()" [max]="12" size="lg" />
           </div>
@@ -63,20 +61,22 @@ import { buildJoinUrl } from '../core/join-url';
           <div class="columns">
             @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
               <div class="col" [attr.data-tone]="gi % 3">
-                <h3>{{ g.title }}</h3>
-                @for (e of entriesFor(g.id); track e.id) {
-                  <article class="note">
-                    <div class="note__head">
-                      @if (e.authorName) {
-                        <app-bosch-avatar [name]="e.authorName" size="sm" />
-                        <span>{{ e.authorName }}</span>
-                      } @else {
-                        <span class="muted">Anonymous</span>
-                      }
-                    </div>
-                    <p>{{ e.content }}</p>
-                  </article>
-                }
+                <header>{{ g.title }}</header>
+                <div class="col__body">
+                  @for (e of entriesFor(g.id); track e.id) {
+                    <article class="note">
+                      <div class="note__head">
+                        @if (e.authorName) {
+                          <app-bosch-avatar [name]="e.authorName" size="sm" />
+                          <span>{{ e.authorName }}</span>
+                        } @else {
+                          <span class="muted">Anonymous</span>
+                        }
+                      </div>
+                      <p>{{ e.content }}</p>
+                    </article>
+                  }
+                </div>
               </div>
             }
           </div>
@@ -85,13 +85,18 @@ import { buildJoinUrl } from '../core/join-url';
 
       @if (!showJoinScreen() && session()?.currentStep?.type === 'voting') {
         <section>
-          <h2>Top issues (by votes)</h2>
+          <h2>Top issues</h2>
           <div class="vote-bars">
             @for (v of votes(); track v.entryId; let i = $index) {
               <div class="vote-row">
                 <span class="rank">{{ i + 1 }}</span>
                 <div class="vote-row__body">
-                  <div class="vote-row__label">{{ v.content }}</div>
+                  <div class="vote-row__label">
+                    {{ v.content }}
+                    @if (i < 3) {
+                      <span class="hot">🔥</span>
+                    }
+                  </div>
                   <div class="track"><div class="fill" [style.width.%]="votePct(v.votes)"></div></div>
                 </div>
                 <strong>{{ v.votes }}</strong>
@@ -108,14 +113,14 @@ import { buildJoinUrl } from '../core/join-url';
             <div class="actions">
               @for (a of actions(); track a.id) {
                 <article class="action">
-                  <p class="action__text">{{ a.action }}</p>
+                  <p>{{ a.action }}</p>
                   <div class="action__meta">
                     @if (a.owner) {
                       <app-bosch-avatar [name]="a.owner" size="sm" />
-                      <span>Owner: {{ a.owner }}</span>
+                      <span>{{ a.owner }}</span>
                     }
                     @if (a.dueDate) {
-                      <span class="due">Due {{ a.dueDate }}</span>
+                      <em>{{ a.dueDate }}</em>
                     }
                   </div>
                 </article>
@@ -124,10 +129,10 @@ import { buildJoinUrl } from '../core/join-url';
           </div>
           @if (summary()?.insights) {
             <div>
-              <h2>Key insights</h2>
-              <ul>
+              <h2>AI summary</h2>
+              <ul class="insights">
                 @for (i of summary()?.insights || []; track i) {
-                  <li>{{ i }}</li>
+                  <li><span class="check">✓</span> {{ i }}</li>
                 }
               </ul>
             </div>
@@ -137,43 +142,139 @@ import { buildJoinUrl } from '../core/join-url';
     </div>
   `,
   styles: `
-    .screen { background: linear-gradient(180deg, #fff 0%, var(--bosch-gray-95) 100%); color: var(--bosch-text); min-height: 100vh; padding: 2rem 2.5rem; }
-    header { align-items: center; display: flex; flex-wrap: wrap; gap: 1.25rem; margin-bottom: 2rem; }
-    .header__meta { flex: 1; min-width: 200px; }
+    :host { display: block; }
+    .screen {
+      background: radial-gradient(1200px 600px at 20% -10%, #1a2b4d 0%, transparent 55%), var(--wos-screen-bg);
+      color: var(--wos-screen-text);
+      min-height: 100vh;
+      padding: 2rem 2.5rem 3rem;
+    }
+
+    header {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+
+    .brand {
+      color: #93c5fd;
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      margin: 0 0 0.35rem;
+      text-transform: uppercase;
+    }
+
     h1 { font-size: 2rem; margin: 0; }
-    h2 { font-size: 2.2rem; margin: 0 0 1rem; }
-    h3 { color: var(--bosch-text); margin: 0 0 0.75rem; }
-    .code, .code-lg { color: var(--bosch-accent); font-weight: 800; letter-spacing: 0.12em; }
-    .code-lg { display: block; font-size: 4rem; margin: 0.75rem 0 0.35rem; }
-    .hero { display: grid; gap: 0.5rem; justify-items: center; padding: 2.5rem 1rem 4rem; text-align: center; }
-    .qr { background: #fff; border: 1px solid var(--bosch-border); height: auto; padding: 1rem; width: min(360px, 70vw); }
-    .join-url { color: var(--bosch-text-muted); font-size: 1.05rem; margin: 0; max-width: 36rem; word-break: break-all; }
-    .hero__people { display: flex; justify-content: center; margin-top: 1rem; }
+    h2 { font-size: 2rem; margin: 0 0 1rem; }
+    .meta { color: var(--wos-screen-muted); margin: 0.35rem 0 0; }
+    .code, .code-lg { color: #60a5fa; font-weight: 800; letter-spacing: 0.12em; }
+    .code-lg { display: block; font-size: 4rem; margin: 0.5rem 0; }
+
+    .hero {
+      display: grid;
+      gap: 0.75rem;
+      justify-items: center;
+      padding: 2rem 1rem 3rem;
+      text-align: center;
+    }
+
+    .qr {
+      background: #fff;
+      border-radius: 16px;
+      padding: 1rem;
+      width: min(320px, 70vw);
+    }
+
+    .sub { color: var(--wos-screen-muted); margin: 0; }
+    .hero__people { margin-top: 1rem; }
+
     .bars, .vote-bars { display: grid; gap: 1rem; max-width: 960px; }
-    .row { align-items: center; display: grid; font-size: 1.4rem; gap: 1rem; grid-template-columns: 160px 1fr 60px; }
-    .vote-row { align-items: center; display: grid; font-size: 1.25rem; gap: 1rem; grid-template-columns: 2.5rem 1fr 3rem; }
-    .vote-row__body { display: grid; gap: 0.35rem; }
-    .vote-row__label { font-weight: 600; }
-    .track { background: var(--bosch-gray-90); height: 28px; }
-    .fill { background: var(--bosch-accent); height: 28px; }
+    .row, .vote-row {
+      align-items: center;
+      display: grid;
+      font-size: 1.35rem;
+      gap: 1rem;
+      grid-template-columns: 160px 1fr 60px;
+    }
+    .vote-row { grid-template-columns: 2.5rem 1fr 3rem; }
+    .track { background: #1e293b; border-radius: 999px; height: 28px; overflow: hidden; }
+    .fill { background: linear-gradient(90deg, #0056d2, #60a5fa); height: 28px; }
+    .rank { color: #60a5fa; font-weight: 800; }
+    .vote-row__label { align-items: center; display: flex; font-weight: 600; gap: 0.4rem; margin-bottom: 0.3rem; }
+    .hot { font-size: 1rem; }
+
     .columns { display: grid; gap: 1rem; grid-template-columns: repeat(3, 1fr); }
-    .col { background: var(--bosch-surface); border: 1px solid var(--bosch-border); border-top: 6px solid var(--bosch-accent); min-height: 12rem; padding: 1rem; }
-    .col[data-tone='0'] { border-top-color: var(--bosch-positive); }
-    .col[data-tone='1'] { border-top-color: var(--bosch-error); }
-    .col[data-tone='2'] { border-top-color: var(--bosch-accent); }
-    .note { background: var(--bosch-yellow-95); border: 1px solid var(--bosch-border); margin-bottom: 0.65rem; padding: 0.85rem; }
-    .note__head { align-items: center; display: flex; font-size: 0.9rem; font-weight: 600; gap: 0.45rem; margin-bottom: 0.4rem; }
+    .col {
+      background: var(--wos-screen-surface);
+      border: 1px solid var(--wos-screen-border);
+      border-radius: 16px;
+      min-height: 14rem;
+      overflow: hidden;
+    }
+    .col header { font-weight: 800; padding: 0.9rem 1rem; }
+    .col__body { display: grid; gap: 0.65rem; padding: 0.85rem; }
+    .col[data-tone='0'] header { background: rgba(15, 157, 88, 0.18); color: #86efac; }
+    .col[data-tone='1'] header { background: rgba(217, 48, 37, 0.18); color: #fca5a5; }
+    .col[data-tone='2'] header { background: rgba(26, 115, 232, 0.18); color: #93c5fd; }
+
+    .note {
+      background: #182338;
+      border: 1px solid var(--wos-screen-border);
+      border-radius: 12px;
+      padding: 0.85rem;
+    }
+    .note__head {
+      align-items: center;
+      color: #cbd5e1;
+      display: flex;
+      font-size: 0.9rem;
+      font-weight: 600;
+      gap: 0.45rem;
+      margin-bottom: 0.4rem;
+    }
     .note p { font-size: 1.15rem; margin: 0; }
-    .rank { color: var(--bosch-accent); font-weight: 800; }
+
     .split { display: grid; gap: 2rem; grid-template-columns: 1.2fr 1fr; }
     .actions { display: grid; gap: 0.85rem; }
-    .action { background: var(--bosch-surface); border: 1px solid var(--bosch-border); padding: 1rem; }
-    .action__text { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.65rem; }
-    .action__meta { align-items: center; color: var(--bosch-text-secondary); display: flex; flex-wrap: wrap; font-size: 1.05rem; gap: 0.55rem; }
-    .due { margin-left: auto; }
-    ul { font-size: 1.35rem; }
-    .muted { color: var(--bosch-text-muted); }
-    @media (max-width: 900px) { .columns, .split { grid-template-columns: 1fr; } }
+    .action {
+      background: var(--wos-screen-surface);
+      border: 1px solid var(--wos-screen-border);
+      border-radius: 12px;
+      padding: 1rem;
+    }
+    .action p { font-size: 1.2rem; font-weight: 600; margin: 0 0 0.55rem; }
+    .action__meta {
+      align-items: center;
+      color: #cbd5e1;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .action__meta em { color: var(--wos-screen-muted); font-style: normal; margin-left: auto; }
+
+    .insights { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
+    .insights li { align-items: start; display: flex; font-size: 1.25rem; gap: 0.65rem; }
+    .check {
+      align-items: center;
+      background: rgba(15, 157, 88, 0.2);
+      border-radius: 50%;
+      color: #86efac;
+      display: inline-flex;
+      flex: 0 0 1.6rem;
+      font-weight: 800;
+      height: 1.6rem;
+      justify-content: center;
+      width: 1.6rem;
+    }
+
+    .muted { color: var(--wos-screen-muted); }
+
+    @media (max-width: 900px) {
+      .columns, .split { grid-template-columns: 1fr; }
+    }
   `
 })
 export class DisplayComponent implements OnInit, OnDestroy {
@@ -236,7 +337,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
   joinSubline() {
     const s = this.session();
     if (s?.currentStep?.type === 'welcome' && s.status !== 'LOBBY') {
-      return s.currentStep.instructions || 'Scan the QR code or enter the code on your phone.';
+      return s.currentStep.instructions || 'Follow along on your phone.';
     }
     return 'Waiting for the host to start…';
   }
@@ -265,7 +366,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     const url = buildJoinUrl(location.origin, session.code);
     if (url === this.joinUrl && this.qrDataUrl()) return;
     this.joinUrl = url;
-    QRCode.toDataURL(url, { width: 360, margin: 1, errorCorrectionLevel: 'M' }).then((dataUrl) =>
+    QRCode.toDataURL(url, { width: 320, margin: 1, errorCorrectionLevel: 'M' }).then((dataUrl) =>
       this.qrDataUrl.set(dataUrl)
     );
   }

@@ -1,16 +1,16 @@
 import { Component, Input, OnChanges, inject, signal } from '@angular/core';
 import { BoschButtonComponent } from '../../bosch-ui/bosch-button/bosch-button.component';
-import { BoschCardComponent } from '../../bosch-ui/bosch-card/bosch-card.component';
 import { BoschAvatarComponent } from '../../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../../core/api.service';
 
 @Component({
   selector: 'app-activity-host-panel',
   standalone: true,
-  imports: [BoschButtonComponent, BoschCardComponent, BoschAvatarComponent],
+  imports: [BoschButtonComponent, BoschAvatarComponent],
   template: `
-    <app-bosch-card title="Live results" [subtitle]="session?.currentStep?.type || ''">
+    <div class="panel">
       @if (session?.currentStep?.type === 'poll') {
+        <h3>Poll results</h3>
         <div class="bars">
           @for (o of poll(); track o.id) {
             <div class="bar-row">
@@ -23,103 +23,108 @@ import { ApiService } from '../../core/api.service';
       }
 
       @if (session?.currentStep?.type === 'input') {
+        <h3>Live wall</h3>
         <div class="columns">
           @for (g of session?.currentStep?.groups || []; track g.id; let gi = $index) {
             <div class="col" [attr.data-tone]="gi % 3">
-              <h3>{{ g.title }}</h3>
-              @for (e of entriesFor(g.id); track e.id) {
-                <article class="note">
-                  <div class="note__head">
-                    @if (e.authorName) {
-                      <app-bosch-avatar [name]="e.authorName" size="sm" />
-                      <span class="note__author">{{ e.authorName }}</span>
-                    } @else {
-                      <span class="note__author muted">Anonymous</span>
-                    }
-                  </div>
-                  <p>{{ e.content }}</p>
-                  <app-bosch-button variant="danger" icon="delete" (click)="hide(e.id)">Hide</app-bosch-button>
-                </article>
-              }
+              <header>{{ g.title }}</header>
+              <div class="col__body">
+                @for (e of entriesFor(g.id); track e.id) {
+                  <article class="note">
+                    <div class="note__head">
+                      @if (e.authorName) {
+                        <app-bosch-avatar [name]="e.authorName" size="sm" />
+                        <span>{{ e.authorName }}</span>
+                      } @else {
+                        <span class="muted">Anonymous</span>
+                      }
+                    </div>
+                    <p>{{ e.content }}</p>
+                    <button type="button" class="hide" (click)="hide(e.id)">Hide</button>
+                  </article>
+                } @empty {
+                  <p class="empty">Waiting for ideas…</p>
+                }
+              </div>
             </div>
           }
         </div>
       }
 
       @if (session?.currentStep?.type === 'voting') {
-        <div class="wall">
-          @for (e of entries(); track e.id) {
-            <article class="note">
-              <div class="note__head">
-                @if (e.authorName) {
-                  <app-bosch-avatar [name]="e.authorName" size="sm" />
-                  <span class="note__author">{{ e.authorName }}</span>
-                }
+        <div class="vote-head">
+          <h3>Voting results</h3>
+          <span>{{ totalVotes() }} total votes · {{ session?.participantCount || 0 }} participants</span>
+        </div>
+        <div class="vote-bars">
+          @for (v of votes(); track v.entryId; let i = $index) {
+            <div class="vote-row">
+              <span class="rank">{{ i + 1 }}</span>
+              <div class="vote-row__body">
+                <div class="vote-row__label">{{ v.content }}</div>
+                <div class="track"><div class="fill fill--purple" [style.width.%]="votePct(v.votes)"></div></div>
               </div>
-              <p>{{ e.content }}</p>
-              <app-bosch-button variant="danger" icon="delete" (click)="hide(e.id)">Hide</app-bosch-button>
-            </article>
+              <strong>{{ v.votes }}</strong>
+            </div>
           }
         </div>
-        <ol class="board">
-          @for (v of votes(); track v.entryId; let i = $index) {
-            <li>
-              <span class="rank">{{ i + 1 }}</span>
-              <span class="board__content">{{ v.content }}</span>
-              <em>{{ v.votes }} votes</em>
-            </li>
-          }
-        </ol>
       }
 
       @if (session?.currentStep?.type === 'form' || actions().length) {
-        <table>
-          <thead>
-            <tr><th>Action</th><th>Owner</th><th>Due</th></tr>
-          </thead>
-          <tbody>
-            @for (a of actions(); track a.id) {
-              <tr>
-                <td>{{ a.action }}</td>
-                <td class="owner">
-                  @if (a.owner) {
-                    <app-bosch-avatar [name]="a.owner" size="sm" />
-                    <span>{{ a.owner }}</span>
-                  }
-                </td>
-                <td>{{ a.dueDate }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+        <h3>Action plan</h3>
+        <div class="actions">
+          @for (a of actions(); track a.id) {
+            <article class="action">
+              <p>{{ a.action }}</p>
+              <div class="action__meta">
+                @if (a.owner) {
+                  <app-bosch-avatar [name]="a.owner" size="sm" />
+                  <span>{{ a.owner }}</span>
+                }
+                @if (a.dueDate) {
+                  <em>{{ a.dueDate }}</em>
+                }
+              </div>
+            </article>
+          }
+        </div>
       }
-    </app-bosch-card>
+    </div>
   `,
   styles: `
-    .bars { display: grid; gap: 0.6rem; }
-    .bar-row { align-items: center; display: grid; gap: 0.5rem; grid-template-columns: 100px 1fr 40px; }
-    .track { background: var(--bosch-gray-90); height: 12px; }
-    .fill { background: var(--bosch-accent); height: 12px; }
-    .columns { display: grid; gap: 0.85rem; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-    .col { background: var(--bosch-bg-muted); border-top: 4px solid var(--bosch-accent); padding: 0.75rem; }
-    .col[data-tone='0'] { border-top-color: var(--bosch-positive); }
-    .col[data-tone='1'] { border-top-color: var(--bosch-error); }
-    .col[data-tone='2'] { border-top-color: var(--bosch-accent); }
-    .col h3 { color: var(--bosch-text); font-size: 0.95rem; margin: 0 0 0.65rem; }
-    .wall { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); margin-bottom: 1rem; }
-    .note { background: var(--bosch-yellow-95); border: 1px solid var(--bosch-border); display: grid; gap: 0.5rem; padding: 0.75rem; }
-    .note__head { align-items: center; display: flex; gap: 0.4rem; }
-    .note__author { font-size: 0.8rem; font-weight: 600; }
-    .note__author.muted { color: var(--bosch-text-muted); font-weight: 500; }
+    .panel { display: grid; gap: 0.85rem; }
+    h3 { font-size: 0.95rem; margin: 0; }
+    .bars, .vote-bars { display: grid; gap: 0.65rem; }
+    .bar-row, .vote-row { align-items: center; display: grid; gap: 0.65rem; grid-template-columns: 110px 1fr 40px; }
+    .vote-row { grid-template-columns: 2rem 1fr 2.5rem; }
+    .track { background: #e8eef8; border-radius: 999px; height: 12px; overflow: hidden; }
+    .fill { background: linear-gradient(90deg, var(--wos-primary), #3d7dff); height: 12px; }
+    .fill--purple { background: linear-gradient(90deg, #7c4dff, #5b8def); }
+    .columns { display: grid; gap: 0.75rem; grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 900px) { .columns { grid-template-columns: 1fr; } }
+    .col { border-radius: var(--wos-radius-lg); min-height: 10rem; overflow: hidden; }
+    .col header { font-weight: 700; padding: 0.7rem 0.85rem; }
+    .col__body { display: grid; gap: 0.55rem; padding: 0.65rem; }
+    .col[data-tone='0'] { background: var(--wos-success-soft); }
+    .col[data-tone='0'] header { background: rgba(15, 157, 88, 0.12); color: var(--wos-success-ink); }
+    .col[data-tone='1'] { background: var(--wos-danger-soft); }
+    .col[data-tone='1'] header { background: rgba(217, 48, 37, 0.1); color: var(--wos-danger-ink); }
+    .col[data-tone='2'] { background: var(--wos-info-soft); }
+    .col[data-tone='2'] header { background: rgba(26, 115, 232, 0.1); color: var(--wos-info-ink); }
+    .note { background: #fff; border-radius: var(--wos-radius); box-shadow: var(--wos-shadow); display: grid; gap: 0.4rem; padding: 0.7rem; }
+    .note__head { align-items: center; display: flex; font-size: 0.78rem; font-weight: 600; gap: 0.35rem; }
     .note p { margin: 0; }
-    .board { list-style: none; margin: 0; padding: 0; }
-    .board li { align-items: baseline; border-bottom: 1px solid var(--bosch-border); display: flex; gap: 0.75rem; padding: 0.55rem 0; }
-    .rank { color: var(--bosch-accent); font-weight: 800; width: 1.5rem; }
-    .board__content { flex: 1; }
-    em { font-style: normal; font-weight: 800; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border-bottom: 1px solid var(--bosch-border); padding: 0.5rem; text-align: left; }
-    .owner { align-items: center; display: flex; gap: 0.45rem; }
+    .hide { background: transparent; border: 0; color: var(--wos-danger); cursor: pointer; font-size: 0.78rem; font-weight: 700; padding: 0; text-align: left; }
+    .empty, .muted { color: var(--wos-text-muted); margin: 0; }
+    .vote-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: space-between; }
+    .vote-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
+    .rank { color: var(--wos-primary); font-weight: 800; }
+    .vote-row__label { font-weight: 600; margin-bottom: 0.25rem; }
+    .actions { display: grid; gap: 0.55rem; }
+    .action { background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); padding: 0.75rem; }
+    .action p { font-weight: 600; margin: 0 0 0.45rem; }
+    .action__meta { align-items: center; color: var(--wos-text-secondary); display: flex; gap: 0.4rem; }
+    .action__meta em { color: var(--wos-text-muted); font-style: normal; margin-left: auto; }
   `
 })
 export class ActivityHostPanelComponent implements OnChanges {
@@ -148,6 +153,15 @@ export class ActivityHostPanelComponent implements OnChanges {
   pct(count: number) {
     const max = Math.max(1, ...this.poll().map((p) => Number(p.count) || 0));
     return (Number(count) / max) * 100;
+  }
+
+  votePct(count: number) {
+    const max = Math.max(1, ...this.votes().map((v) => Number(v.votes) || 0));
+    return (Number(count) / max) * 100;
+  }
+
+  totalVotes() {
+    return this.votes().reduce((sum, v) => sum + (Number(v.votes) || 0), 0);
   }
 
   hide(entryId: string) {
