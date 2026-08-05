@@ -113,8 +113,8 @@ import { HostShellComponent } from './host-shell.component';
               @if (session()?.status === 'LOBBY') {
                 <app-bosch-button icon="dashboard" (click)="start()">Start session</app-bosch-button>
               } @else {
-                <app-bosch-button variant="secondary" icon="chevron-left" (click)="back()">Previous</app-bosch-button>
-                <app-bosch-button icon="chevron-right" (click)="advance()">Next Step</app-bosch-button>
+                <app-bosch-button variant="secondary" icon="chevron-left" [disabled]="isFirstStep()" (click)="back()">Previous</app-bosch-button>
+                <app-bosch-button icon="chevron-right" [disabled]="isLastStep()" (click)="advance()">Next Step</app-bosch-button>
               }
               <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
               <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
@@ -310,13 +310,34 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.api.start(this.id).subscribe({ next: (s) => this.session.set(s), error: (e) => this.message.set(e?.error?.message) });
   }
   advance() {
+    if (this.isLastStep()) return;
     this.api.advance(this.id).subscribe({ next: (s) => this.session.set(s), error: (e) => this.message.set(e?.error?.message) });
   }
   back() {
+    if (this.isFirstStep()) return;
     this.api.back(this.id).subscribe({ next: (s) => this.session.set(s), error: (e) => this.message.set(e?.error?.message) });
   }
   end() {
     this.api.end(this.id).subscribe({ next: (s) => this.session.set(s) });
+  }
+
+  private stepIndex() {
+    const s = this.session();
+    const steps = [...(s?.steps || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder);
+    return {
+      steps,
+      index: steps.findIndex((st: any) => st.id === s?.currentStepId)
+    };
+  }
+
+  isFirstStep() {
+    const { index } = this.stepIndex();
+    return index <= 0;
+  }
+
+  isLastStep() {
+    const { steps, index } = this.stepIndex();
+    return index < 0 || index >= steps.length - 1;
   }
   summarize() {
     this.message.set('Generating summary…');
