@@ -56,6 +56,12 @@ export class ApiService {
     return this.http.get(`${environment.apiUrl}/sessions/${id}/display`);
   }
 
+  listParticipants(id: string): Observable<{ id: string; displayName: string; createdAt?: string }[]> {
+    return this.http.get<{ id: string; displayName: string; createdAt?: string }[]>(
+      `${environment.apiUrl}/sessions/${id}/participants`
+    );
+  }
+
   join(code: string, displayName: string): Observable<any> {
     return this.http.post(`${environment.apiUrl}/sessions/${code}/join`, { displayName });
   }

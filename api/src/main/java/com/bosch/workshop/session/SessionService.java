@@ -121,6 +121,20 @@ public class SessionService {
         return toSessionView(session, false);
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> listParticipants(UUID id) {
+        requireSession(id);
+        return participantRepository.findBySessionIdOrderByCreatedAtAsc(id).stream()
+                .map(p -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", p.getId());
+                    m.put("displayName", p.getDisplayName());
+                    m.put("createdAt", p.getCreatedAt());
+                    return m;
+                })
+                .toList();
+    }
+
     @Transactional
     public Map<String, Object> join(String code, String displayName) {
         if (displayName == null || displayName.isBlank()) {
