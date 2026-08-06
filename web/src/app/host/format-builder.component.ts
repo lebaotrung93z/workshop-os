@@ -508,7 +508,11 @@ export class FormatBuilderComponent implements OnInit {
         }
         this.api.createSession(tpl.id, this.workshopTitle || this.formatName).subscribe({
           next: (s) => {
-            this.api.setHostSession(s.id, s.hostToken);
+            this.api.setHostSession(s.id, s.hostToken, {
+              title: s.title,
+              code: s.code,
+              status: s.status
+            });
             this.router.navigate(['/host', s.id]);
           },
           error: (e) => {

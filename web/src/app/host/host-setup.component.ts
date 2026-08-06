@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
-import { ApiService } from '../core/api.service';
+import { ApiService, HostSessionRef } from '../core/api.service';
 import { HostShellComponent } from './host-shell.component';
 
 @Component({
@@ -16,10 +16,36 @@ import { HostShellComponent } from './host-shell.component';
           <div>
             <p class="eyebrow">New workshop</p>
             <h1>Create a hybrid session</h1>
-            <p class="lede">Host laptop · Participant mobile · Big screen</p>
+            <p class="lede">Prepare content first, or go live now · Host laptop · Participant mobile · Big screen</p>
           </div>
           <a class="ghost" routerLink="/host/format">Build custom format</a>
         </header>
+
+        @if (savedSessions().length) {
+          <section class="panel">
+            <p class="section-label">Saved for later</p>
+            <div class="saved">
+              @for (s of savedSessions(); track s.id) {
+                <article class="saved-card">
+                  <div>
+                    <strong>{{ s.title || 'Workshop' }}</strong>
+                    <p>
+                      Code {{ s.code || '—' }}
+                      · {{ statusLabel(s.status) }}
+                      · {{ relativeTime(s.updatedAt) }}
+                    </p>
+                  </div>
+                  <div class="saved-actions">
+                    <app-bosch-button (click)="resume(s)">Resume</app-bosch-button>
+                    @if (s.status === 'CLOSED') {
+                      <button type="button" class="text-btn" (click)="forget(s.id)">Remove</button>
+                    }
+                  </div>
+                </article>
+              }
+            </div>
+          </section>
+        }
 
         <section class="panel">
           <label>
@@ -48,7 +74,9 @@ import { HostShellComponent } from './host-shell.component';
           }
 
           <div class="actions">
-            <app-bosch-button [disabled]="!selected() || busy()" (click)="create()">Create session</app-bosch-button>
+            <app-bosch-button [disabled]="!selected() || busy()" (click)="create()">
+              Create &amp; prepare
+            </app-bosch-button>
             <app-bosch-button
               variant="secondary"
               [disabled]="!selected() || busy()"
@@ -80,6 +108,28 @@ import { HostShellComponent } from './host-shell.component';
     .tpl__top { align-items: center; display: flex; justify-content: space-between; margin-bottom: 0.35rem; }
     .tpl__top span { background: #fff; border-radius: var(--wos-radius-pill); color: var(--wos-primary); font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.5rem; }
     .tpl p { color: var(--wos-text-muted); margin: 0; }
+    .saved { display: grid; gap: 0.65rem; }
+    .saved-card {
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius-lg);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: space-between;
+      padding: 0.9rem 1rem;
+    }
+    .saved-card p { color: var(--wos-text-muted); margin: 0.25rem 0 0; }
+    .saved-actions { align-items: center; display: flex; gap: 0.65rem; }
+    .text-btn {
+      background: transparent;
+      border: 0;
+      color: var(--wos-danger);
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0;
+    }
     .actions { align-items: center; display: flex; gap: 1rem; margin-top: 1.15rem; flex-wrap: wrap; }
     .err { color: var(--wos-danger); }
     .ok { color: var(--wos-success, #0a7a3e); font-weight: 600; }
@@ -90,6 +140,7 @@ export class HostSetupComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   templates = signal<any[]>([]);
+  savedSessions = signal<HostSessionRef[]>([]);
   selected = signal<string>('');
   title = '';
   busy = signal(false);
@@ -97,7 +148,12 @@ export class HostSetupComponent implements OnInit {
   savedNotice = signal('');
 
   ngOnInit() {
+    this.reloadSaved();
     const customId = this.route.snapshot.queryParamMap.get('custom');
+    const savedId = this.route.snapshot.queryParamMap.get('saved');
+    if (savedId) {
+      this.savedNotice.set('Workshop saved for later — resume it below when you are ready.');
+    }
     this.api.listTemplates().subscribe({
       next: (t) => {
         this.templates.set(t);
@@ -110,12 +166,48 @@ export class HostSetupComponent implements OnInit {
     });
   }
 
+  reloadSaved() {
+    this.savedSessions.set(this.api.listHostSessions().filter((s) => s.status !== 'CLOSED'));
+  }
+
+  statusLabel(status: string) {
+    if (status === 'LOBBY') return 'Prepared';
+    if (status === 'CLOSED') return 'Ended';
+    return 'In progress';
+  }
+
+  relativeTime(iso: string) {
+    if (!iso) return '';
+    const t = Date.parse(iso);
+    if (!Number.isFinite(t)) return '';
+    const mins = Math.round((Date.now() - t) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 48) return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+  }
+
+  resume(s: HostSessionRef) {
+    this.api.activateHostSession(s.id);
+    this.router.navigate(['/host', s.id]);
+  }
+
+  forget(id: string) {
+    this.api.removeHostSession(id);
+    this.reloadSaved();
+  }
+
   create() {
     this.busy.set(true);
     this.error.set('');
     this.api.createSession(this.selected(), this.title).subscribe({
       next: (s) => {
-        this.api.setHostSession(s.id, s.hostToken);
+        this.api.setHostSession(s.id, s.hostToken, {
+          title: s.title,
+          code: s.code,
+          status: s.status
+        });
         this.router.navigate(['/host', s.id]);
       },
       error: (e) => {

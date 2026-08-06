@@ -40,11 +40,14 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
             <app-bosch-button [disabled]="busy()" (click)="saveTreeRoot()">Save</app-bosch-button>
           </div>
         </label>
-        @if (session?.currentStep?.type === 'input') {
+        @if (session?.currentStep?.type === 'input' || canPrepObjectives()) {
           <div class="add-obj">
             <input [(ngModel)]="newObjective" placeholder="Add an Objective…" (keyup.enter)="addObjective()" />
             <app-bosch-button [disabled]="!newObjective.trim() || busy()" (click)="addObjective()">Add Objective</app-bosch-button>
           </div>
+          @if (canPrepObjectives() && session?.currentStep?.type !== 'input') {
+            <p class="hint">Prep Objectives now — participants add Key Results after you start.</p>
+          }
         }
         <div class="okr-tree host-tree" role="tree">
           <div class="tree-node tree-node--root" role="treeitem">
@@ -232,7 +235,8 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
     .hide, .link { background: transparent; border: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; padding: 0; }
     .hide { color: var(--wos-danger); text-align: left; }
     .link { color: var(--wos-primary); }
-    .empty, .muted { color: var(--wos-text-muted); margin: 0; }
+    .empty, .muted, .hint { color: var(--wos-text-muted); margin: 0; }
+    .hint { font-size: 0.85rem; margin: 0.35rem 0 0.65rem; }
     .vote-head, .okr-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: space-between; }
     .vote-head span, .okr-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
     .rank { color: var(--wos-primary); font-weight: 800; }
@@ -468,6 +472,11 @@ export class ActivityHostPanelComponent implements OnChanges {
     return sessionHasOkr(this.session);
   }
 
+  /** Allow seeding Objectives before Start (LOBBY) on OKR workshops. */
+  canPrepObjectives() {
+    return this.isOkrSession() && this.session?.status === 'LOBBY';
+  }
+
   rootLabel() {
     return String(this.session?.treeRootLabel || '').trim();
   }
@@ -532,14 +541,20 @@ export class ActivityHostPanelComponent implements OnChanges {
     const content = this.newObjective.trim();
     if (!content || !this.session?.id) return;
     this.busy.set(true);
-    this.api.createHostObjective(this.session.id, { content }).subscribe({
-      next: () => {
-        this.newObjective = '';
-        this.busy.set(false);
-        this.ngOnChanges();
-      },
-      error: () => this.busy.set(false)
-    });
+    const okrStep = okrInputStep(this.session);
+    this.api
+      .createHostObjective(this.session.id, {
+        content,
+        stepId: okrStep?.id
+      })
+      .subscribe({
+        next: () => {
+          this.newObjective = '';
+          this.busy.set(false);
+          this.ngOnChanges();
+        },
+        error: () => this.busy.set(false)
+      });
   }
 
   entriesFor(groupId: string) {

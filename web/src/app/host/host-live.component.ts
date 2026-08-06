@@ -1,5 +1,6 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
 import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar-stack.component';
 import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
@@ -23,6 +24,7 @@ import {
   selector: 'app-host-live',
   standalone: true,
   imports: [
+    FormsModule,
     RouterLink,
     BoschButtonComponent,
     BoschAvatarStackComponent,
@@ -36,8 +38,17 @@ import {
         <header class="top">
           <div>
             <div class="title-row">
-              <h1>{{ session()?.title || 'Live session' }}</h1>
-              @if (session()?.status && session()?.status !== 'CLOSED') {
+              @if (editingTitle()) {
+                <input class="title-input" [(ngModel)]="titleDraft" (keyup.enter)="saveTitle()" />
+                <app-bosch-button variant="secondary" (click)="saveTitle()">Save</app-bosch-button>
+                <button type="button" class="linkish" (click)="cancelTitleEdit()">Cancel</button>
+              } @else {
+                <h1>{{ session()?.title || 'Live session' }}</h1>
+                <button type="button" class="linkish" (click)="startTitleEdit()">Edit title</button>
+              }
+              @if (session()?.status === 'LOBBY') {
+                <span class="badge badge--prep">Prepared</span>
+              } @else if (session()?.status && session()?.status !== 'CLOSED') {
                 <span class="badge badge--live">Live</span>
               }
             </div>
@@ -46,17 +57,25 @@ import {
               · {{ session()?.participantCount || 0 }} online
             </p>
           </div>
-          <a class="ghost" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
+          <div class="top-actions">
+            @if (session()?.status === 'LOBBY') {
+              <app-bosch-button variant="secondary" (click)="saveForLater()">Save for later</app-bosch-button>
+            }
+            <a class="ghost" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
+          </div>
         </header>
 
         <section class="progress card">
           <div class="progress__main">
-            <p class="eyebrow">Facilitation</p>
+            <p class="eyebrow">{{ session()?.status === 'LOBBY' ? 'Prepare workshop' : 'Facilitation' }}</p>
             <h2 class="progress__title">{{ session()?.currentStep?.title || 'Lobby' }}</h2>
             <p class="progress__meta">
               Step {{ currentIndex() }} of {{ stepTotal() }}
               · {{ stepTypeLabel() }}
               · {{ session()?.participantCount || 0 }} participants
+              @if (session()?.status === 'LOBBY') {
+                · Add content below, then Start when ready
+              }
             </p>
           </div>
           <div class="progress__timer">
@@ -209,7 +228,33 @@ import {
   styles: `
     .page { display: grid; gap: 1rem; }
     .top { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
-    .title-row { align-items: center; display: flex; gap: 0.65rem; }
+    .title-row { align-items: center; display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .title-input {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      font-size: 1.25rem;
+      font-weight: 700;
+      min-width: min(420px, 70vw);
+      padding: 0.4rem 0.65rem;
+    }
+    .linkish {
+      background: transparent;
+      border: 0;
+      color: var(--wos-primary);
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0;
+    }
+    .top-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .badge--prep {
+      background: #fef3c7;
+      color: #92400e;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 0.2rem 0.55rem;
+      border-radius: var(--wos-radius-pill);
+    }
     h1 { font-size: 1.55rem; margin: 0; }
     .top p, .lede { color: var(--wos-text-muted); margin: 0.25rem 0 0; }
     .code { color: var(--wos-primary); letter-spacing: 0.06em; }
@@ -286,6 +331,7 @@ import {
 })
 export class HostLiveComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private api = inject(ApiService);
   private realtime = inject(RealtimeService);
   private sub?: Subscription;
@@ -301,6 +347,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   tab = signal<'preview' | 'settings'>('preview');
   summaryTab = signal<'insights' | 'actions'>('insights');
   nowTick = signal(Date.now());
+  editingTitle = signal(false);
+  titleDraft = '';
   joinUrl = '';
 
   currentIndex = computed(() => {
@@ -421,6 +469,13 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.api.getHostSession(this.id).subscribe({
       next: (s) => {
         this.session.set(s);
+        this.api.rememberHostSession({
+          id: this.id,
+          hostToken: this.api.hostToken(),
+          title: s.title,
+          code: s.code,
+          status: s.status
+        });
         this.joinUrl = buildJoinUrl(location.origin, s.code);
         QRCode.toDataURL(this.joinUrl, { width: 160, margin: 1, errorCorrectionLevel: 'M' }).then((url) =>
           this.qrDataUrl.set(url)
@@ -436,6 +491,38 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     });
   }
 
+  startTitleEdit() {
+    this.titleDraft = this.session()?.title || '';
+    this.editingTitle.set(true);
+  }
+
+  cancelTitleEdit() {
+    this.editingTitle.set(false);
+  }
+
+  saveTitle() {
+    this.api.updateTitle(this.id, this.titleDraft).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.editingTitle.set(false);
+      },
+      error: (e) => this.message.set(e?.error?.message || 'Could not save title')
+    });
+  }
+
+  saveForLater() {
+    const s = this.session();
+    this.api.rememberHostSession({
+      id: this.id,
+      hostToken: this.api.hostToken(),
+      title: s?.title,
+      code: s?.code,
+      status: s?.status || 'LOBBY'
+    });
+    this.message.set('Saved — resume anytime from the home screen.');
+    this.router.navigate(['/'], { queryParams: { saved: this.id } });
+  }
+
   refreshParticipants() {
     this.api.listParticipants(this.id).subscribe({
       next: (list) => this.participants.set(list || []),
@@ -444,18 +531,65 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   }
 
   start() {
-    this.api.start(this.id).subscribe({ next: (s) => this.session.set(s), error: (e) => this.message.set(e?.error?.message) });
+    this.api.start(this.id).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.api.rememberHostSession({
+          id: this.id,
+          hostToken: this.api.hostToken(),
+          title: s.title,
+          code: s.code,
+          status: s.status
+        });
+      },
+      error: (e) => this.message.set(e?.error?.message)
+    });
   }
   advance() {
     if (this.isLastStep()) return;
-    this.api.advance(this.id).subscribe({ next: (s) => this.session.set(s), error: (e) => this.message.set(e?.error?.message) });
+    this.api.advance(this.id).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.api.rememberHostSession({
+          id: this.id,
+          hostToken: this.api.hostToken(),
+          title: s.title,
+          code: s.code,
+          status: s.status
+        });
+      },
+      error: (e) => this.message.set(e?.error?.message)
+    });
   }
   back() {
     if (this.isFirstStep()) return;
-    this.api.back(this.id).subscribe({ next: (s) => this.session.set(s), error: (e) => this.message.set(e?.error?.message) });
+    this.api.back(this.id).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.api.rememberHostSession({
+          id: this.id,
+          hostToken: this.api.hostToken(),
+          title: s.title,
+          code: s.code,
+          status: s.status
+        });
+      },
+      error: (e) => this.message.set(e?.error?.message)
+    });
   }
   end() {
-    this.api.end(this.id).subscribe({ next: (s) => this.session.set(s) });
+    this.api.end(this.id).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.api.rememberHostSession({
+          id: this.id,
+          hostToken: this.api.hostToken(),
+          title: s.title,
+          code: s.code,
+          status: s.status
+        });
+      }
+    });
   }
 
   private stepIndex() {

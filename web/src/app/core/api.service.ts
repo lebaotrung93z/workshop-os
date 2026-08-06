@@ -16,8 +16,19 @@ import { db } from './firebase';
 import { SEED_TEMPLATES } from './seed-templates';
 import { clearTimerPatch } from './timer.util';
 import { buildJoinUrl } from './join-url';
+import { okrInputStep } from './okr.util';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const HOST_SESSIONS_KEY = 'wos_host_sessions';
+
+export interface HostSessionRef {
+  id: string;
+  hostToken: string;
+  title: string;
+  code: string;
+  status: string;
+  updatedAt: string;
+}
 
 function randomId(): string {
   return crypto.randomUUID();
@@ -69,11 +80,72 @@ export class ApiService {
   readonly events$ = this.events.asObservable();
   private unsubs: Unsubscribe[] = [];
 
-  setHostSession(sessionId: string, hostToken: string) {
+  setHostSession(sessionId: string, hostToken: string, meta?: Partial<HostSessionRef>) {
     localStorage.setItem('wos_session_id', sessionId);
     localStorage.setItem('wos_host_token', hostToken);
     this.sessionId.set(sessionId);
     this.hostToken.set(hostToken);
+    this.upsertHostSessionRef({
+      id: sessionId,
+      hostToken,
+      title: meta?.title || '',
+      code: meta?.code || '',
+      status: meta?.status || 'LOBBY',
+      updatedAt: nowIso()
+    });
+  }
+
+  /** Local registry of workshops this browser has hosted (for resume / save for later). */
+  listHostSessions(): HostSessionRef[] {
+    try {
+      const raw = localStorage.getItem(HOST_SESSIONS_KEY);
+      const list = raw ? (JSON.parse(raw) as HostSessionRef[]) : [];
+      return Array.isArray(list)
+        ? [...list].sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
+  rememberHostSession(meta: Partial<HostSessionRef> & { id: string; hostToken: string }) {
+    this.upsertHostSessionRef({
+      id: meta.id,
+      hostToken: meta.hostToken,
+      title: meta.title || '',
+      code: meta.code || '',
+      status: meta.status || 'LOBBY',
+      updatedAt: nowIso()
+    });
+  }
+
+  removeHostSession(sessionId: string) {
+    const next = this.listHostSessions().filter((s) => s.id !== sessionId);
+    localStorage.setItem(HOST_SESSIONS_KEY, JSON.stringify(next));
+  }
+
+  activateHostSession(sessionId: string): HostSessionRef | null {
+    const found = this.listHostSessions().find((s) => s.id === sessionId);
+    if (!found) return null;
+    localStorage.setItem('wos_session_id', found.id);
+    localStorage.setItem('wos_host_token', found.hostToken);
+    this.sessionId.set(found.id);
+    this.hostToken.set(found.hostToken);
+    return found;
+  }
+
+  private upsertHostSessionRef(ref: HostSessionRef) {
+    const list = this.listHostSessions().filter((s) => s.id !== ref.id);
+    const prev = this.listHostSessions().find((s) => s.id === ref.id);
+    list.unshift({
+      id: ref.id,
+      hostToken: ref.hostToken,
+      title: ref.title || prev?.title || 'Workshop',
+      code: ref.code || prev?.code || '',
+      status: ref.status || prev?.status || 'LOBBY',
+      updatedAt: ref.updatedAt || nowIso()
+    });
+    localStorage.setItem(HOST_SESSIONS_KEY, JSON.stringify(list.slice(0, 40)));
   }
 
   setParticipant(sessionId: string, participantId: string, joinToken: string, displayName = '') {
@@ -551,6 +623,26 @@ export class ApiService {
     });
   }
 
+  /** Host-editable workshop title. */
+  updateTitle(id: string, title: string): Observable<any> {
+    return new Observable((sub) => {
+      this.hostUpdate(id, { title: title.trim() || 'Workshop' })
+        .then(() => this.snapSession(id))
+        .then((s) => {
+          this.rememberHostSession({
+            id,
+            hostToken: this.hostToken(),
+            title: s.title,
+            code: s.code,
+            status: s.status
+          });
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Update failed' } }));
+    });
+  }
+
   /** Host-editable label for the OKR tree root node (theme / focus). */
   updateTreeRootLabel(id: string, label: string): Observable<any> {
     return new Observable((sub) => {
@@ -706,7 +798,10 @@ export class ApiService {
         if (!session.exists()) throw new Error('Session not found');
         const data = session.data()!;
         if (data['hostToken'] !== hostToken) throw new Error('Host token mismatch');
-        const stepId = body.stepId || (data['currentStepId'] as string);
+        const stepId =
+          body.stepId ||
+          okrInputStep({ steps: data['steps'] })?.id ||
+          (data['currentStepId'] as string);
         const step = (data['steps'] || []).find((s: any) => s.id === stepId);
         const groupId = body.groupId ?? step?.groups?.[0]?.id ?? null;
 
