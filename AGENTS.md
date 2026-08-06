@@ -63,6 +63,10 @@ Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll 
 
 Checkbox rows in Step Settings use `label.check`; summary insight bullets use `insight-check` — do not reuse a bare `.check` circle style globally or it will crush the checkbox labels.
 
+### Workflow board (custom format)
+
+`/host/format` is a Miro-style board: drag activities from the left palette onto a left→right flow lane (Angular CDK DragDrop), reorder sticky cards, edit the selected card in the right inspector, then **Save template** or **Save & start**. Customize from home still uses `?from=<templateId>` and always saves as a new custom template.
+
 ### Welcome big screen
 
 On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings. **Upload** any common photo — it is resized/compressed in the browser to a data URL and stored on the session doc (no Firebase Storage / Blaze). Public image URLs still work as an alternative.
