@@ -12,18 +12,11 @@ Workshop OS production stack is **Angular + Firebase Firestore** (Spark), hosted
 | Firebase project | `workshop-os-bosch` | Config in `web/src/environments/` |
 | Render static | auto-deploys from `main` | https://workshop-os-web.onrender.com/ |
 
-### Local development
+### Host navigation
 
-```bash
-cd web && npm ci
-npm start
-```
-
-- Host: http://localhost:4200/
-- Join: `/?code=XXXXXX` or `/#/j?code=`
-- Big screen: `/#/display/:sessionId`
-
-Host console is responsive for tablet/PC: icon-rail sidebar at ≤1024px, top chrome at ≤768px, live dual-pane until tablet width, format board mid-layout (palette strip + board/inspector) below ~1200px. Tokens: `--wos-bp-*` / `--wos-sidebar-*` in `_workshop-theme.scss`.
+- **Dashboard** (`/#/`) — session status charts (live / completed / prepared from `wos_host_sessions`), product changelog (`product-changelog.ts`), and Join as participant.
+- **Sessions** (`/#/host`) — create/resume workshops and pick templates. No join CTA here.
+- Sidebar join link was removed; join lives on Dashboard only.
 
 Realtime uses Firestore `onSnapshot` (not WebSockets). AI summary is a client-side heuristic. Export is CSV / text in the browser.
 
