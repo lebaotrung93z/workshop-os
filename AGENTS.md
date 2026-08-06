@@ -45,6 +45,10 @@ OKR sessions use `boardMode: 'okr'`: host adds Objectives, participants submit K
 
 Participants can **edit/delete their own** stickies, KRs, and actions from the live phone UI; hosts can edit Objective text on the tree. Requires deployed `firestore.rules` (owner update + soft-delete).
 
+### Live timer
+
+Host can start/pause/resume/reset a countdown on timed steps (`currentStep.timerSeconds`). State is synced on the session doc as `timerEndsAt` (ISO) and `timerPausedRemaining` (seconds while paused). Helpers: `web/src/app/core/timer.util.ts`. Changing step / start / end clears the timer.
+
 ### UI theme (mockup)
 
 Visual language follows the hybrid mockup (not strict Bosch square/`#007bc0` defaults): primary `#0056D2`, ~8px radii, Inter, dark host sidebar, dark big-screen display, green/red/blue input columns. Tokens live in `web/src/styles/_workshop-theme.scss` and map onto existing `--bosch-*` CSS variables so `bosch-*` components pick up the mockup look.
