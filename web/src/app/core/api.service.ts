@@ -555,7 +555,7 @@ export class ApiService {
    */
   insertStep(
     id: string,
-    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout',
+    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' | 'end',
     position: 'afterCurrent' | 'end' = 'afterCurrent',
     opts?: { title?: string; instructions?: string }
   ): Observable<any> {
@@ -694,7 +694,7 @@ export class ApiService {
   }
 
   private defaultLiveStep(
-    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout',
+    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' | 'end',
     opts?: { title?: string; instructions?: string }
   ) {
     const base: any = {
@@ -711,6 +711,14 @@ export class ApiService {
     if (type === 'welcome') {
       base.title = base.title || 'Welcome';
       base.instructions = base.instructions || 'Share the join code and wait for participants.';
+    } else if (type === 'end') {
+      base.title = base.title || 'Thanks';
+      base.instructions = base.instructions || 'Close the session and share next steps.';
+      base.config = {
+        endText: 'Thanks for joining — scan the code for next steps.',
+        backgroundImageUrl: '',
+        linkUrl: ''
+      };
     } else if (type === 'poll') {
       base.title = base.title || 'Check-in';
       base.instructions = base.instructions || 'Pick the option that fits best.';

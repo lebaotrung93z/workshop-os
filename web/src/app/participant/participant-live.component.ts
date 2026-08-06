@@ -69,6 +69,20 @@ import {
               </p>
             </div>
           </section>
+        } @else if (session()?.currentStep?.type === 'end') {
+          <section class="panel">
+            <div class="panel__head">
+              <h2>{{ session()?.currentStep?.title || 'Thanks' }}</h2>
+              <p class="hint welcome-body">
+                {{ endBody() || session()?.currentStep?.instructions || 'Thanks for joining.' }}
+              </p>
+            </div>
+            @if (endLinkHref()) {
+              <a class="end-link" [href]="endLinkHref()" target="_blank" rel="noopener noreferrer">
+                {{ endLinkLabel() }}
+              </a>
+            }
+          </section>
         } @else if (session()?.currentStep?.type === 'breakout') {
           <section class="panel">
             <div class="panel__head">
@@ -491,6 +505,14 @@ import {
       margin: 0;
     }
     .welcome-body { white-space: pre-wrap; }
+    .end-link {
+      color: var(--wos-primary, #0056d2);
+      display: block;
+      font-weight: 600;
+      margin: 0.75rem 1rem 1rem;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
 
     .panel__actions,
     .compose {
@@ -1014,6 +1036,25 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
 
   welcomeBody() {
     return String(this.session()?.currentStep?.config?.welcomeText || '').trim();
+  }
+
+  endBody() {
+    return String(this.session()?.currentStep?.config?.endText || '').trim();
+  }
+
+  endLinkRaw() {
+    return String(this.session()?.currentStep?.config?.linkUrl || '').trim();
+  }
+
+  endLinkHref() {
+    const raw = this.endLinkRaw();
+    if (!raw) return '';
+    if (/^(https?:|mailto:|tel:)/i.test(raw)) return raw;
+    return `https://${raw}`;
+  }
+
+  endLinkLabel() {
+    return this.endLinkRaw();
   }
 
   participantId() {
