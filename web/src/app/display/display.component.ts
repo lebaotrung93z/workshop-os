@@ -14,6 +14,7 @@ import {
   isTimerRunning,
   remainingSeconds
 } from '../core/timer.util';
+import { cssBackgroundImage } from '../core/image-data-url';
 
 @Component({
   selector: 'app-display',
@@ -50,7 +51,7 @@ import {
         <section
           class="hero"
           [class.hero--bg]="!!welcomeBackgroundUrl()"
-          [style.background-image]="welcomeBackgroundUrl() ? 'url(' + welcomeBackgroundUrl() + ')' : null"
+          [style.background-image]="welcomeBackgroundCss()"
         >
           <div class="hero__veil">
             <h2>{{ joinHeadline() }}</h2>
@@ -863,6 +864,10 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   welcomeBackgroundUrl() {
     return String(this.welcomeConfig().backgroundImageUrl || '').trim();
+  }
+
+  welcomeBackgroundCss() {
+    return cssBackgroundImage(this.welcomeBackgroundUrl());
   }
 
   welcomeBody() {
