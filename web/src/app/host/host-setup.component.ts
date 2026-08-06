@@ -89,7 +89,7 @@ import { HostShellComponent } from './host-shell.component';
     </app-host-shell>
   `,
   styles: `
-    .page { display: grid; gap: 1.25rem; max-width: 960px; width: 100%; }
+    .page { display: grid; gap: 1.25rem; max-width: 1100px; width: 100%; }
     .hero { align-items: end; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .eyebrow { color: var(--wos-primary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; margin: 0 0 0.35rem; text-transform: uppercase; }
     h1 { font-size: 1.85rem; margin: 0; }

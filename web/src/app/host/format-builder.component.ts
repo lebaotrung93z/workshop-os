@@ -391,10 +391,15 @@ interface DraftStep {
     </app-host-shell>
   `,
   styles: `
+    :host {
+      display: block;
+      width: 100%;
+    }
+
     .page {
       display: grid;
       gap: 1rem;
-      max-width: 1400px;
+      max-width: none;
       width: 100%;
     }
     .top {

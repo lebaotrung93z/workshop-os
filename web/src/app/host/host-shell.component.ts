@@ -49,10 +49,17 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
     </div>
   `,
   styles: `
+    :host {
+      display: block;
+      min-height: 100vh;
+      width: 100%;
+    }
+
     .shell {
       display: grid;
       grid-template-columns: var(--wos-sidebar-width) minmax(0, 1fr);
       min-height: 100vh;
+      width: 100%;
     }
 
     .sidebar {
@@ -152,6 +159,7 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
       background: var(--wos-bg);
       min-width: 0;
       padding: 1.25rem 1.5rem 2rem;
+      width: 100%;
     }
 
     /* Laptop / large tablet: compact icon rail keeps content wide */
