@@ -12,7 +12,8 @@ export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
     items: [
       'New breakout step: host divides joined participants into teams randomly or manually.',
       'Host can assign a discussion topic to each group (settings or live board).',
-      'OKR tree theme and objective edits support Undo / Redo (Ctrl/⌘Z, Ctrl/⌘⇧Z).',
+      'Undo / Redo for step content sits top-right of the step title in Step Settings.',
+      'Templates board: Undo / Redo replace the Back button (board + inspector edits).',
       'Participants and big screen show group membership and topics in real time.',
       'Add from Templates board palette or mid-session via Add step.'
     ]

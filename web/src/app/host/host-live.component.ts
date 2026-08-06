@@ -190,6 +190,28 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
                   <h2>{{ session()?.currentStep?.title || 'Lobby' }}</h2>
                 }
               </div>
+              @if (tab() === 'settings') {
+                <div class="history-bar">
+                  <button
+                    type="button"
+                    class="history-btn"
+                    [disabled]="busySettings() || !canUndoContent()"
+                    title="Undo content (Ctrl/⌘Z)"
+                    (click)="undoContent()"
+                  >
+                    Undo
+                  </button>
+                  <button
+                    type="button"
+                    class="history-btn"
+                    [disabled]="busySettings() || !canRedoContent()"
+                    title="Redo content (Ctrl/⌘⇧Z)"
+                    (click)="redoContent()"
+                  >
+                    Redo
+                  </button>
+                </div>
+              }
             </div>
 
             <div class="tabs">
@@ -524,6 +546,25 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
     }
     .add-step__actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
     .control__head { align-items: start; display: flex; gap: 1rem; justify-content: space-between; margin-bottom: 0.85rem; }
+    .history-bar { align-items: center; display: flex; flex: 0 0 auto; gap: 0.45rem; }
+    .history-btn {
+      background: #fff;
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.4rem 0.7rem;
+    }
+    .history-btn:hover:not(:disabled) {
+      border-color: var(--wos-primary);
+      color: var(--wos-primary);
+    }
+    .history-btn:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
     .eyebrow { color: var(--wos-primary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin: 0 0 0.25rem; text-transform: uppercase; }
     .control h2 { margin: 0; }
     .timer {
@@ -699,6 +740,9 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   titleDraft = '';
   busyStep = signal(false);
   busySettings = signal(false);
+  private contentUndo: Array<{ stepId: string; before: any; after: any }> = [];
+  private contentRedo: Array<{ stepId: string; before: any; after: any }> = [];
+  private applyingContentHistory = false;
   addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' = 'poll';
   addStepTitle = '';
   draftStepId = '';
@@ -1017,6 +1061,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   saveStepSettings(restartTimer: boolean) {
     const stepId = this.draftStepId || this.session()?.currentStepId;
     if (!stepId) return;
+    const before = this.snapshotStep(stepId);
     this.busySettings.set(true);
     this.message.set('');
     this.api.updateStep(this.id, stepId, this.buildStepPatch(), { restartTimer }).subscribe({
@@ -1024,6 +1069,12 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         this.session.set(s);
         this.busySettings.set(false);
         this.loadStepDraft();
+        const after = this.snapshotStep(stepId);
+        if (!this.applyingContentHistory && before && after && JSON.stringify(before) !== JSON.stringify(after)) {
+          this.contentUndo.push({ stepId, before, after });
+          if (this.contentUndo.length > 40) this.contentUndo.shift();
+          this.contentRedo = [];
+        }
         this.message.set(restartTimer ? 'Step saved and timer restarted.' : 'Step settings saved.');
         this.panelTick.update((n) => n + 1);
       },
@@ -1032,6 +1083,70 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         this.message.set(e?.error?.message || 'Could not save step');
       }
     });
+  }
+
+  canUndoContent() {
+    return this.contentUndo.length > 0;
+  }
+
+  canRedoContent() {
+    return this.contentRedo.length > 0;
+  }
+
+  undoContent() {
+    const entry = this.contentUndo.pop();
+    if (!entry || this.busySettings()) return;
+    this.contentRedo.push(entry);
+    this.applyContentSnapshot(entry.stepId, entry.before);
+  }
+
+  redoContent() {
+    const entry = this.contentRedo.pop();
+    if (!entry || this.busySettings()) return;
+    this.contentUndo.push(entry);
+    this.applyContentSnapshot(entry.stepId, entry.after);
+  }
+
+  private snapshotStep(stepId: string) {
+    const step = (this.session()?.steps || []).find((s: any) => s.id === stepId);
+    if (!step) return null;
+    return {
+      title: step.title || '',
+      instructions: step.instructions || '',
+      timerSeconds: step.timerSeconds ?? null,
+      config: JSON.parse(JSON.stringify(step.config || {})),
+      groups: JSON.parse(JSON.stringify(step.groups || []))
+    };
+  }
+
+  private applyContentSnapshot(stepId: string, snap: any) {
+    this.applyingContentHistory = true;
+    this.busySettings.set(true);
+    this.selectedStepId.set(stepId);
+    this.api
+      .updateStep(this.id, stepId, {
+        title: snap.title,
+        instructions: snap.instructions,
+        timerSeconds: snap.timerSeconds,
+        config: snap.config,
+        groups: snap.groups
+      })
+      .subscribe({
+        next: (s) => {
+          this.session.set(s);
+          this.busySettings.set(false);
+          this.applyingContentHistory = false;
+          this.tab.set('settings');
+          this.loadStepDraft();
+          this.message.set('Content restored.');
+          this.panelTick.update((n) => n + 1);
+        },
+        error: (e) => {
+          this.busySettings.set(false);
+          this.applyingContentHistory = false;
+          this.message.set(e?.error?.message || 'Could not restore content');
+        }
+      });
   }
 
   stepTypeLabel() {

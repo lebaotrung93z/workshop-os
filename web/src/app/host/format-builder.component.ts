@@ -1,5 +1,5 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Component, OnInit, HostListener, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
   CdkDrag,
@@ -46,7 +46,6 @@ interface DraftStep {
   standalone: true,
   imports: [
     FormsModule,
-    RouterLink,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
@@ -68,7 +67,24 @@ interface DraftStep {
             </p>
           </div>
           <div class="top__actions">
-            <a class="ghost" routerLink="/host">Back</a>
+            <button
+              type="button"
+              class="history-btn"
+              [disabled]="busy() || !canUndoBoard()"
+              title="Undo (Ctrl/⌘Z)"
+              (click)="undoBoard()"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              class="history-btn"
+              [disabled]="busy() || !canRedoBoard()"
+              title="Redo (Ctrl/⌘⇧Z)"
+              (click)="redoBoard()"
+            >
+              Redo
+            </button>
             <app-bosch-button
               variant="secondary"
               icon="plus"
@@ -89,7 +105,7 @@ interface DraftStep {
           </p>
         }
 
-        <section class="meta card">
+        <section class="meta card" (focusin)="beginInspectorEdit()">
           <label>
             Format name
             <input [(ngModel)]="formatName" placeholder="Product discovery workshop" />
@@ -301,7 +317,7 @@ interface DraftStep {
             }
           </section>
 
-          <aside class="inspector card">
+          <aside class="inspector card" (focusin)="beginInspectorEdit()">
             <p class="section-label">Step settings</p>
             @if (!selected()) {
               <p class="hint">Select a card on the board to edit title, options, and columns.</p>
@@ -453,6 +469,24 @@ interface DraftStep {
     h1 { font-size: 1.75rem; margin: 0; }
     .lede { color: var(--wos-text-muted); margin: 0.35rem 0 0; max-width: 42rem; }
     .top__actions { align-items: center; display: flex; flex-wrap: wrap; gap: 0.55rem; }
+    .history-btn {
+      background: var(--wos-surface);
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0.55rem 0.85rem;
+    }
+    .history-btn:hover:not(:disabled) {
+      border-color: var(--wos-primary);
+      color: var(--wos-primary);
+    }
+    .history-btn:disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
     .ghost {
       background: var(--wos-surface);
       border: 1px solid var(--wos-border);
@@ -1186,6 +1220,9 @@ export class FormatBuilderComponent implements OnInit {
   sourceName = signal('');
   saveMode = signal<'template' | 'session' | null>(null);
   private paletteDragging = false;
+  private boardUndo: string[] = [];
+  private boardRedo: string[] = [];
+  private inspectorCaptured = false;
 
   /** Palette is source-only — never accept drops back onto it. */
   blockPaletteEnter = () => false;
@@ -1200,6 +1237,86 @@ export class FormatBuilderComponent implements OnInit {
     ];
     this.steps.set(initial);
     this.selectedUid.set(initial[0]?.uid || null);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  onBoardKeydown(ev: KeyboardEvent) {
+    const target = ev.target as HTMLElement | null;
+    const tag = target?.tagName?.toLowerCase();
+    const typing =
+      tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable;
+    // Allow undo/redo even while typing in inspector — app history for the board.
+    const mod = ev.metaKey || ev.ctrlKey;
+    if (!mod) return;
+    const key = ev.key.toLowerCase();
+    if (!ev.shiftKey && key === 'z') {
+      // Prefer native undo while typing in a field unless stack has board history intent —
+      // use board undo when not in a text field, or when explicitly clicking buttons.
+      if (typing) return;
+      ev.preventDefault();
+      this.undoBoard();
+      return;
+    }
+    if (key === 'y' || (ev.shiftKey && key === 'z')) {
+      if (typing) return;
+      ev.preventDefault();
+      this.redoBoard();
+    }
+  }
+
+  private boardSnapshot() {
+    return JSON.stringify({
+      steps: this.steps(),
+      selectedUid: this.selectedUid(),
+      formatName: this.formatName,
+      description: this.description,
+      workshopTitle: this.workshopTitle
+    });
+  }
+
+  private restoreBoardSnapshot(raw: string) {
+    const parsed = JSON.parse(raw);
+    this.steps.set(parsed.steps || []);
+    this.selectedUid.set(parsed.selectedUid || null);
+    this.formatName = parsed.formatName || '';
+    this.description = parsed.description || '';
+    this.workshopTitle = parsed.workshopTitle || '';
+    this.inspectorCaptured = false;
+  }
+
+  private captureBoard() {
+    this.boardUndo.push(this.boardSnapshot());
+    if (this.boardUndo.length > 50) this.boardUndo.shift();
+    this.boardRedo = [];
+    this.inspectorCaptured = false;
+  }
+
+  beginInspectorEdit() {
+    if (this.inspectorCaptured || this.busy()) return;
+    this.captureBoard();
+    this.inspectorCaptured = true;
+  }
+
+  canUndoBoard() {
+    return this.boardUndo.length > 0;
+  }
+
+  canRedoBoard() {
+    return this.boardRedo.length > 0;
+  }
+
+  undoBoard() {
+    const prev = this.boardUndo.pop();
+    if (!prev) return;
+    this.boardRedo.push(this.boardSnapshot());
+    this.restoreBoardSnapshot(prev);
+  }
+
+  redoBoard() {
+    const next = this.boardRedo.pop();
+    if (!next) return;
+    this.boardUndo.push(this.boardSnapshot());
+    this.restoreBoardSnapshot(next);
   }
 
   ngOnInit() {
@@ -1234,6 +1351,7 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   select(uid: string) {
+    this.inspectorCaptured = false;
     this.selectedUid.set(uid);
   }
 
@@ -1297,6 +1415,7 @@ export class FormatBuilderComponent implements OnInit {
   addStep(type: StepType) {
     // Ignore the click that follows a successful palette drag.
     if (this.paletteDragging) return;
+    this.captureBoard();
     const step = this.blankStep(type);
     this.steps.update((list) => [...list, step]);
     this.selectedUid.set(step.uid);
@@ -1314,6 +1433,7 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   remove(uid: string) {
+    this.captureBoard();
     this.steps.update((list) => list.filter((s) => s.uid !== uid));
     if (this.selectedUid() === uid) {
       this.selectedUid.set(this.steps()[0]?.uid || null);
@@ -1321,6 +1441,7 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   onBoardDrop(event: CdkDragDrop<DraftStep[]>) {
+    this.captureBoard();
     if (event.previousContainer === event.container) {
       const list = [...this.steps()];
       moveItemInArray(list, event.previousIndex, event.currentIndex);
@@ -1338,11 +1459,13 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   addOption(step: DraftStep) {
+    this.beginInspectorEdit();
     const n = step.options.length + 1;
     step.options.push({ id: `opt${n}`, label: `Option ${n}` });
   }
 
   removeOption(step: DraftStep, index: number) {
+    this.beginInspectorEdit();
     step.options.splice(index, 1);
   }
 
@@ -1357,14 +1480,17 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   addGroup(step: DraftStep) {
+    this.beginInspectorEdit();
     step.groups.push({ title: `Column ${step.groups.length + 1}` });
   }
 
   addBreakoutGroup(step: DraftStep) {
+    this.beginInspectorEdit();
     step.groups.push({ title: `Group ${step.groups.length + 1}`, topic: '' });
   }
 
   removeGroup(step: DraftStep, index: number) {
+    this.beginInspectorEdit();
     step.groups.splice(index, 1);
   }
 

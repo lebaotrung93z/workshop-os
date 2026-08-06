@@ -5,10 +5,6 @@ import { BoschAvatarComponent } from '../../bosch-ui/bosch-avatar/bosch-avatar.c
 import { ApiService } from '../../core/api.service';
 import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../../core/okr.util';
 
-type ThemeHistoryEntry =
-  | { kind: 'theme'; before: string; after: string }
-  | { kind: 'objective'; id: string; before: string; after: string };
-
 @Component({
   selector: 'app-activity-host-panel',
   standalone: true,
@@ -39,31 +35,9 @@ type ThemeHistoryEntry =
             <input
               [(ngModel)]="treeRootDraft"
               placeholder="Edit root theme…"
-              (keydown)="onThemeKeydown($event)"
               (keyup.enter)="saveTreeRoot()"
             />
-            <app-bosch-button [disabled]="busy() || !themeDirty()" (click)="saveTreeRoot()">Save</app-bosch-button>
-          </div>
-          <div class="history-bar">
-            <button
-              type="button"
-              class="history-btn"
-              [disabled]="busy() || !canUndo()"
-              title="Undo (Ctrl/⌘Z)"
-              (click)="undo()"
-            >
-              Undo
-            </button>
-            <button
-              type="button"
-              class="history-btn"
-              [disabled]="busy() || !canRedo()"
-              title="Redo (Ctrl/⌘⇧Z)"
-              (click)="redo()"
-            >
-              Redo
-            </button>
-            <span class="history-hint">Theme &amp; objective edits</span>
+            <app-bosch-button [disabled]="busy()" (click)="saveTreeRoot()">Save</app-bosch-button>
           </div>
         </label>
         @if (session?.currentStep?.type === 'input' || canPrepObjectives()) {
@@ -91,12 +65,7 @@ type ThemeHistoryEntry =
                   <div class="tree-node" role="treeitem">
                     <div class="tree-pill tree-pill--objective">
                       @if (editingObjectiveId === obj.id) {
-                        <input
-                          class="obj-edit"
-                          [(ngModel)]="editObjectiveText"
-                          (keydown)="onObjectiveKeydown($event, obj)"
-                          (keyup.enter)="saveObjective(obj)"
-                        />
+                        <input class="obj-edit" [(ngModel)]="editObjectiveText" (keyup.enter)="saveObjective(obj)" />
                         <div class="obj-edit-actions">
                           <button type="button" class="hide-inline" (click)="saveObjective(obj)">Save</button>
                           <button type="button" class="hide-inline" (click)="cancelObjectiveEdit()">Cancel</button>
@@ -476,35 +445,6 @@ type ThemeHistoryEntry =
     }
     .root-edit { display: grid; font-size: 0.85rem; font-weight: 700; gap: 0.4rem; }
     .root-edit__row { display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr) auto; }
-    .history-bar {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-    }
-    .history-btn {
-      background: #fff;
-      border: 1px solid var(--wos-border-strong);
-      border-radius: var(--wos-radius);
-      color: var(--wos-text);
-      cursor: pointer;
-      font-size: 0.8rem;
-      font-weight: 700;
-      padding: 0.4rem 0.7rem;
-    }
-    .history-btn:hover:not(:disabled) {
-      border-color: var(--wos-primary);
-      color: var(--wos-primary);
-    }
-    .history-btn:disabled {
-      cursor: default;
-      opacity: 0.45;
-    }
-    .history-hint {
-      color: var(--wos-text-muted);
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
 
     @media (max-width: 640px) {
       .bar-row, .vote-row { grid-template-columns: 1fr; }
@@ -701,10 +641,6 @@ export class ActivityHostPanelComponent implements OnChanges {
   expanded = signal<Record<string, boolean>>({});
   newObjective = '';
   treeRootDraft = '';
-  private committedTheme = '';
-  private undoStack: ThemeHistoryEntry[] = [];
-  private redoStack: ThemeHistoryEntry[] = [];
-  private applyingHistory = false;
   editingObjectiveId = '';
   editObjectiveText = '';
   busy = signal(false);
@@ -714,15 +650,7 @@ export class ActivityHostPanelComponent implements OnChanges {
     const stepId = this.session.currentStepId;
     const okrStep = okrInputStep(this.session);
     const entryStepId = this.isOkrSession() && okrStep ? okrStep.id : stepId;
-    const remoteTheme = String(this.session.treeRootLabel || '');
-    if (!this.committedTheme && !this.themeDirty()) {
-      this.committedTheme = remoteTheme;
-      this.treeRootDraft = remoteTheme;
-    } else if (!this.themeDirty() && !this.applyingHistory) {
-      // Keep draft in sync with remote commits (e.g. other tab) when not editing.
-      this.committedTheme = remoteTheme;
-      this.treeRootDraft = remoteTheme;
-    }
+    this.treeRootDraft = String(this.session.treeRootLabel || '');
     this.api.listEntries(this.session.id, entryStepId).subscribe((e) => this.entries.set(e));
     this.api.pollTally(this.session.id, stepId).subscribe((p) => this.poll.set(p));
     const votingStep = okrVotingStep(this.session);
@@ -921,131 +849,14 @@ export class ActivityHostPanelComponent implements OnChanges {
 
   saveTreeRoot() {
     if (!this.session?.id) return;
-    const next = this.treeRootDraft.trim();
-    const before = this.committedTheme;
-    if (next === before.trim()) {
-      this.treeRootDraft = before;
-      return;
-    }
     this.busy.set(true);
-    this.api.updateTreeRootLabel(this.session.id, next).subscribe({
+    this.api.updateTreeRootLabel(this.session.id, this.treeRootDraft).subscribe({
       next: (s) => {
-        const after = String(s.treeRootLabel || '');
-        if (!this.applyingHistory) {
-          this.pushHistory({ kind: 'theme', before, after });
-        }
         this.session = { ...this.session, ...s };
-        this.committedTheme = after;
-        this.treeRootDraft = after;
+        this.treeRootDraft = String(s.treeRootLabel || '');
         this.busy.set(false);
       },
       error: () => this.busy.set(false)
-    });
-  }
-
-  themeDirty() {
-    return this.treeRootDraft.trim() !== this.committedTheme.trim();
-  }
-
-  canUndo() {
-    return this.undoStack.length > 0;
-  }
-
-  canRedo() {
-    return this.redoStack.length > 0;
-  }
-
-  private pushHistory(entry: ThemeHistoryEntry) {
-    this.undoStack.push(entry);
-    if (this.undoStack.length > 40) this.undoStack.shift();
-    this.redoStack = [];
-  }
-
-  onThemeKeydown(ev: KeyboardEvent) {
-    if (this.isUndoChord(ev)) {
-      ev.preventDefault();
-      this.undo();
-      return;
-    }
-    if (this.isRedoChord(ev)) {
-      ev.preventDefault();
-      this.redo();
-    }
-  }
-
-  onObjectiveKeydown(ev: KeyboardEvent, obj: any) {
-    if (this.isUndoChord(ev)) {
-      ev.preventDefault();
-      this.undo();
-      return;
-    }
-    if (this.isRedoChord(ev)) {
-      ev.preventDefault();
-      this.redo();
-      return;
-    }
-  }
-
-  private isUndoChord(ev: KeyboardEvent) {
-    const mod = ev.metaKey || ev.ctrlKey;
-    return mod && !ev.shiftKey && ev.key.toLowerCase() === 'z';
-  }
-
-  private isRedoChord(ev: KeyboardEvent) {
-    const mod = ev.metaKey || ev.ctrlKey;
-    if (!mod) return false;
-    if (ev.key.toLowerCase() === 'y') return true;
-    return ev.shiftKey && ev.key.toLowerCase() === 'z';
-  }
-
-  undo() {
-    const entry = this.undoStack.pop();
-    if (!entry || this.busy()) return;
-    this.redoStack.push(entry);
-    this.applyHistory(entry, 'undo');
-  }
-
-  redo() {
-    const entry = this.redoStack.pop();
-    if (!entry || this.busy()) return;
-    this.undoStack.push(entry);
-    this.applyHistory(entry, 'redo');
-  }
-
-  private applyHistory(entry: ThemeHistoryEntry, direction: 'undo' | 'redo') {
-    const value = direction === 'undo' ? entry.before : entry.after;
-    this.applyingHistory = true;
-    if (entry.kind === 'theme') {
-      this.treeRootDraft = value;
-      this.busy.set(true);
-      this.api.updateTreeRootLabel(this.session.id, value).subscribe({
-        next: (s) => {
-          this.session = { ...this.session, ...s };
-          this.committedTheme = String(s.treeRootLabel || '');
-          this.treeRootDraft = this.committedTheme;
-          this.applyingHistory = false;
-          this.busy.set(false);
-        },
-        error: () => {
-          this.applyingHistory = false;
-          this.busy.set(false);
-        }
-      });
-      return;
-    }
-
-    this.busy.set(true);
-    this.api.updateEntry(this.session.id, entry.id, { content: value }, { role: 'host' }).subscribe({
-      next: () => {
-        this.applyingHistory = false;
-        this.busy.set(false);
-        this.cancelObjectiveEdit();
-        this.ngOnChanges();
-      },
-      error: () => {
-        this.applyingHistory = false;
-        this.busy.set(false);
-      }
     });
   }
 
@@ -1100,17 +911,9 @@ export class ActivityHostPanelComponent implements OnChanges {
   saveObjective(obj: any) {
     const content = this.editObjectiveText.trim();
     if (!content || !this.session?.id) return;
-    const before = String(obj.content || '');
-    if (content === before.trim()) {
-      this.cancelObjectiveEdit();
-      return;
-    }
     this.busy.set(true);
     this.api.updateEntry(this.session.id, obj.id, { content }, { role: 'host' }).subscribe({
       next: () => {
-        if (!this.applyingHistory) {
-          this.pushHistory({ kind: 'objective', id: obj.id, before, after: content });
-        }
         this.busy.set(false);
         this.cancelObjectiveEdit();
         this.ngOnChanges();
