@@ -37,9 +37,7 @@ import { HostShellComponent } from './host-shell.component';
                   </div>
                   <div class="saved-actions">
                     <app-bosch-button (click)="resume(s)">Resume</app-bosch-button>
-                    @if (s.status === 'CLOSED') {
-                      <button type="button" class="text-btn" (click)="forget(s.id)">Remove</button>
-                    }
+                    <button type="button" class="text-btn" (click)="forget(s.id)">Remove</button>
                   </div>
                 </article>
               }
