@@ -22,110 +22,112 @@ type Bucket = 'live' | 'completed' | 'prepared';
           <a class="join-cta" routerLink="/j">Join as participant</a>
         </header>
 
-        <section class="stats">
-          <article class="stat-card">
-            <p class="stat-label">Live</p>
-            <p class="stat-value live">{{ liveCount() }}</p>
-            <p class="stat-hint">Welcome / running / actions</p>
-          </article>
-          <article class="stat-card">
-            <p class="stat-label">Completed</p>
-            <p class="stat-value done">{{ completedCount() }}</p>
-            <p class="stat-hint">Ended workshops</p>
-          </article>
-          <article class="stat-card">
-            <p class="stat-label">Prepared</p>
-            <p class="stat-value prep">{{ preparedCount() }}</p>
-            <p class="stat-hint">Lobby · not started yet</p>
-          </article>
-          <article class="stat-card chart-card">
-            <p class="stat-label">By status</p>
-            @if (totalCount() === 0) {
-              <p class="empty-chart">No sessions yet. Create one under Sessions.</p>
-              <a class="ghost" routerLink="/host">Go to Sessions</a>
-            } @else {
-              <div class="chart-row">
-                <svg class="donut" viewBox="0 0 120 120" aria-hidden="true">
-                  <circle class="donut-track" cx="60" cy="60" r="42" />
-                  @for (seg of donutSegments(); track seg.key) {
-                    <circle
-                      class="donut-seg"
-                      [attr.stroke]="seg.color"
-                      cx="60"
-                      cy="60"
-                      r="42"
-                      [attr.stroke-dasharray]="seg.dashArray"
-                      [attr.stroke-dashoffset]="seg.dashOffset"
-                    />
-                  }
-                  <text class="donut-total" x="60" y="56" text-anchor="middle">{{ totalCount() }}</text>
-                  <text class="donut-sub" x="60" y="72" text-anchor="middle">total</text>
-                </svg>
-                <ul class="legend">
-                  <li><span class="swatch live"></span> Live · {{ liveCount() }}</li>
-                  <li><span class="swatch done"></span> Completed · {{ completedCount() }}</li>
-                  <li><span class="swatch prep"></span> Prepared · {{ preparedCount() }}</li>
-                </ul>
-              </div>
-              <div class="bars" aria-hidden="true">
-                <div class="bar-row">
-                  <span>Live</span>
-                  <div class="bar-track"><div class="bar-fill live" [style.width.%]="pct(liveCount())"></div></div>
-                  <strong>{{ liveCount() }}</strong>
-                </div>
-                <div class="bar-row">
-                  <span>Completed</span>
-                  <div class="bar-track"><div class="bar-fill done" [style.width.%]="pct(completedCount())"></div></div>
-                  <strong>{{ completedCount() }}</strong>
-                </div>
-                <div class="bar-row">
-                  <span>Prepared</span>
-                  <div class="bar-track"><div class="bar-fill prep" [style.width.%]="pct(preparedCount())"></div></div>
-                  <strong>{{ preparedCount() }}</strong>
-                </div>
-              </div>
-            }
-          </article>
-        </section>
-
-        @if (recentLive().length) {
-          <section class="panel">
-            <div class="panel-head">
-              <p class="section-label">Live now</p>
-              <a class="ghost sm" routerLink="/host">Manage in Sessions</a>
-            </div>
-            <div class="session-list">
-              @for (s of recentLive(); track s.id) {
-                <a class="session-row" [routerLink]="['/host', s.id]">
-                  <div>
-                    <strong>{{ s.title || 'Workshop' }}</strong>
-                    <p>Code {{ s.code || '—' }} · {{ statusLabel(s.status) }}</p>
-                  </div>
-                  <span class="pill live">Open</span>
-                </a>
-              }
-            </div>
-          </section>
-        }
-
-        <section class="panel">
-          <p class="section-label">What's new</p>
-          <div class="changelog">
-            @for (entry of changelog; track entry.date + entry.title) {
-              <article class="change">
-                <div class="change__meta">
-                  <time>{{ entry.date }}</time>
-                  <h2>{{ entry.title }}</h2>
-                </div>
-                <ul>
-                  @for (item of entry.items; track item) {
-                    <li>{{ item }}</li>
-                  }
-                </ul>
+        <div class="body">
+          <div class="main-col">
+            <section class="stats">
+              <article class="stat-card">
+                <p class="stat-label">Live</p>
+                <p class="stat-value live">{{ liveCount() }}</p>
+                <p class="stat-hint">Welcome / running / actions</p>
               </article>
+              <article class="stat-card">
+                <p class="stat-label">Completed</p>
+                <p class="stat-value done">{{ completedCount() }}</p>
+                <p class="stat-hint">Ended workshops</p>
+              </article>
+              <article class="stat-card">
+                <p class="stat-label">Prepared</p>
+                <p class="stat-value prep">{{ preparedCount() }}</p>
+                <p class="stat-hint">Lobby · not started yet</p>
+              </article>
+              <article class="stat-card chart-card">
+                <p class="stat-label">By status</p>
+                @if (totalCount() === 0) {
+                  <p class="empty-chart">No sessions yet. Create one under Sessions.</p>
+                  <a class="ghost" routerLink="/host">Go to Sessions</a>
+                } @else {
+                  <div class="chart-row">
+                    <svg class="donut" viewBox="0 0 120 120" aria-hidden="true">
+                      <circle class="donut-track" cx="60" cy="60" r="42" />
+                      @for (seg of donutSegments(); track seg.key) {
+                        <circle
+                          class="donut-seg"
+                          [attr.stroke]="seg.color"
+                          cx="60"
+                          cy="60"
+                          r="42"
+                          [attr.stroke-dasharray]="seg.dashArray"
+                          [attr.stroke-dashoffset]="seg.dashOffset"
+                        />
+                      }
+                      <text class="donut-total" x="60" y="56" text-anchor="middle">{{ totalCount() }}</text>
+                      <text class="donut-sub" x="60" y="72" text-anchor="middle">total</text>
+                    </svg>
+                    <ul class="legend">
+                      <li><span class="swatch live"></span> Live · {{ liveCount() }}</li>
+                      <li><span class="swatch done"></span> Completed · {{ completedCount() }}</li>
+                      <li><span class="swatch prep"></span> Prepared · {{ preparedCount() }}</li>
+                    </ul>
+                  </div>
+                  <div class="bars" aria-hidden="true">
+                    <div class="bar-row">
+                      <span>Live</span>
+                      <div class="bar-track"><div class="bar-fill live" [style.width.%]="pct(liveCount())"></div></div>
+                      <strong>{{ liveCount() }}</strong>
+                    </div>
+                    <div class="bar-row">
+                      <span>Completed</span>
+                      <div class="bar-track"><div class="bar-fill done" [style.width.%]="pct(completedCount())"></div></div>
+                      <strong>{{ completedCount() }}</strong>
+                    </div>
+                    <div class="bar-row">
+                      <span>Prepared</span>
+                      <div class="bar-track"><div class="bar-fill prep" [style.width.%]="pct(preparedCount())"></div></div>
+                      <strong>{{ preparedCount() }}</strong>
+                    </div>
+                  </div>
+                }
+              </article>
+            </section>
+
+            @if (recentLive().length) {
+              <section class="panel">
+                <div class="panel-head">
+                  <p class="section-label">Live now</p>
+                  <a class="ghost sm" routerLink="/host">Manage in Sessions</a>
+                </div>
+                <div class="session-list">
+                  @for (s of recentLive(); track s.id) {
+                    <a class="session-row" [routerLink]="['/host', s.id]">
+                      <div>
+                        <strong>{{ s.title || 'Workshop' }}</strong>
+                        <p>Code {{ s.code || '—' }} · {{ statusLabel(s.status) }}</p>
+                      </div>
+                      <span class="pill live">Open</span>
+                    </a>
+                  }
+                </div>
+              </section>
             }
           </div>
-        </section>
+
+          <aside class="news-panel" aria-label="What's new">
+            <p class="section-label">What's new</p>
+            <div class="changelog">
+              @for (entry of changelog; track entry.date + entry.title) {
+                <article class="change">
+                  <time>{{ entry.date }}</time>
+                  <h2>{{ entry.title }}</h2>
+                  <ul>
+                    @for (item of entry.items; track item) {
+                      <li>{{ item }}</li>
+                    }
+                  </ul>
+                </article>
+              }
+            </div>
+          </aside>
+        </div>
       </div>
     </app-host-shell>
   `,
@@ -184,6 +186,19 @@ type Bucket = 'live' | 'completed' | 'prepared';
       background: var(--wos-primary-hover);
     }
 
+    .body {
+      align-items: start;
+      display: grid;
+      gap: 1.25rem;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    }
+
+    .main-col {
+      display: grid;
+      gap: 1.25rem;
+      min-width: 0;
+    }
+
     .stats {
       display: grid;
       gap: 0.85rem;
@@ -206,9 +221,9 @@ type Bucket = 'live' | 'completed' | 'prepared';
       color: var(--wos-text-secondary);
       font-size: 0.8rem;
       font-weight: 700;
+      letter-spacing: 0.03em;
       margin: 0 0 0.35rem;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
     }
 
     .stat-value {
@@ -432,17 +447,31 @@ type Bucket = 'live' | 'completed' | 'prepared';
       color: var(--wos-success-ink);
     }
 
+    .news-panel {
+      align-self: stretch;
+      background: var(--wos-surface);
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius-lg);
+      box-shadow: var(--wos-shadow);
+      max-height: calc(100vh - 8rem);
+      overflow-y: auto;
+      padding: 1.15rem 1.1rem 1.25rem;
+      position: sticky;
+      top: 1rem;
+    }
+
+    .news-panel .section-label {
+      margin-bottom: 0.75rem;
+    }
+
     .changelog {
       display: grid;
-      gap: 1.1rem;
+      gap: 0;
     }
 
     .change {
       border-top: 1px solid var(--wos-border);
-      display: grid;
-      gap: 0.65rem;
-      grid-template-columns: minmax(9rem, 14rem) minmax(0, 1fr);
-      padding-top: 1.1rem;
+      padding: 0.95rem 0 0.15rem;
     }
 
     .change:first-child {
@@ -450,36 +479,49 @@ type Bucket = 'live' | 'completed' | 'prepared';
       padding-top: 0;
     }
 
-    .change__meta time {
+    .change time {
       color: var(--wos-text-muted);
       display: block;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 600;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
 
-    .change__meta h2 {
-      font-size: 1rem;
-      margin: 0;
+    .change h2 {
+      font-size: 0.95rem;
+      line-height: 1.3;
+      margin: 0 0 0.45rem;
     }
 
     .change ul {
       color: var(--wos-text-secondary);
+      font-size: 0.88rem;
       margin: 0;
-      padding-left: 1.1rem;
+      padding-left: 1.05rem;
     }
 
     .change li {
-      margin: 0.25rem 0;
+      margin: 0.2rem 0;
+    }
+
+    @media (max-width: 1100px) {
+      .body {
+        grid-template-columns: minmax(0, 1fr) minmax(240px, 280px);
+      }
     }
 
     @media (max-width: 900px) {
-      .stats {
-        grid-template-columns: 1fr 1fr;
+      .body {
+        grid-template-columns: 1fr;
       }
 
-      .change {
-        grid-template-columns: 1fr;
+      .news-panel {
+        max-height: none;
+        position: static;
+      }
+
+      .stats {
+        grid-template-columns: 1fr 1fr;
       }
     }
 
