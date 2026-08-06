@@ -7,7 +7,13 @@ import { readJoinCodeFromLocation } from './core/join-url';
   standalone: true,
   imports: [RouterOutlet],
   template: `<router-outlet />`,
-  styles: ``
+  styles: `
+    :host {
+      display: block;
+      min-height: 100%;
+      width: 100%;
+    }
+  `
 })
 export class AppComponent implements OnInit {
   private router = inject(Router);

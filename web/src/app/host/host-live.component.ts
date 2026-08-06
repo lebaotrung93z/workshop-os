@@ -364,7 +364,8 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
     </app-host-shell>
   `,
   styles: `
-    .page { display: grid; gap: 1rem; }
+    :host { display: block; width: 100%; }
+    .page { display: grid; gap: 1rem; width: 100%; }
     .top { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .title-row { align-items: center; display: flex; flex-wrap: wrap; gap: 0.65rem; }
     .title-input {
