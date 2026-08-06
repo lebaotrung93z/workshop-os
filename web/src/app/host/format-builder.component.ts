@@ -15,7 +15,7 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
 import { ApiService } from '../core/api.service';
 import { HostShellComponent } from './host-shell.component';
 
-type StepType = 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout';
+type StepType = 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' | 'end';
 
 interface DraftGroup {
   title: string;
@@ -39,6 +39,9 @@ interface DraftStep {
   votesPerParticipant: number;
   options: DraftOption[];
   groups: DraftGroup[];
+  endText: string;
+  linkUrl: string;
+  backgroundImageUrl: string;
 }
 
 @Component({
@@ -302,6 +305,16 @@ interface DraftStep {
                               </div>
                             }
                           </div>
+                        } @else if (step.type === 'end') {
+                          <div class="mini mini--end">
+                            <div class="mini-qr"></div>
+                            <div class="mini-welcome-copy">
+                              <span>{{ step.endText || 'Thanks for joining' }}</span>
+                              @if (step.linkUrl) {
+                                <span class="mini-code">QR link</span>
+                              }
+                            </div>
+                          </div>
                         }
                       </div>
 
@@ -427,6 +440,24 @@ interface DraftStep {
                     </div>
                   }
                   <app-bosch-button variant="secondary" (click)="addBreakoutGroup(selected()!)">Add group</app-bosch-button>
+                </div>
+              }
+
+              @if (selected()!.type === 'end') {
+                <div class="sub">
+                  <label>
+                    Big screen closing text
+                    <textarea rows="3" [(ngModel)]="selected()!.endText" placeholder="Thanks message…"></textarea>
+                  </label>
+                  <label>
+                    Link for big-screen QR
+                    <input [(ngModel)]="selected()!.linkUrl" placeholder="https://…" />
+                  </label>
+                  <p class="hint">Leave blank to hide the QR on the projector.</p>
+                  <label>
+                    Background image URL
+                    <input [(ngModel)]="selected()!.backgroundImageUrl" placeholder="https://… (optional)" />
+                  </label>
                 </div>
               }
             }
@@ -588,18 +619,21 @@ interface DraftStep {
     .palette-item[data-tone='voting'] .palette-item__icon { background: #fef3c7; color: #b45309; }
     .palette-item[data-tone='form'] .palette-item__icon { background: #ffe4e6; color: #be123c; }
     .palette-item[data-tone='breakout'] .palette-item__icon { background: #ede9fe; color: #6d28d9; }
+    .palette-item[data-tone='end'] .palette-item__icon { background: #f1f5f9; color: #334155; }
     .flow-card[data-tone='welcome'] .flow-card__badge { color: #0369a1; }
     .flow-card[data-tone='poll'] .flow-card__badge { color: #4338ca; }
     .flow-card[data-tone='input'] .flow-card__badge { color: #047857; }
     .flow-card[data-tone='voting'] .flow-card__badge { color: #b45309; }
     .flow-card[data-tone='form'] .flow-card__badge { color: #be123c; }
     .flow-card[data-tone='breakout'] .flow-card__badge { color: #6d28d9; }
+    .flow-card[data-tone='end'] .flow-card__badge { color: #334155; }
     .inspector__hero[data-tone='welcome'] .inspector__emoji { color: #0369a1; }
     .inspector__hero[data-tone='poll'] .inspector__emoji { color: #4338ca; }
     .inspector__hero[data-tone='input'] .inspector__emoji { color: #047857; }
     .inspector__hero[data-tone='voting'] .inspector__emoji { color: #b45309; }
     .inspector__hero[data-tone='form'] .inspector__emoji { color: #be123c; }
     .inspector__hero[data-tone='breakout'] .inspector__emoji { color: #6d28d9; }
+    .inspector__hero[data-tone='end'] .inspector__emoji { color: #334155; }
     .palette-item__copy { display: grid; gap: 0.1rem; }
     .palette-item__copy strong { font-size: 0.9rem; }
     .palette-item__copy small { color: var(--wos-text-muted); font-size: 0.75rem; }
@@ -755,6 +789,10 @@ interface DraftStep {
       background: linear-gradient(165deg, #ddd6fe 0%, #f5f3ff 34%, #ffffff 70%);
       border-color: #c4b5fd;
     }
+    .flow-card[data-tone='end'] {
+      background: linear-gradient(165deg, #e2e8f0 0%, #f8fafc 34%, #ffffff 70%);
+      border-color: #94a3b8;
+    }
     .flow-card.is-selected {
       border-color: var(--wos-primary);
       box-shadow:
@@ -848,6 +886,12 @@ interface DraftStep {
     }
     .mini { display: grid; gap: 0.4rem; height: 100%; }
     .mini--welcome {
+      align-items: center;
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: 48px 1fr;
+    }
+    .mini--end {
       align-items: center;
       display: grid;
       gap: 0.65rem;
@@ -1064,6 +1108,7 @@ interface DraftStep {
     .inspector__hero[data-tone='voting'] { background: #fef3c7; }
     .inspector__hero[data-tone='form'] { background: #ffe4e6; }
     .inspector__hero[data-tone='breakout'] { background: #ede9fe; }
+    .inspector__hero[data-tone='end'] { background: #f1f5f9; }
     .inspector__emoji {
       align-items: center;
       background: rgba(255,255,255,0.8);
@@ -1204,7 +1249,8 @@ export class FormatBuilderComponent implements OnInit {
     { value: 'input' as StepType, label: 'Sticky wall', hint: 'Ideas / OKR board' },
     { value: 'voting' as StepType, label: 'Voting', hint: 'Prioritize items' },
     { value: 'form' as StepType, label: 'Action form', hint: 'Owners & due dates' },
-    { value: 'breakout' as StepType, label: 'Group participants', hint: 'Random or manual teams' }
+    { value: 'breakout' as StepType, label: 'Group participants', hint: 'Random or manual teams' },
+    { value: 'end' as StepType, label: 'End', hint: 'Closing text + QR link' }
   ];
 
   stepTypes = this.paletteItems;
@@ -1373,6 +1419,8 @@ export class FormatBuilderComponent implements OnInit {
         return 'form';
       case 'breakout':
         return 'breakout';
+      case 'end':
+        return 'end';
       default:
         return 'settings';
     }
@@ -1398,6 +1446,8 @@ export class FormatBuilderComponent implements OnInit {
       chips.push(`${step.groups.length} groups`);
     } else if (step.type === 'welcome') {
       chips.push('Lobby / QR');
+    } else if (step.type === 'end') {
+      chips.push(step.linkUrl?.trim() ? 'Closing QR' : 'Closing');
     }
     return chips;
   }
@@ -1602,6 +1652,10 @@ export class FormatBuilderComponent implements OnInit {
           { title: 'Group 3', topic: '' }
         ];
       }
+    } else if (type === 'end') {
+      draft.endText = String(cfg['endText'] || draft.endText);
+      draft.linkUrl = String(cfg['linkUrl'] || '');
+      draft.backgroundImageUrl = String(cfg['backgroundImageUrl'] || '');
     }
 
     return draft;
@@ -1656,6 +1710,12 @@ export class FormatBuilderComponent implements OnInit {
       if (!base.groups.length) {
         base.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
       }
+    } else if (step.type === 'end') {
+      base.config = {
+        endText: (step.endText || '').trim(),
+        backgroundImageUrl: (step.backgroundImageUrl || '').trim(),
+        linkUrl: (step.linkUrl || '').trim()
+      };
     }
     return base;
   }
@@ -1692,7 +1752,10 @@ export class FormatBuilderComponent implements OnInit {
         { title: 'Column A' },
         { title: 'Column B' },
         { title: 'Column C' }
-      ]
+      ],
+      endText: '',
+      linkUrl: '',
+      backgroundImageUrl: ''
     };
     if (type === 'welcome') {
       step.title = 'Welcome';
@@ -1718,6 +1781,10 @@ export class FormatBuilderComponent implements OnInit {
         { title: 'Group 3', topic: '' }
       ];
       step.timerSeconds = 180;
+    } else if (type === 'end') {
+      step.title = 'Thanks';
+      step.instructions = 'Close the session and share next steps.';
+      step.endText = 'Thanks for joining — scan the code for next steps.';
     }
     return step;
   }

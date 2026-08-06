@@ -281,6 +281,41 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
                     }
                   }
 
+                  @if (draftType === 'end') {
+                    <label>
+                      Big screen closing text
+                      <textarea
+                        rows="4"
+                        [(ngModel)]="draftEndText"
+                        placeholder="Thanks message shown on the projector / big screen…"
+                      ></textarea>
+                    </label>
+                    <label class="file-label">
+                      Upload background image
+                      <input type="file" accept="image/*" (change)="onBackgroundFile($event)" />
+                    </label>
+                    <p class="hint">Photos are compressed in the browser and saved with the session (no cloud storage).</p>
+                    <label>
+                      Or paste a public image URL
+                      <input [(ngModel)]="draftBackgroundImageUrl" placeholder="https://…" />
+                    </label>
+                    @if (uploadingBg()) {
+                      <p class="hint">Preparing image…</p>
+                    }
+                    @if (draftBackgroundImageUrl) {
+                      <div class="bg-preview" [style.background-image]="bgPreviewCss()"></div>
+                      <button type="button" class="linkish" (click)="draftBackgroundImageUrl = ''">Clear background</button>
+                    }
+                    <label>
+                      Link for big-screen QR
+                      <input
+                        [(ngModel)]="draftLinkUrl"
+                        placeholder="https://… feedback, slides, resources"
+                      />
+                    </label>
+                    <p class="hint">Leave blank to hide the QR. The big screen shows a scannable code for this URL.</p>
+                  }
+
                   @if (draftType === 'poll') {
                     <p class="section-label">Poll options</p>
                     @for (opt of draftOptions; track $index; let oi = $index) {
@@ -743,10 +778,10 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   private contentUndo: Array<{ stepId: string; before: any; after: any }> = [];
   private contentRedo: Array<{ stepId: string; before: any; after: any }> = [];
   private applyingContentHistory = false;
-  addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' = 'poll';
+  addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' | 'end' = 'poll';
   addStepTitle = '';
   draftStepId = '';
-  draftType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' = 'welcome';
+  draftType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' | 'end' = 'welcome';
   draftTitle = '';
   draftInstructions = '';
   draftTimerSeconds: number | null = null;
@@ -757,6 +792,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   draftVotesPerParticipant = 3;
   draftLinkActionToKr = false;
   draftWelcomeText = '';
+  draftEndText = '';
+  draftLinkUrl = '';
   draftBackgroundImageUrl = '';
   uploadingBg = signal(false);
   joinUrl = '';
@@ -767,7 +804,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     { value: 'input' as const, label: 'Input (sticky wall)' },
     { value: 'voting' as const, label: 'Voting' },
     { value: 'form' as const, label: 'Action form' },
-    { value: 'breakout' as const, label: 'Group participants' }
+    { value: 'breakout' as const, label: 'Group participants' },
+    { value: 'end' as const, label: 'End' }
   ];
 
   currentIndex = computed(() => {
@@ -913,6 +951,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.draftVotesPerParticipant = Number(cfg.votesPerParticipant) || 3;
     this.draftLinkActionToKr = cfg.linkTo === 'kr';
     this.draftWelcomeText = String(cfg.welcomeText || '');
+    this.draftEndText = String(cfg.endText || '');
+    this.draftLinkUrl = String(cfg.linkUrl || '');
     this.draftBackgroundImageUrl = String(cfg.backgroundImageUrl || '');
   }
 
@@ -1003,6 +1043,12 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       patch.config = {
         welcomeText: this.draftWelcomeText.trim(),
         backgroundImageUrl: this.draftBackgroundImageUrl.trim()
+      };
+    } else if (this.draftType === 'end') {
+      patch.config = {
+        endText: this.draftEndText.trim(),
+        backgroundImageUrl: this.draftBackgroundImageUrl.trim(),
+        linkUrl: this.draftLinkUrl.trim()
       };
     } else if (this.draftType === 'breakout') {
       const existing = this.selectedStep()?.config || this.session()?.currentStep?.config || {};

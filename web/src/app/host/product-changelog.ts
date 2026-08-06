@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-06',
+    title: 'End activity',
+    items: [
+      'New End step: closing text and optional background image on the big screen and phones.',
+      'Host can paste a link that becomes a QR code on the projector for feedback, slides, or next steps.',
+      'Add from Templates board palette or mid-session via Add step.'
+    ]
+  },
+  {
+    date: '2026-08-06',
     title: 'Group participants activity',
     items: [
       'New breakout step: host divides joined participants into teams randomly or manually.',

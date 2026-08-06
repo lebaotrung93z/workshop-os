@@ -74,6 +74,29 @@ import { cssBackgroundImage } from '../core/image-data-url';
         </section>
       }
 
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'end') {
+        <section
+          class="hero"
+          [class.hero--bg]="!!endBackgroundUrl()"
+          [style.background-image]="endBackgroundCss()"
+        >
+          <div class="hero__veil">
+            <h2>{{ session()?.currentStep?.title || 'Thanks' }}</h2>
+            @if (endBody()) {
+              <p class="welcome-text">{{ endBody() }}</p>
+            } @else if (session()?.currentStep?.instructions) {
+              <p class="welcome-text">{{ session()?.currentStep?.instructions }}</p>
+            }
+            @if (endQrDataUrl()) {
+              <img class="qr" [src]="endQrDataUrl()" alt="Scan for next steps" width="320" height="320" />
+              @if (endLinkLabel()) {
+                <p class="sub end-link">{{ endLinkLabel() }}</p>
+              }
+            }
+          </div>
+        </section>
+      }
+
       @if (!showJoinScreen() && session()?.currentStep?.type === 'poll') {
         <section>
           <h2>{{ session()?.currentStep?.title }}</h2>
@@ -89,7 +112,7 @@ import { cssBackgroundImage } from '../core/image-data-url';
         </section>
       }
 
-      @if (!showJoinScreen() && isOkrSession()) {
+      @if (!showJoinScreen() && isOkrSession() && session()?.currentStep?.type !== 'end') {
         <section class="tree-section">
           <h2>{{ session()?.currentStep?.title || 'OKR workflow' }}</h2>
           <div class="okr-tree" role="tree">
@@ -286,7 +309,7 @@ import { cssBackgroundImage } from '../core/image-data-url';
         </section>
       }
 
-      @if (!showJoinScreen() && !isOkrSession() && (session()?.currentStep?.type === 'form' || summary())) {
+      @if (!showJoinScreen() && !isOkrSession() && session()?.currentStep?.type !== 'end' && (session()?.currentStep?.type === 'form' || summary())) {
         <section class="split">
           <div>
             <h2>Action plan</h2>
@@ -323,7 +346,7 @@ import { cssBackgroundImage } from '../core/image-data-url';
         </section>
       }
 
-      @if (!showJoinScreen() && isOkrSession() && summary()?.insights) {
+      @if (!showJoinScreen() && isOkrSession() && session()?.currentStep?.type !== 'end' && summary()?.insights) {
         <section>
           <h2>AI summary</h2>
           <ul class="insights">
@@ -430,6 +453,10 @@ import { cssBackgroundImage } from '../core/image-data-url';
       margin: 0;
       max-width: 42rem;
       white-space: pre-wrap;
+    }
+    .end-link {
+      word-break: break-all;
+      max-width: min(36rem, 90vw);
     }
 
     .qr {
@@ -810,9 +837,11 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   id = '';
   joinUrl = '';
+  private endLinkUrl = '';
   session = signal<any>(null);
   participants = signal<{ id: string; displayName: string }[]>([]);
   qrDataUrl = signal('');
+  endQrDataUrl = signal('');
   entries = signal<any[]>([]);
   poll = signal<any[]>([]);
   votes = signal<any[]>([]);
@@ -915,6 +944,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
         this.ensureQr(e.data);
+        this.ensureEndQr(e.data);
         this.loadExtras();
       }
       if (e.type === 'entry.created' || e.type === 'entry.hidden' || e.type === 'vote.updated' || e.type === 'action.created') {
@@ -986,6 +1016,38 @@ export class DisplayComponent implements OnInit, OnDestroy {
     return String(this.welcomeConfig().welcomeText || '').trim();
   }
 
+  endConfig() {
+    return this.session()?.currentStep?.type === 'end' ? this.session()?.currentStep?.config || {} : {};
+  }
+
+  endBody() {
+    return String(this.endConfig().endText || '').trim();
+  }
+
+  endBackgroundUrl() {
+    return String(this.endConfig().backgroundImageUrl || '').trim();
+  }
+
+  endBackgroundCss() {
+    return cssBackgroundImage(this.endBackgroundUrl());
+  }
+
+  endLinkRaw() {
+    return String(this.endConfig().linkUrl || '').trim();
+  }
+
+  /** Normalize host-entered URL for QR encoding. */
+  endLinkHref() {
+    const raw = this.endLinkRaw();
+    if (!raw) return '';
+    if (/^(https?:|mailto:|tel:)/i.test(raw)) return raw;
+    return `https://${raw}`;
+  }
+
+  endLinkLabel() {
+    return this.endLinkRaw();
+  }
+
   joinHeadline() {
     const s = this.session();
     if (s?.currentStep?.type === 'welcome' && s.status !== 'LOBBY') {
@@ -1008,6 +1070,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     this.api.getDisplay(this.id).subscribe((s) => {
       this.session.set(s);
       this.ensureQr(s);
+      this.ensureEndQr(s);
       this.loadExtras();
     });
     this.refreshParticipants();
@@ -1030,6 +1093,27 @@ export class DisplayComponent implements OnInit, OnDestroy {
     this.joinUrl = url;
     QRCode.toDataURL(url, { width: 320, margin: 1, errorCorrectionLevel: 'M' }).then((dataUrl) =>
       this.qrDataUrl.set(dataUrl)
+    );
+  }
+
+  private ensureEndQr(session: any) {
+    const step = session?.currentStep;
+    if (step?.type !== 'end') {
+      this.endLinkUrl = '';
+      this.endQrDataUrl.set('');
+      return;
+    }
+    const raw = String(step.config?.linkUrl || '').trim();
+    if (!raw) {
+      this.endLinkUrl = '';
+      this.endQrDataUrl.set('');
+      return;
+    }
+    const href = /^(https?:|mailto:|tel:)/i.test(raw) ? raw : `https://${raw}`;
+    if (href === this.endLinkUrl && this.endQrDataUrl()) return;
+    this.endLinkUrl = href;
+    QRCode.toDataURL(href, { width: 320, margin: 1, errorCorrectionLevel: 'M' }).then((dataUrl) =>
+      this.endQrDataUrl.set(dataUrl)
     );
   }
 
