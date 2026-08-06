@@ -127,14 +127,18 @@ interface DraftStep {
                   (cdkDragEnded)="onPaletteDragEnded()"
                   (click)="addStep(t.value)"
                 >
-                  <span class="palette-item__icon" aria-hidden="true">{{ typeEmoji(t.value) }}</span>
+                  <span class="palette-item__icon" aria-hidden="true">
+                    <app-bosch-icon [name]="typeIcon(t.value)" />
+                  </span>
                   <span class="palette-item__copy">
                     <strong>{{ t.label }}</strong>
                     <small>{{ t.hint }}</small>
                   </span>
                   <div class="palette-preview" *cdkDragPreview>
                     <article class="flow-card flow-card--preview" [attr.data-tone]="t.value">
-                      <div class="flow-card__badge">{{ typeEmoji(t.value) }}</div>
+                      <div class="flow-card__badge">
+                        <app-bosch-icon [name]="typeIcon(t.value)" />
+                      </div>
                       <strong>{{ t.label }}</strong>
                       <p>{{ t.hint }}</p>
                     </article>
@@ -195,7 +199,9 @@ interface DraftStep {
                         <button type="button" class="grip" cdkDragHandle aria-label="Drag to reorder">
                           <span></span><span></span><span></span>
                         </button>
-                        <div class="flow-card__badge" aria-hidden="true">{{ typeEmoji(step.type) }}</div>
+                        <div class="flow-card__badge" aria-hidden="true">
+                          <app-bosch-icon [name]="typeIcon(step.type)" />
+                        </div>
                         <div class="flow-card__head-copy">
                           <span class="flow-card__type">{{ typeLabel(step.type) }}</span>
                           <span class="flow-card__num">Step {{ i + 1 }}</span>
@@ -287,7 +293,9 @@ interface DraftStep {
               <p class="hint">Select a card on the board to edit title, options, and columns.</p>
             } @else {
               <div class="inspector__hero" [attr.data-tone]="selected()!.type">
-                <span class="inspector__emoji">{{ typeEmoji(selected()!.type) }}</span>
+                <span class="inspector__emoji">
+                  <app-bosch-icon [name]="typeIcon(selected()!.type)" />
+                </span>
                 <div>
                   <p class="inspector__type">{{ typeLabel(selected()!.type) }}</p>
                   <strong>{{ selected()!.title || typeLabel(selected()!.type) }}</strong>
@@ -495,17 +503,32 @@ interface DraftStep {
       align-items: center;
       background: #f1f5f9;
       border-radius: 10px;
+      color: #0f172a;
       display: inline-flex;
-      font-size: 1.15rem;
       height: 2.4rem;
       justify-content: center;
       width: 2.4rem;
     }
-    .palette-item[data-tone='welcome'] .palette-item__icon { background: #e0f2fe; }
-    .palette-item[data-tone='poll'] .palette-item__icon { background: #e0e7ff; }
-    .palette-item[data-tone='input'] .palette-item__icon { background: #d1fae5; }
-    .palette-item[data-tone='voting'] .palette-item__icon { background: #fef3c7; }
-    .palette-item[data-tone='form'] .palette-item__icon { background: #ffe4e6; }
+    .palette-item__icon ::ng-deep .bosch-icon,
+    .palette-item__icon ::ng-deep .bosch-icon__svg {
+      height: 1.15rem;
+      width: 1.15rem;
+    }
+    .palette-item[data-tone='welcome'] .palette-item__icon { background: #e0f2fe; color: #0369a1; }
+    .palette-item[data-tone='poll'] .palette-item__icon { background: #e0e7ff; color: #4338ca; }
+    .palette-item[data-tone='input'] .palette-item__icon { background: #d1fae5; color: #047857; }
+    .palette-item[data-tone='voting'] .palette-item__icon { background: #fef3c7; color: #b45309; }
+    .palette-item[data-tone='form'] .palette-item__icon { background: #ffe4e6; color: #be123c; }
+    .flow-card[data-tone='welcome'] .flow-card__badge { color: #0369a1; }
+    .flow-card[data-tone='poll'] .flow-card__badge { color: #4338ca; }
+    .flow-card[data-tone='input'] .flow-card__badge { color: #047857; }
+    .flow-card[data-tone='voting'] .flow-card__badge { color: #b45309; }
+    .flow-card[data-tone='form'] .flow-card__badge { color: #be123c; }
+    .inspector__hero[data-tone='welcome'] .inspector__emoji { color: #0369a1; }
+    .inspector__hero[data-tone='poll'] .inspector__emoji { color: #4338ca; }
+    .inspector__hero[data-tone='input'] .inspector__emoji { color: #047857; }
+    .inspector__hero[data-tone='voting'] .inspector__emoji { color: #b45309; }
+    .inspector__hero[data-tone='form'] .inspector__emoji { color: #be123c; }
     .palette-item__copy { display: grid; gap: 0.1rem; }
     .palette-item__copy strong { font-size: 0.9rem; }
     .palette-item__copy small { color: var(--wos-text-muted); font-size: 0.75rem; }
@@ -679,11 +702,16 @@ interface DraftStep {
       background: rgba(255, 255, 255, 0.85);
       border: 1px solid rgba(15, 23, 42, 0.06);
       border-radius: 12px;
+      color: #0f172a;
       display: inline-flex;
-      font-size: 1.15rem;
       height: 2.1rem;
       justify-content: center;
       width: 2.1rem;
+    }
+    .flow-card__badge ::ng-deep .bosch-icon,
+    .flow-card__badge ::ng-deep .bosch-icon__svg {
+      height: 1.05rem;
+      width: 1.05rem;
     }
     .flow-card__head-copy {
       display: grid;
@@ -911,11 +939,16 @@ interface DraftStep {
       align-items: center;
       background: rgba(255,255,255,0.8);
       border-radius: 12px;
+      color: #0f172a;
       display: inline-flex;
-      font-size: 1.25rem;
       height: 2.4rem;
       justify-content: center;
       width: 2.4rem;
+    }
+    .inspector__emoji ::ng-deep .bosch-icon,
+    .inspector__emoji ::ng-deep .bosch-icon__svg {
+      height: 1.2rem;
+      width: 1.2rem;
     }
     .inspector__type {
       color: var(--wos-primary);
@@ -1036,20 +1069,20 @@ export class FormatBuilderComponent implements OnInit {
     return this.paletteItems.find((t) => t.value === type)?.label || type;
   }
 
-  typeEmoji(type: StepType) {
+  typeIcon(type: StepType) {
     switch (type) {
       case 'welcome':
-        return '👋';
+        return 'welcome';
       case 'poll':
-        return '📊';
+        return 'poll';
       case 'input':
-        return '🗒️';
+        return 'input';
       case 'voting':
-        return '⭐';
+        return 'voting';
       case 'form':
-        return '✅';
+        return 'form';
       default:
-        return '•';
+        return 'settings';
     }
   }
 
