@@ -212,6 +212,32 @@ import {
                   </label>
                   <p class="hint">0 or empty disables the timer for this step. Saving clears a running countdown.</p>
 
+                  @if (draftType === 'welcome') {
+                    <label>
+                      Big screen welcome text
+                      <textarea
+                        rows="4"
+                        [(ngModel)]="draftWelcomeText"
+                        placeholder="Message shown on the projector / big screen…"
+                      ></textarea>
+                    </label>
+                    <label>
+                      Background image URL
+                      <input [(ngModel)]="draftBackgroundImageUrl" placeholder="https://…" />
+                    </label>
+                    <label class="file-label">
+                      Or pick a small image (under 400KB)
+                      <input type="file" accept="image/*" (change)="onBackgroundFile($event)" />
+                    </label>
+                    @if (uploadingBg()) {
+                      <p class="hint">Reading image…</p>
+                    }
+                    @if (draftBackgroundImageUrl) {
+                      <div class="bg-preview" [style.background-image]="'url(' + draftBackgroundImageUrl + ')'"></div>
+                      <button type="button" class="linkish" (click)="draftBackgroundImageUrl = ''">Clear background</button>
+                    }
+                  }
+
                   @if (draftType === 'poll') {
                     <p class="section-label">Poll options</p>
                     @for (opt of draftOptions; track $index; let oi = $index) {
@@ -433,7 +459,22 @@ import {
     .join-url { font-size: 0.85rem; margin: 0 0 0.35rem; word-break: break-all; }
     .hint { color: var(--wos-text-muted); margin: 0; }
     .settings label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
-    .settings input, .settings select { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.65rem; }
+    .settings input, .settings select, .settings textarea {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.65rem;
+    }
+    .settings textarea { resize: vertical; }
+    .file-label input[type='file'] { padding: 0.35rem 0; }
+    .bg-preview {
+      background-position: center;
+      background-size: cover;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      height: 120px;
+      margin: 0.35rem 0 0.65rem;
+    }
     .settings .check {
       align-items: center;
       display: flex;
@@ -515,6 +556,9 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   draftGroups: { id?: string; title: string }[] = [];
   draftVotesPerParticipant = 3;
   draftLinkActionToKr = false;
+  draftWelcomeText = '';
+  draftBackgroundImageUrl = '';
+  uploadingBg = signal(false);
   joinUrl = '';
 
   stepTypes = [
@@ -605,6 +649,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     }
     this.draftVotesPerParticipant = Number(cfg.votesPerParticipant) || 3;
     this.draftLinkActionToKr = cfg.linkTo === 'kr';
+    this.draftWelcomeText = String(cfg.welcomeText || '');
+    this.draftBackgroundImageUrl = String(cfg.backgroundImageUrl || '');
   }
 
   addOption() {
@@ -684,8 +730,41 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       patch.config = { votesPerParticipant: Number(this.draftVotesPerParticipant) || 3 };
     } else if (this.draftType === 'form') {
       patch.config = this.draftLinkActionToKr ? { linkTo: 'kr', linkLabel: 'Key Result' } : {};
+    } else if (this.draftType === 'welcome') {
+      patch.config = {
+        welcomeText: this.draftWelcomeText.trim(),
+        backgroundImageUrl: this.draftBackgroundImageUrl.trim()
+      };
     }
     return patch;
+  }
+
+  onBackgroundFile(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.message.set('Please choose an image file');
+      return;
+    }
+    if (file.size > 400 * 1024) {
+      this.message.set('Image must be under 400KB, or paste a public image URL instead.');
+      return;
+    }
+    this.uploadingBg.set(true);
+    this.message.set('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.draftBackgroundImageUrl = String(reader.result || '');
+      this.uploadingBg.set(false);
+      this.message.set('Background ready — click Save step settings to apply.');
+    };
+    reader.onerror = () => {
+      this.uploadingBg.set(false);
+      this.message.set('Could not read image file');
+    };
+    reader.readAsDataURL(file);
   }
 
   private slug(value: string) {

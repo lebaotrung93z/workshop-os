@@ -61,6 +61,10 @@ Host can insert poll / input / voting / form (etc.) steps mid-session via `ApiSe
 
 Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll options, input columns / OKR board flags, votes-per-participant, and form KR linking via `ApiService.updateStep`. Step `type` stays locked. Saving a new timer duration clears any running countdown (optional Save & restart).
 
+### Welcome big screen
+
+On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings. Prefer a public image URL. Optionally pick a small local image (&lt;400KB) which is stored as a data URL in the session (no Firebase Storage / Blaze plan).
+
 ### UI theme (mockup)
 
 Visual language follows the hybrid mockup (not strict Bosch square/`#007bc0` defaults): primary `#0056D2`, ~8px radii, Inter, dark host sidebar, dark big-screen display, green/red/blue input columns. Tokens live in `web/src/styles/_workshop-theme.scss` and map onto existing `--bosch-*` CSS variables so `bosch-*` components pick up the mockup look.

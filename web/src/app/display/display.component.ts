@@ -47,15 +47,28 @@ import {
       </header>
 
       @if (showJoinScreen()) {
-        <section class="hero">
-          <h2>{{ joinHeadline() }}</h2>
-          @if (qrDataUrl()) {
-            <img class="qr" [src]="qrDataUrl()" alt="Scan to join" width="320" height="320" />
-          }
-          <p class="code-lg">{{ session()?.code }}</p>
-          <p class="sub">{{ joinSubline() }}</p>
-          <div class="hero__people">
-            <app-bosch-avatar-stack [people]="participants()" [max]="12" size="lg" />
+        <section
+          class="hero"
+          [class.hero--bg]="!!welcomeBackgroundUrl()"
+          [style.background-image]="welcomeBackgroundUrl() ? 'url(' + welcomeBackgroundUrl() + ')' : null"
+        >
+          <div class="hero__veil">
+            <h2>{{ joinHeadline() }}</h2>
+            @if (welcomeBody()) {
+              <p class="welcome-text">{{ welcomeBody() }}</p>
+            }
+            @if (qrDataUrl()) {
+              <img class="qr" [src]="qrDataUrl()" alt="Scan to join" width="320" height="320" />
+            }
+            <p class="code-lg">{{ session()?.code }}</p>
+            @if (!welcomeBody()) {
+              <p class="sub">{{ joinSubline() }}</p>
+            } @else if (joinSubline() && joinSubline() !== welcomeBody()) {
+              <p class="sub">{{ joinSubline() }}</p>
+            }
+            <div class="hero__people">
+              <app-bosch-avatar-stack [people]="participants()" [max]="12" size="lg" />
+            </div>
           </div>
         </section>
       }
@@ -348,6 +361,38 @@ import {
       justify-items: center;
       padding: 2rem 1rem 3rem;
       text-align: center;
+    }
+    .hero--bg {
+      background-position: center;
+      background-size: cover;
+      border-radius: 20px;
+      min-height: 70vh;
+      overflow: hidden;
+      padding: 0;
+    }
+    .hero__veil {
+      align-items: center;
+      background: linear-gradient(180deg, rgba(2, 8, 23, 0.55), rgba(2, 8, 23, 0.78));
+      display: grid;
+      gap: 0.85rem;
+      justify-items: center;
+      min-height: inherit;
+      padding: 2.5rem 1.5rem 3rem;
+      width: 100%;
+    }
+    .hero--bg .qr {
+      border: 6px solid rgba(255, 255, 255, 0.92);
+      border-radius: 12px;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+    .welcome-text {
+      color: #e2e8f0;
+      font-size: 1.45rem;
+      font-weight: 600;
+      line-height: 1.45;
+      margin: 0;
+      max-width: 42rem;
+      white-space: pre-wrap;
     }
 
     .qr {
@@ -812,6 +857,18 @@ export class DisplayComponent implements OnInit, OnDestroy {
     return s.status === 'LOBBY' || !s.currentStep || s.currentStep?.type === 'welcome';
   }
 
+  welcomeConfig() {
+    return this.session()?.currentStep?.config || {};
+  }
+
+  welcomeBackgroundUrl() {
+    return String(this.welcomeConfig().backgroundImageUrl || '').trim();
+  }
+
+  welcomeBody() {
+    return String(this.welcomeConfig().welcomeText || '').trim();
+  }
+
   joinHeadline() {
     const s = this.session();
     if (s?.currentStep?.type === 'welcome' && s.status !== 'LOBBY') {
@@ -822,9 +879,11 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   joinSubline() {
     const s = this.session();
+    const welcomeText = this.welcomeBody();
     if (s?.currentStep?.type === 'welcome' && s.status !== 'LOBBY') {
-      return s.currentStep.instructions || 'Follow along on your phone.';
+      return welcomeText || s.currentStep.instructions || 'Follow along on your phone.';
     }
+    if (s?.currentStep?.type === 'welcome' && welcomeText) return welcomeText;
     return 'Waiting for the host to start…';
   }
 
