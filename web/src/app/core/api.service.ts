@@ -545,6 +545,94 @@ export class ApiService {
     });
   }
 
+  /**
+   * Insert a new step into a live/prepared session without changing the current step.
+   * position: 'afterCurrent' (default) or 'end'
+   */
+  insertStep(
+    id: string,
+    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form',
+    position: 'afterCurrent' | 'end' = 'afterCurrent',
+    opts?: { title?: string; instructions?: string }
+  ): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const s = await getDoc(doc(db, 'sessions', id));
+        if (!s.exists()) throw new Error('Session not found');
+        const data = s.data()!;
+        if (data['status'] === 'CLOSED') throw new Error('Session is closed');
+        const steps = [...(data['steps'] || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder);
+        const newStep = this.defaultLiveStep(type, opts);
+        let insertAt = steps.length;
+        if (position === 'afterCurrent') {
+          const idx = steps.findIndex((st: any) => st.id === data['currentStepId']);
+          insertAt = idx >= 0 ? idx + 1 : steps.length;
+        }
+        steps.splice(insertAt, 0, newStep);
+        const updated = steps.map((st: any, i: number) => ({ ...st, stepOrder: i + 1 }));
+        await this.hostUpdate(id, { steps: updated });
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Add step failed' } }));
+    });
+  }
+
+  private defaultLiveStep(
+    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form',
+    opts?: { title?: string; instructions?: string }
+  ) {
+    const base: any = {
+      id: randomId(),
+      stepOrder: 0,
+      type,
+      title: opts?.title || '',
+      instructions: opts?.instructions || '',
+      config: {},
+      groups: [] as Array<{ id: string; title: string; groupOrder: number }>,
+      status: 'PENDING',
+      timerSeconds: null as number | null
+    };
+    if (type === 'welcome') {
+      base.title = base.title || 'Welcome';
+      base.instructions = base.instructions || 'Share the join code and wait for participants.';
+    } else if (type === 'poll') {
+      base.title = base.title || 'Check-in';
+      base.instructions = base.instructions || 'Pick the option that fits best.';
+      base.config = {
+        options: [
+          { id: 'great', label: 'Great' },
+          { id: 'ok', label: 'OK' },
+          { id: 'rough', label: 'Rough' }
+        ]
+      };
+      base.timerSeconds = 120;
+    } else if (type === 'input') {
+      base.title = base.title || 'Collect ideas';
+      base.instructions = base.instructions || 'Add sticky notes in each column.';
+      base.config = { anonymous: true };
+      base.groups = [
+        { id: randomId(), title: 'Column A', groupOrder: 1 },
+        { id: randomId(), title: 'Column B', groupOrder: 2 },
+        { id: randomId(), title: 'Column C', groupOrder: 3 }
+      ];
+      base.timerSeconds = 600;
+    } else if (type === 'voting') {
+      base.title = base.title || 'Prioritize';
+      base.instructions = base.instructions || 'Vote on the most important items.';
+      base.config = { votesPerParticipant: 3 };
+      base.timerSeconds = 300;
+    } else if (type === 'form') {
+      base.title = base.title || 'Commitments';
+      base.instructions = base.instructions || 'Owners and due dates for next steps.';
+      base.timerSeconds = 300;
+    }
+    return base;
+  }
+
   /** Start or restart countdown from current step duration (or explicit seconds). */
   startTimer(id: string, seconds?: number): Observable<any> {
     return new Observable((sub) => {

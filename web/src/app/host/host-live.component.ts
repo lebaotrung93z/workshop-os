@@ -114,7 +114,7 @@ import {
           <section class="card steps">
             <h2>Session steps</h2>
             <ol>
-              @for (s of session()?.steps || []; track s.id; let i = $index) {
+              @for (s of orderedSteps(); track s.id; let i = $index) {
                 <li [class.done]="s.status === 'DONE'" [class.active]="s.status === 'ACTIVE'">
                   <span class="num">{{ i + 1 }}</span>
                   <div>
@@ -127,6 +127,41 @@ import {
                 </li>
               }
             </ol>
+
+            @if (session()?.status !== 'CLOSED') {
+              <div class="add-step">
+                <p class="section-label">Add step during workshop</p>
+                <label class="inline">
+                  Type
+                  <select [(ngModel)]="addStepType">
+                    @for (t of stepTypes; track t.value) {
+                      <option [value]="t.value">{{ t.label }}</option>
+                    }
+                  </select>
+                </label>
+                <label class="inline">
+                  Title (optional)
+                  <input [(ngModel)]="addStepTitle" placeholder="Leave blank for default" />
+                </label>
+                <div class="add-step__actions">
+                  <app-bosch-button
+                    variant="secondary"
+                    icon="plus"
+                    [disabled]="busyStep()"
+                    (click)="addStep('afterCurrent')"
+                  >
+                    Add after current
+                  </app-bosch-button>
+                  <app-bosch-button
+                    variant="secondary"
+                    [disabled]="busyStep()"
+                    (click)="addStep('end')"
+                  >
+                    Add at end
+                  </app-bosch-button>
+                </div>
+              </div>
+            }
           </section>
 
           <section class="card control">
@@ -284,6 +319,21 @@ import {
     .steps li.done .num { background: var(--wos-success); border-color: var(--wos-success); color: #fff; }
     .steps strong { display: block; font-size: 0.9rem; }
     .steps small { color: var(--wos-text-muted); text-transform: capitalize; }
+    .add-step {
+      border-top: 1px solid var(--wos-border);
+      display: grid;
+      gap: 0.65rem;
+      margin-top: 1rem;
+      padding-top: 0.9rem;
+    }
+    .add-step .inline { display: grid; font-weight: 600; gap: 0.3rem; margin: 0; }
+    .add-step input, .add-step select {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.55rem 0.65rem;
+    }
+    .add-step__actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
     .control__head { align-items: start; display: flex; gap: 1rem; justify-content: space-between; margin-bottom: 0.85rem; }
     .eyebrow { color: var(--wos-primary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin: 0 0 0.25rem; text-transform: uppercase; }
     .control h2 { margin: 0; }
@@ -349,16 +399,31 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   nowTick = signal(Date.now());
   editingTitle = signal(false);
   titleDraft = '';
+  busyStep = signal(false);
+  addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' = 'poll';
+  addStepTitle = '';
   joinUrl = '';
 
+  stepTypes = [
+    { value: 'welcome' as const, label: 'Welcome' },
+    { value: 'poll' as const, label: 'Poll' },
+    { value: 'input' as const, label: 'Input (sticky wall)' },
+    { value: 'voting' as const, label: 'Voting' },
+    { value: 'form' as const, label: 'Action form' }
+  ];
+
   currentIndex = computed(() => {
-    const steps = this.session()?.steps || [];
+    const steps = this.orderedSteps();
     const id = this.session()?.currentStepId;
     const idx = steps.findIndex((s: any) => s.id === id);
     return idx >= 0 ? idx + 1 : 0;
   });
 
-  stepTotal = computed(() => (this.session()?.steps || []).length || 0);
+  stepTotal = computed(() => this.orderedSteps().length);
+
+  orderedSteps = computed(() =>
+    [...(this.session()?.steps || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder)
+  );
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
@@ -523,6 +588,32 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.router.navigate(['/'], { queryParams: { saved: this.id } });
   }
 
+  addStep(position: 'afterCurrent' | 'end') {
+    this.busyStep.set(true);
+    this.message.set('');
+    this.api
+      .insertStep(this.id, this.addStepType, position, {
+        title: this.addStepTitle.trim() || undefined
+      })
+      .subscribe({
+        next: (s) => {
+          this.session.set(s);
+          this.busyStep.set(false);
+          this.addStepTitle = '';
+          this.message.set(
+            position === 'afterCurrent'
+              ? 'Step added after the current one — use Next Step when ready.'
+              : 'Step added at the end of the workshop.'
+          );
+          this.panelTick.update((n) => n + 1);
+        },
+        error: (e) => {
+          this.busyStep.set(false);
+          this.message.set(e?.error?.message || 'Could not add step');
+        }
+      });
+  }
+
   refreshParticipants() {
     this.api.listParticipants(this.id).subscribe({
       next: (list) => this.participants.set(list || []),
@@ -593,11 +684,10 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   }
 
   private stepIndex() {
-    const s = this.session();
-    const steps = [...(s?.steps || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder);
+    const steps = this.orderedSteps();
     return {
       steps,
-      index: steps.findIndex((st: any) => st.id === s?.currentStepId)
+      index: steps.findIndex((st: any) => st.id === this.session()?.currentStepId)
     };
   }
 

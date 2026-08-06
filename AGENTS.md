@@ -53,6 +53,10 @@ Host can start/pause/resume/reset a countdown on timed steps (`currentStep.timer
 
 Host sessions created in this browser are tracked in `localStorage` (`wos_host_sessions`) so multiple workshops can be prepared and resumed. Flow: Create & prepare → add title / OKR theme / Objectives in LOBBY → **Save for later** → resume from home. Objectives can be seeded before Start on OKR templates.
 
+### Add steps during workshop
+
+Host can insert poll / input / voting / form (etc.) steps mid-session via `ApiService.insertStep` — adds after the current step or at the end without changing `currentStepId`. Participants and display pick up the updated `steps[]` over Firestore.
+
 ### UI theme (mockup)
 
 Visual language follows the hybrid mockup (not strict Bosch square/`#007bc0` defaults): primary `#0056D2`, ~8px radii, Inter, dark host sidebar, dark big-screen display, green/red/blue input columns. Tokens live in `web/src/styles/_workshop-theme.scss` and map onto existing `--bosch-*` CSS variables so `bosch-*` components pick up the mockup look.
