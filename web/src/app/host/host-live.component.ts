@@ -307,6 +307,18 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
                     </label>
                   }
 
+                  @if (draftType === 'breakout') {
+                    <p class="section-label">Groups</p>
+                    <p class="hint">Rename teams here. Assign people from Big Screen Preview when this step is live.</p>
+                    @for (g of draftGroups; track $index; let gi = $index) {
+                      <div class="row">
+                        <input [(ngModel)]="g.title" placeholder="Group name" />
+                        <button type="button" class="icon-btn danger" (click)="removeGroup(gi)" aria-label="Remove group">×</button>
+                      </div>
+                    }
+                    <app-bosch-button variant="secondary" (click)="addBreakoutGroup()">Add group</app-bosch-button>
+                  }
+
                   <div class="settings-actions">
                     <app-bosch-button [disabled]="busySettings()" (click)="saveStepSettings(false)">
                       {{ busySettings() ? 'Saving…' : 'Save step settings' }}
@@ -672,10 +684,10 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   titleDraft = '';
   busyStep = signal(false);
   busySettings = signal(false);
-  addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' = 'poll';
+  addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' = 'poll';
   addStepTitle = '';
   draftStepId = '';
-  draftType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' = 'welcome';
+  draftType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout' = 'welcome';
   draftTitle = '';
   draftInstructions = '';
   draftTimerSeconds: number | null = null;
@@ -695,7 +707,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     { value: 'poll' as const, label: 'Poll' },
     { value: 'input' as const, label: 'Input (sticky wall)' },
     { value: 'voting' as const, label: 'Voting' },
-    { value: 'form' as const, label: 'Action form' }
+    { value: 'form' as const, label: 'Action form' },
+    { value: 'breakout' as const, label: 'Group participants' }
   ];
 
   currentIndex = computed(() => {
@@ -822,9 +835,13 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.draftLinkedBoard = cfg.boardMode === 'okr';
     this.draftGroups = (step.groups || []).map((g: any) => ({ id: g.id, title: g.title || '' }));
     if (!this.draftGroups.length) {
-      this.draftGroups = this.draftLinkedBoard
-        ? [{ title: 'Objectives' }]
-        : [{ title: 'Column A' }, { title: 'Column B' }, { title: 'Column C' }];
+      if (this.draftType === 'breakout') {
+        this.draftGroups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+      } else {
+        this.draftGroups = this.draftLinkedBoard
+          ? [{ title: 'Objectives' }]
+          : [{ title: 'Column A' }, { title: 'Column B' }, { title: 'Column C' }];
+      }
     }
     this.draftVotesPerParticipant = Number(cfg.votesPerParticipant) || 3;
     this.draftLinkActionToKr = cfg.linkTo === 'kr';
@@ -854,6 +871,10 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   addGroup() {
     this.draftGroups.push({ title: `Column ${this.draftGroups.length + 1}` });
+  }
+
+  addBreakoutGroup() {
+    this.draftGroups.push({ title: `Group ${this.draftGroups.length + 1}` });
   }
 
   removeGroup(index: number) {
@@ -916,6 +937,19 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         welcomeText: this.draftWelcomeText.trim(),
         backgroundImageUrl: this.draftBackgroundImageUrl.trim()
       };
+    } else if (this.draftType === 'breakout') {
+      const existing = this.selectedStep()?.config || this.session()?.currentStep?.config || {};
+      const prevAssignments =
+        existing && typeof existing === 'object' && existing.assignments && typeof existing.assignments === 'object'
+          ? existing.assignments
+          : {};
+      patch.config = { assignments: { ...prevAssignments } };
+      patch.groups = this.draftGroups
+        .filter((g) => g.title.trim())
+        .map((g) => ({ id: g.id, title: g.title.trim() }));
+      if (!patch.groups.length) {
+        patch.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+      }
     }
     return patch;
   }

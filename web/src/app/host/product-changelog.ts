@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-06',
+    title: 'Group participants activity',
+    items: [
+      'New breakout step: host divides joined participants into teams randomly or manually.',
+      'Participants and big screen show group membership in real time.',
+      'Add from Templates board palette or mid-session via Add step.'
+    ]
+  },
+  {
+    date: '2026-08-06',
     title: 'Host console navigation',
     items: [
       'Dashboard and Sessions are separate: overview vs create/resume workshops.',

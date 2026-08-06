@@ -251,6 +251,38 @@ import { cssBackgroundImage } from '../core/image-data-url';
         </section>
       }
 
+      @if (!showJoinScreen() && session()?.currentStep?.type === 'breakout') {
+        <section>
+          <h2>{{ session()?.currentStep?.title || 'Breakout groups' }}</h2>
+          <p class="sub">{{ session()?.currentStep?.instructions || 'Find your group' }}</p>
+          <div class="breakout-grid">
+            @for (g of breakoutGroups(); track g.id; let gi = $index) {
+              <article class="breakout-card" [attr.data-tone]="gi % 3">
+                <header>
+                  <strong>{{ g.title }}</strong>
+                  <span>{{ breakoutMembers(g.id).length }}</span>
+                </header>
+                <div class="breakout-people">
+                  @if (breakoutMembers(g.id).length) {
+                    <app-bosch-avatar-stack [people]="breakoutMembers(g.id)" [max]="10" size="md" />
+                    <ul>
+                      @for (p of breakoutMembers(g.id); track p.id) {
+                        <li>{{ p.displayName }}</li>
+                      }
+                    </ul>
+                  } @else {
+                    <p class="empty">Waiting…</p>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+          @if (breakoutUnassigned().length) {
+            <p class="sub">Unassigned: {{ unassignedNames() }}</p>
+          }
+        </section>
+      }
+
       @if (!showJoinScreen() && !isOkrSession() && (session()?.currentStep?.type === 'form' || summary())) {
         <section class="split">
           <div>
@@ -698,6 +730,45 @@ import { cssBackgroundImage } from '../core/image-data-url';
     }
 
     .insights { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
+    .breakout-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-top: 1rem;
+    }
+    .breakout-card {
+      background: var(--wos-screen-surface);
+      border: 1px solid var(--wos-screen-border);
+      border-radius: var(--wos-radius-lg);
+      overflow: hidden;
+    }
+    .breakout-card header {
+      align-items: center;
+      display: flex;
+      font-size: 1.15rem;
+      justify-content: space-between;
+      padding: 0.85rem 1rem;
+    }
+    .breakout-card header span {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: var(--wos-radius-pill);
+      font-size: 0.85rem;
+      padding: 0.15rem 0.55rem;
+    }
+    .breakout-card[data-tone='0'] header { background: rgba(15, 157, 88, 0.2); color: #86efac; }
+    .breakout-card[data-tone='1'] header { background: rgba(217, 48, 37, 0.18); color: #fca5a5; }
+    .breakout-card[data-tone='2'] header { background: rgba(26, 115, 232, 0.2); color: #93c5fd; }
+    .breakout-people { display: grid; gap: 0.75rem; padding: 1rem; }
+    .breakout-people ul {
+      color: var(--wos-screen-muted);
+      display: grid;
+      gap: 0.25rem;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .breakout-people li { color: var(--wos-screen-text); font-size: 1.05rem; font-weight: 600; }
+    .breakout-people .empty { color: var(--wos-screen-muted); margin: 0; }
     .insights li { align-items: start; display: flex; font-size: 1.25rem; gap: 0.65rem; }
     .check {
       align-items: center;
@@ -861,6 +932,36 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   welcomeConfig() {
     return this.session()?.currentStep?.config || {};
+  }
+
+  breakoutGroups() {
+    return [...(this.session()?.currentStep?.groups || [])].sort(
+      (a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0)
+    );
+  }
+
+  breakoutAssignments(): Record<string, string> {
+    const map = this.session()?.currentStep?.config?.assignments;
+    return map && typeof map === 'object' ? map : {};
+  }
+
+  breakoutMembers(groupId: string) {
+    const map = this.breakoutAssignments();
+    return this.participants().filter((p) => map[p.id] === groupId && !String(p.id).startsWith('host-'));
+  }
+
+  breakoutUnassigned() {
+    const map = this.breakoutAssignments();
+    const gids = new Set(this.breakoutGroups().map((g: any) => g.id));
+    return this.participants().filter(
+      (p) => !String(p.id).startsWith('host-') && (!map[p.id] || !gids.has(map[p.id]))
+    );
+  }
+
+  unassignedNames() {
+    return this.breakoutUnassigned()
+      .map((p) => p.displayName)
+      .join(', ');
   }
 
   welcomeBackgroundUrl() {

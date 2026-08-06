@@ -183,6 +183,88 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
         </div>
       }
 
+      @if (session?.currentStep?.type === 'breakout') {
+        <div class="breakout-head">
+          <div>
+            <h3>Divide into groups</h3>
+            <p class="hint">{{ people().length }} joined · {{ assignedCount() }} assigned · {{ unassigned().length }} waiting</p>
+          </div>
+          <div class="breakout-actions">
+            <app-bosch-button
+              variant="secondary"
+              [disabled]="busy() || people().length === 0 || breakoutGroups().length === 0"
+              (click)="shuffleBreakout()"
+            >
+              Shuffle randomly
+            </app-bosch-button>
+            <app-bosch-button
+              variant="secondary"
+              [disabled]="busy() || assignedCount() === 0"
+              (click)="clearBreakout()"
+            >
+              Clear
+            </app-bosch-button>
+          </div>
+        </div>
+
+        @if (people().length === 0) {
+          <p class="empty">Waiting for participants to join…</p>
+        } @else {
+          <div class="breakout-board">
+            <div class="breakout-col breakout-col--wait">
+              <header>Unassigned <span>{{ unassigned().length }}</span></header>
+              <div class="breakout-col__body">
+                @for (p of unassigned(); track p.id) {
+                  <button
+                    type="button"
+                    class="person"
+                    [class.on]="pickingId() === p.id"
+                    (click)="togglePick(p.id)"
+                  >
+                    <app-bosch-avatar [name]="p.displayName" size="sm" />
+                    <span>{{ p.displayName }}</span>
+                  </button>
+                } @empty {
+                  <p class="empty">Everyone is assigned</p>
+                }
+              </div>
+            </div>
+
+            @for (g of breakoutGroups(); track g.id; let gi = $index) {
+              <div class="breakout-col" [attr.data-tone]="gi % 3">
+                <header>
+                  {{ g.title }}
+                  <span>{{ membersOf(g.id).length }}</span>
+                </header>
+                <div class="breakout-col__body">
+                  @if (pickingId()) {
+                    <button type="button" class="drop-here" (click)="assignPicked(g.id)">
+                      Move here
+                    </button>
+                  }
+                  @for (p of membersOf(g.id); track p.id) {
+                    <button
+                      type="button"
+                      class="person"
+                      [class.on]="pickingId() === p.id"
+                      (click)="togglePick(p.id)"
+                    >
+                      <app-bosch-avatar [name]="p.displayName" size="sm" />
+                      <span>{{ p.displayName }}</span>
+                    </button>
+                  } @empty {
+                    @if (!pickingId()) {
+                      <p class="empty">Empty — pick someone, then Move here</p>
+                    }
+                  }
+                </div>
+              </div>
+            }
+          </div>
+          <p class="hint">Manual: tap a participant, then tap <strong>Move here</strong> on a group. Or use Shuffle randomly.</p>
+        }
+      }
+
       @if (!isOkrSession() && (session?.currentStep?.type === 'form' || actions().length)) {
         <h3>Action plan</h3>
         <div class="actions">
@@ -245,6 +327,80 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
     .link { color: var(--wos-primary); }
     .empty, .muted, .hint { color: var(--wos-text-muted); margin: 0; }
     .hint { font-size: 0.85rem; margin: 0.35rem 0 0.65rem; }
+    .breakout-head {
+      align-items: start;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: space-between;
+    }
+    .breakout-head .hint { margin: 0.25rem 0 0; }
+    .breakout-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .breakout-board {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+    .breakout-col {
+      border-radius: var(--wos-radius-lg);
+      min-height: 9rem;
+      overflow: hidden;
+    }
+    .breakout-col header {
+      align-items: center;
+      display: flex;
+      font-weight: 700;
+      gap: 0.5rem;
+      justify-content: space-between;
+      padding: 0.65rem 0.8rem;
+    }
+    .breakout-col header span {
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: var(--wos-radius-pill);
+      font-size: 0.75rem;
+      padding: 0.1rem 0.45rem;
+    }
+    .breakout-col__body { display: grid; gap: 0.4rem; padding: 0.55rem; }
+    .breakout-col--wait { background: #f1f5f9; }
+    .breakout-col--wait header { background: #e2e8f0; color: #334155; }
+    .breakout-col[data-tone='0'] { background: var(--wos-success-soft); }
+    .breakout-col[data-tone='0'] header { background: rgba(15, 157, 88, 0.12); color: var(--wos-success-ink); }
+    .breakout-col[data-tone='1'] { background: var(--wos-danger-soft); }
+    .breakout-col[data-tone='1'] header { background: rgba(217, 48, 37, 0.1); color: var(--wos-danger-ink); }
+    .breakout-col[data-tone='2'] { background: var(--wos-info-soft); }
+    .breakout-col[data-tone='2'] header { background: rgba(26, 115, 232, 0.1); color: var(--wos-info-ink); }
+    .person {
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      cursor: pointer;
+      display: flex;
+      gap: 0.45rem;
+      padding: 0.45rem 0.55rem;
+      text-align: left;
+      width: 100%;
+    }
+    .person.on {
+      border-color: var(--wos-primary);
+      box-shadow: 0 0 0 2px var(--wos-primary-ring);
+    }
+    .person span {
+      font-size: 0.85rem;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .drop-here {
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px dashed var(--wos-primary);
+      border-radius: var(--wos-radius);
+      color: var(--wos-primary);
+      cursor: pointer;
+      font-weight: 700;
+      padding: 0.55rem;
+    }
     .vote-head, .okr-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: space-between; }
     .vote-head span, .okr-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
     .rank { color: var(--wos-primary); font-weight: 800; }
@@ -453,6 +609,8 @@ export class ActivityHostPanelComponent implements OnChanges {
   poll = signal<any[]>([]);
   votes = signal<any[]>([]);
   actions = signal<any[]>([]);
+  people = signal<{ id: string; displayName: string }[]>([]);
+  pickingId = signal('');
   expanded = signal<Record<string, boolean>>({});
   newObjective = '';
   treeRootDraft = '';
@@ -472,6 +630,89 @@ export class ActivityHostPanelComponent implements OnChanges {
     const voteStepId = this.isOkrSession() && votingStep ? votingStep.id : stepId;
     this.api.tallyVotes(this.session.id, voteStepId).subscribe((v) => this.votes.set(v));
     this.api.listActions(this.session.id).subscribe((a) => this.actions.set(a));
+    if (this.session.currentStep?.type === 'breakout') {
+      this.api.listParticipants(this.session.id).subscribe({
+        next: (list) =>
+          this.people.set(
+            list.filter((p) => p.id && !String(p.id).startsWith('host-'))
+          ),
+        error: () => this.people.set([])
+      });
+    }
+  }
+
+  breakoutGroups() {
+    return [...(this.session?.currentStep?.groups || [])].sort(
+      (a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0)
+    );
+  }
+
+  assignments(): Record<string, string> {
+    const cfg = this.session?.currentStep?.config || {};
+    const map = cfg.assignments;
+    return map && typeof map === 'object' ? { ...map } : {};
+  }
+
+  assignedCount() {
+    const ids = new Set(this.people().map((p) => p.id));
+    return Object.entries(this.assignments()).filter(([pid, gid]) => ids.has(pid) && !!gid).length;
+  }
+
+  unassigned() {
+    const map = this.assignments();
+    const groupIds = new Set(this.breakoutGroups().map((g: any) => g.id));
+    return this.people().filter((p) => !map[p.id] || !groupIds.has(map[p.id]));
+  }
+
+  membersOf(groupId: string) {
+    const map = this.assignments();
+    return this.people().filter((p) => map[p.id] === groupId);
+  }
+
+  togglePick(participantId: string) {
+    this.pickingId.set(this.pickingId() === participantId ? '' : participantId);
+  }
+
+  assignPicked(groupId: string) {
+    const pid = this.pickingId();
+    if (!pid || !groupId) return;
+    const next = { ...this.assignments(), [pid]: groupId };
+    this.persistAssignments(next);
+    this.pickingId.set('');
+  }
+
+  shuffleBreakout() {
+    const groups = this.breakoutGroups();
+    const roster = [...this.people()];
+    if (!groups.length || !roster.length) return;
+    for (let i = roster.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [roster[i], roster[j]] = [roster[j], roster[i]];
+    }
+    const next: Record<string, string> = {};
+    roster.forEach((p, i) => {
+      next[p.id] = groups[i % groups.length].id;
+    });
+    this.persistAssignments(next);
+    this.pickingId.set('');
+  }
+
+  clearBreakout() {
+    this.persistAssignments({});
+    this.pickingId.set('');
+  }
+
+  private persistAssignments(assignments: Record<string, string>) {
+    const stepId = this.session?.currentStep?.id || this.session?.currentStepId;
+    if (!this.session?.id || !stepId) return;
+    this.busy.set(true);
+    this.api.setBreakoutAssignments(this.session.id, stepId, assignments).subscribe({
+      next: (s) => {
+        this.session = s;
+        this.busy.set(false);
+      },
+      error: () => this.busy.set(false)
+    });
   }
 
   voteCount(entryId: string) {

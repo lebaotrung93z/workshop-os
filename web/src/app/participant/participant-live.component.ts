@@ -69,6 +69,30 @@ import {
               </p>
             </div>
           </section>
+        } @else if (session()?.currentStep?.type === 'breakout') {
+          <section class="panel">
+            <div class="panel__head">
+              <h2>{{ session()?.currentStep?.title || 'Groups' }}</h2>
+              <p class="hint">{{ session()?.currentStep?.instructions || 'Host is dividing participants into groups.' }}</p>
+            </div>
+            @if (myBreakoutGroup()) {
+              <div class="breakout-card">
+                <p class="breakout-label">You are in</p>
+                <h3>{{ myBreakoutGroup()?.title }}</h3>
+                <p class="section-label">Teammates</p>
+                <ul class="teammates">
+                  @for (p of myBreakoutTeammates(); track p.id) {
+                    <li>
+                      <app-bosch-avatar [name]="p.displayName" size="sm" />
+                      <span>{{ p.displayName }}{{ p.id === participantId() ? ' (you)' : '' }}</span>
+                    </li>
+                  }
+                </ul>
+              </div>
+            } @else {
+              <p class="hint">Waiting for the host to assign your group…</p>
+            }
+          </section>
         } @else if (session()?.currentStep?.type === 'poll') {
           <section class="panel">
             <div class="panel__head">
@@ -835,6 +859,46 @@ import {
     }
     .cancel-edit { display: block; margin-top: 0.5rem; text-align: center; width: 100%; }
 
+    .breakout-card {
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius-lg);
+      display: grid;
+      gap: 0.55rem;
+      padding: 1rem;
+    }
+    .breakout-label {
+      color: var(--wos-text-muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    .breakout-card h3 {
+      color: var(--wos-primary);
+      font-size: 1.35rem;
+      margin: 0;
+    }
+    .section-label {
+      color: var(--wos-text-secondary);
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin: 0.35rem 0 0;
+    }
+    .teammates {
+      display: grid;
+      gap: 0.45rem;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .teammates li {
+      align-items: center;
+      display: flex;
+      gap: 0.5rem;
+      font-weight: 600;
+    }
+
     @media (max-width: 480px) {
       .page {
         padding: 0;
@@ -864,6 +928,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   picked = signal('');
   votesLeft = signal(3);
   displayName = signal(this.api.displayName() || 'You');
+  people = signal<{ id: string; displayName: string }[]>([]);
   done = signal(false);
   content = '';
   groupId = '';
@@ -897,6 +962,9 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
         this.loadStepData();
         if (e.type === 'session.ended') this.done.set(true);
       }
+      if (e.type === 'participant.joined') {
+        this.loadPeople();
+      }
       if (e.type === 'vote.updated' || e.type === 'entry.created' || e.type === 'action.created') {
         this.reloadBoardData();
         this.reloadMyActions();
@@ -922,6 +990,35 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
 
   welcomeBody() {
     return String(this.session()?.currentStep?.config?.welcomeText || '').trim();
+  }
+
+  participantId() {
+    return this.api.participantId();
+  }
+
+  myBreakoutGroup() {
+    const step = this.session()?.currentStep;
+    if (step?.type !== 'breakout') return null;
+    const pid = this.api.participantId();
+    const gid = step.config?.assignments?.[pid];
+    if (!gid) return null;
+    return (step.groups || []).find((g: any) => g.id === gid) || null;
+  }
+
+  myBreakoutTeammates() {
+    const step = this.session()?.currentStep;
+    const group = this.myBreakoutGroup();
+    if (!step || !group) return [];
+    const map = step.config?.assignments || {};
+    return this.people().filter((p) => map[p.id] === group.id);
+  }
+
+  private loadPeople() {
+    this.api.listParticipants(this.id).subscribe({
+      next: (list) =>
+        this.people.set(list.filter((p) => p.id && !String(p.id).startsWith('host-'))),
+      error: () => this.people.set([])
+    });
   }
 
   timerPaused() {
@@ -1113,6 +1210,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     }
     this.reloadBoardData();
     if (step.type === 'form') this.reloadMyActions();
+    if (step.type === 'breakout') this.loadPeople();
   }
 
   startEditEntry(e: any) {

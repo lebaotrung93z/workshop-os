@@ -555,7 +555,7 @@ export class ApiService {
    */
   insertStep(
     id: string,
-    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form',
+    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout',
     position: 'afterCurrent' | 'end' = 'afterCurrent',
     opts?: { title?: string; instructions?: string }
   ): Observable<any> {
@@ -645,8 +645,43 @@ export class ApiService {
     });
   }
 
+  /**
+   * Persist breakout group assignments (participantId → groupId) on a step config.
+   * Does not change currentStepId.
+   */
+  setBreakoutAssignments(
+    id: string,
+    stepId: string,
+    assignments: Record<string, string>
+  ): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const s = await getDoc(doc(db, 'sessions', id));
+        if (!s.exists()) throw new Error('Session not found');
+        const data = s.data()!;
+        if (data['status'] === 'CLOSED') throw new Error('Session is closed');
+        const steps = [...(data['steps'] || [])];
+        const idx = steps.findIndex((st: any) => st.id === stepId);
+        if (idx < 0) throw new Error('Step not found');
+        const cur = { ...steps[idx] };
+        const cfg = typeof cur.config === 'string'
+          ? (() => { try { return JSON.parse(cur.config); } catch { return {}; } })()
+          : { ...(cur.config || {}) };
+        cur.config = { ...cfg, assignments: { ...assignments } };
+        steps[idx] = cur;
+        await this.hostUpdate(id, { steps });
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Assign groups failed' } }));
+    });
+  }
+
   private defaultLiveStep(
-    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form',
+    type: 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout',
     opts?: { title?: string; instructions?: string }
   ) {
     const base: any = {
@@ -693,6 +728,16 @@ export class ApiService {
       base.title = base.title || 'Commitments';
       base.instructions = base.instructions || 'Owners and due dates for next steps.';
       base.timerSeconds = 300;
+    } else if (type === 'breakout') {
+      base.title = base.title || 'Breakout groups';
+      base.instructions = base.instructions || 'Host will divide participants into groups.';
+      base.config = { assignments: {} };
+      base.groups = [
+        { id: randomId(), title: 'Group 1', groupOrder: 1 },
+        { id: randomId(), title: 'Group 2', groupOrder: 2 },
+        { id: randomId(), title: 'Group 3', groupOrder: 3 }
+      ];
+      base.timerSeconds = 180;
     }
     return base;
   }

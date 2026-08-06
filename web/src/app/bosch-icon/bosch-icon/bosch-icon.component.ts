@@ -83,6 +83,7 @@ export class BoschIconComponent {
     input: 'sticky-note',
     voting: 'favorites',
     form: 'checklist',
+    breakout: 'user',
     'qr-code': 'qr-code',
     'sticky-note': 'sticky-note',
     checklist: 'checklist'

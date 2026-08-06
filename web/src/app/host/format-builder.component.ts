@@ -15,7 +15,7 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
 import { ApiService } from '../core/api.service';
 import { HostShellComponent } from './host-shell.component';
 
-type StepType = 'welcome' | 'poll' | 'input' | 'voting' | 'form';
+type StepType = 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout';
 
 interface DraftGroup {
   title: string;
@@ -272,6 +272,15 @@ interface DraftStep {
                               <span class="mini-tag">Links to KR</span>
                             }
                           </div>
+                        } @else if (step.type === 'breakout') {
+                          <div class="mini mini--breakout">
+                            @for (g of step.groups.slice(0, 3); track $index) {
+                              <div class="mini-team">
+                                <em>{{ g.title || 'Group' }}</em>
+                                <span class="mini-avatars"><i></i><i></i><i></i></span>
+                              </div>
+                            }
+                          </div>
                         }
                       </div>
 
@@ -379,6 +388,22 @@ interface DraftStep {
                 @if (selected()!.linkActionToKr) {
                   <p class="hint">Participants pick a KR after voting, then define the action.</p>
                 }
+              }
+
+              @if (selected()!.type === 'breakout') {
+                <div class="sub">
+                  <p class="sub-title">Groups</p>
+                  <p class="hint">Host assigns joined participants randomly or manually when this step is live.</p>
+                  @for (g of selected()!.groups; track $index; let gi = $index) {
+                    <div class="row">
+                      <input [(ngModel)]="g.title" placeholder="Group name" />
+                      <button type="button" class="icon-btn danger" (click)="removeGroup(selected()!, gi)" aria-label="Remove group">
+                        <app-bosch-icon name="delete" />
+                      </button>
+                    </div>
+                  }
+                  <app-bosch-button variant="secondary" (click)="addBreakoutGroup(selected()!)">Add group</app-bosch-button>
+                </div>
               }
             }
           </aside>
@@ -520,16 +545,19 @@ interface DraftStep {
     .palette-item[data-tone='input'] .palette-item__icon { background: #d1fae5; color: #047857; }
     .palette-item[data-tone='voting'] .palette-item__icon { background: #fef3c7; color: #b45309; }
     .palette-item[data-tone='form'] .palette-item__icon { background: #ffe4e6; color: #be123c; }
+    .palette-item[data-tone='breakout'] .palette-item__icon { background: #ede9fe; color: #6d28d9; }
     .flow-card[data-tone='welcome'] .flow-card__badge { color: #0369a1; }
     .flow-card[data-tone='poll'] .flow-card__badge { color: #4338ca; }
     .flow-card[data-tone='input'] .flow-card__badge { color: #047857; }
     .flow-card[data-tone='voting'] .flow-card__badge { color: #b45309; }
     .flow-card[data-tone='form'] .flow-card__badge { color: #be123c; }
+    .flow-card[data-tone='breakout'] .flow-card__badge { color: #6d28d9; }
     .inspector__hero[data-tone='welcome'] .inspector__emoji { color: #0369a1; }
     .inspector__hero[data-tone='poll'] .inspector__emoji { color: #4338ca; }
     .inspector__hero[data-tone='input'] .inspector__emoji { color: #047857; }
     .inspector__hero[data-tone='voting'] .inspector__emoji { color: #b45309; }
     .inspector__hero[data-tone='form'] .inspector__emoji { color: #be123c; }
+    .inspector__hero[data-tone='breakout'] .inspector__emoji { color: #6d28d9; }
     .palette-item__copy { display: grid; gap: 0.1rem; }
     .palette-item__copy strong { font-size: 0.9rem; }
     .palette-item__copy small { color: var(--wos-text-muted); font-size: 0.75rem; }
@@ -680,6 +708,10 @@ interface DraftStep {
     .flow-card[data-tone='form'] {
       background: linear-gradient(165deg, #fecdd3 0%, #fff1f2 34%, #ffffff 70%);
       border-color: #fda4af;
+    }
+    .flow-card[data-tone='breakout'] {
+      background: linear-gradient(165deg, #ddd6fe 0%, #f5f3ff 34%, #ffffff 70%);
+      border-color: #c4b5fd;
     }
     .flow-card.is-selected {
       border-color: var(--wos-primary);
@@ -885,6 +917,38 @@ interface DraftStep {
     .dot-row i.on { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2); }
     .mini--voting > span { color: #92400e; font-size: 0.72rem; font-weight: 700; }
     .mini--form { display: grid; gap: 0.35rem; }
+    .mini--breakout {
+      display: grid;
+      gap: 0.35rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .mini-team {
+      background: #f5f3ff;
+      border-radius: 6px;
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.35rem;
+    }
+    .mini-team em {
+      color: #6d28d9;
+      font-size: 0.65rem;
+      font-style: normal;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mini-avatars {
+      display: flex;
+      gap: 2px;
+    }
+    .mini-avatars i {
+      background: #c4b5fd;
+      border-radius: 50%;
+      display: inline-block;
+      height: 0.55rem;
+      width: 0.55rem;
+    }
     .mini-field {
       background: #f1f5f9;
       border: 1px solid #e2e8f0;
@@ -948,6 +1012,7 @@ interface DraftStep {
     .inspector__hero[data-tone='input'] { background: #d1fae5; }
     .inspector__hero[data-tone='voting'] { background: #fef3c7; }
     .inspector__hero[data-tone='form'] { background: #ffe4e6; }
+    .inspector__hero[data-tone='breakout'] { background: #ede9fe; }
     .inspector__emoji {
       align-items: center;
       background: rgba(255,255,255,0.8);
@@ -1075,7 +1140,8 @@ export class FormatBuilderComponent implements OnInit {
     { value: 'poll' as StepType, label: 'Poll', hint: 'Quick pulse check' },
     { value: 'input' as StepType, label: 'Sticky wall', hint: 'Ideas / OKR board' },
     { value: 'voting' as StepType, label: 'Voting', hint: 'Prioritize items' },
-    { value: 'form' as StepType, label: 'Action form', hint: 'Owners & due dates' }
+    { value: 'form' as StepType, label: 'Action form', hint: 'Owners & due dates' },
+    { value: 'breakout' as StepType, label: 'Group participants', hint: 'Random or manual teams' }
   ];
 
   stepTypes = this.paletteItems;
@@ -1158,6 +1224,8 @@ export class FormatBuilderComponent implements OnInit {
         return 'voting';
       case 'form':
         return 'form';
+      case 'breakout':
+        return 'breakout';
       default:
         return 'settings';
     }
@@ -1179,6 +1247,8 @@ export class FormatBuilderComponent implements OnInit {
       chips.push(`${step.votesPerParticipant || 3} votes`);
     } else if (step.type === 'form') {
       chips.push(step.linkActionToKr ? 'KR-linked' : 'Actions');
+    } else if (step.type === 'breakout') {
+      chips.push(`${step.groups.length} groups`);
     } else if (step.type === 'welcome') {
       chips.push('Lobby / QR');
     }
@@ -1259,6 +1329,10 @@ export class FormatBuilderComponent implements OnInit {
 
   addGroup(step: DraftStep) {
     step.groups.push({ title: `Column ${step.groups.length + 1}` });
+  }
+
+  addBreakoutGroup(step: DraftStep) {
+    step.groups.push({ title: `Group ${step.groups.length + 1}` });
   }
 
   removeGroup(step: DraftStep, index: number) {
@@ -1356,6 +1430,16 @@ export class FormatBuilderComponent implements OnInit {
       draft.votesPerParticipant = Number(cfg['votesPerParticipant']) || 3;
     } else if (type === 'form') {
       draft.linkActionToKr = cfg['linkTo'] === 'kr';
+    } else if (type === 'breakout') {
+      const groups = Array.isArray(step.groups) ? step.groups : [];
+      if (groups.length) {
+        const ordered = [...groups].sort(
+          (a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0)
+        );
+        draft.groups = ordered.map((g: any) => ({ title: String(g.title || '') }));
+      } else {
+        draft.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+      }
     }
 
     return draft;
@@ -1399,6 +1483,14 @@ export class FormatBuilderComponent implements OnInit {
       base.config = step.linkActionToKr
         ? { linkTo: 'kr', linkLabel: 'Key Result' }
         : {};
+    } else if (step.type === 'breakout') {
+      base.config = { assignments: {} };
+      base.groups = step.groups
+        .filter((g) => g.title.trim())
+        .map((g) => ({ title: g.title.trim() }));
+      if (!base.groups.length) {
+        base.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+      }
     }
     return base;
   }
@@ -1452,6 +1544,11 @@ export class FormatBuilderComponent implements OnInit {
     } else if (type === 'form') {
       step.title = 'Commitments';
       step.instructions = 'Owners and due dates for next steps.';
+    } else if (type === 'breakout') {
+      step.title = 'Breakout groups';
+      step.instructions = 'Host will divide participants into groups.';
+      step.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+      step.timerSeconds = 180;
     }
     return step;
   }
