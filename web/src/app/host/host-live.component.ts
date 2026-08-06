@@ -114,9 +114,23 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
         <div class="layout">
           <section class="card steps">
             <h2>Session steps</h2>
+            @if (session()?.status !== 'CLOSED') {
+              <p class="steps-hint">Select a step to configure its settings</p>
+            }
             <ol>
               @for (s of orderedSteps(); track s.id; let i = $index) {
-                <li [class.done]="s.status === 'DONE'" [class.active]="s.status === 'ACTIVE'">
+                <li
+                  [class.done]="s.status === 'DONE'"
+                  [class.active]="s.status === 'ACTIVE'"
+                  [class.selected]="selectedStepId() === s.id"
+                  [class.selectable]="session()?.status !== 'CLOSED'"
+                  [attr.role]="session()?.status !== 'CLOSED' ? 'button' : null"
+                  [attr.tabindex]="session()?.status !== 'CLOSED' ? 0 : null"
+                  [attr.title]="session()?.status !== 'CLOSED' ? 'Configure this step' : null"
+                  (click)="selectStep(s)"
+                  (keydown.enter)="selectStep(s)"
+                  (keydown.space)="$event.preventDefault(); selectStep(s)"
+                >
                   <span class="num">{{ i + 1 }}</span>
                   <div>
                     <strong>{{ s.title }}</strong>
@@ -168,8 +182,13 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
           <section class="card control">
             <div class="control__head">
               <div>
-                <p class="eyebrow">Live control · Step {{ currentIndex() }} of {{ stepTotal() }}</p>
-                <h2>{{ session()?.currentStep?.title || 'Lobby' }}</h2>
+                @if (tab() === 'settings' && selectedStep()) {
+                  <p class="eyebrow">Step settings · {{ selectedIndex() }} of {{ stepTotal() }}</p>
+                  <h2>{{ selectedStep()?.title || 'Step' }}</h2>
+                } @else {
+                  <p class="eyebrow">Live control · Step {{ currentIndex() }} of {{ stepTotal() }}</p>
+                  <h2>{{ session()?.currentStep?.title || 'Lobby' }}</h2>
+                }
               </div>
             </div>
 
@@ -192,8 +211,8 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
               <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
             } @else {
               <div class="settings">
-                @if (!session()?.currentStep) {
-                  <p class="hint">Start the session to edit the active step.</p>
+                @if (!draftStepId) {
+                  <p class="hint">Select a session step on the left to configure it.</p>
                 } @else {
                   <label>
                     Activity type
@@ -415,6 +434,11 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
     .timer-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: end; }
     .participants__head { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .participants__head h2, .steps h2, .summary h2 { font-size: 1rem; margin: 0 0 0.85rem; }
+    .steps-hint {
+      color: var(--wos-text-muted);
+      font-size: 0.8rem;
+      margin: -0.45rem 0 0.75rem;
+    }
     .layout {
       display: grid;
       gap: 1rem;
@@ -434,10 +458,31 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       padding: 0.7rem;
     }
     .steps li > div { min-width: 0; }
+    .steps li.selectable {
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+    .steps li.selectable:hover {
+      border-color: #9db7ef;
+      box-shadow: 0 0 0 2px var(--wos-primary-ring);
+    }
+    .steps li.selectable:focus-visible {
+      outline: 2px solid var(--wos-primary);
+      outline-offset: 2px;
+    }
     .steps li.active { background: var(--wos-primary-soft); border-color: #9db7ef; }
+    .steps li.selected {
+      background: #fff;
+      border-color: var(--wos-primary);
+      box-shadow: 0 0 0 3px var(--wos-primary-ring);
+    }
+    .steps li.active.selected {
+      background: var(--wos-primary-soft);
+    }
     .steps li.done { opacity: 0.92; }
     .num { align-items: center; background: #fff; border: 1px solid var(--wos-border-strong); border-radius: 50%; display: inline-flex; font-size: 0.8rem; font-weight: 800; height: 1.7rem; justify-content: center; width: 1.7rem; }
     .steps li.active .num { background: var(--wos-primary); border-color: var(--wos-primary); color: #fff; }
+    .steps li.selected .num { background: var(--wos-primary); border-color: var(--wos-primary); color: #fff; }
     .steps li.done .num { background: var(--wos-success); border-color: var(--wos-success); color: #fff; }
     .steps strong {
       display: block;
@@ -619,6 +664,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   message = signal('');
   panelTick = signal(0);
   tab = signal<'preview' | 'settings'>('preview');
+  /** Step opened in Step Settings (does not change live currentStepId). */
+  selectedStepId = signal('');
   summaryTab = signal<'insights' | 'actions'>('insights');
   nowTick = signal(Date.now());
   editingTitle = signal(false);
@@ -664,6 +711,18 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     [...(this.session()?.steps || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder)
   );
 
+  selectedStep = computed(() => {
+    const id = this.selectedStepId();
+    if (!id) return null;
+    return this.orderedSteps().find((s: any) => s.id === id) || null;
+  });
+
+  selectedIndex = computed(() => {
+    const id = this.selectedStepId();
+    const idx = this.orderedSteps().findIndex((s: any) => s.id === id);
+    return idx >= 0 ? idx + 1 : 0;
+  });
+
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
     // Restore this workshop's host token before any host writes (avoids clobbering registry).
@@ -677,9 +736,17 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         const prevStepId = this.session()?.currentStepId;
         this.session.set(e.data);
         this.panelTick.update((n) => n + 1);
-        // Reload drafts only when the active step changes — not on every snapshot
-        // (joins/timer ticks would wipe in-progress Step Settings edits).
-        if (this.tab() === 'settings' && e.data?.currentStepId !== prevStepId) {
+        if (!this.selectedStepId() && e.data?.currentStepId) {
+          this.selectedStepId.set(e.data.currentStepId);
+        }
+        // Do not wipe in-progress Step Settings when facilitation advances;
+        // only refresh the draft if we are editing the step that just became current
+        // and the host had that same step selected.
+        if (
+          this.tab() === 'settings' &&
+          e.data?.currentStepId !== prevStepId &&
+          this.selectedStepId() === e.data?.currentStepId
+        ) {
           this.loadStepDraft();
         }
       }
@@ -702,7 +769,20 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   setTab(which: 'preview' | 'settings') {
     this.tab.set(which);
-    if (which === 'settings') this.loadStepDraft();
+    if (which === 'settings') {
+      if (!this.selectedStepId()) {
+        const currentId = this.session()?.currentStepId || this.orderedSteps()[0]?.id || '';
+        if (currentId) this.selectedStepId.set(currentId);
+      }
+      this.loadStepDraft();
+    }
+  }
+
+  selectStep(step: { id: string }) {
+    if (!step?.id || this.session()?.status === 'CLOSED') return;
+    this.selectedStepId.set(step.id);
+    this.tab.set('settings');
+    this.loadStepDraft();
   }
 
   typeLabel(type: string) {
@@ -710,11 +790,21 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   }
 
   loadStepDraft() {
-    const step = this.session()?.currentStep;
+    const steps = this.orderedSteps();
+    const id =
+      this.selectedStepId() ||
+      this.session()?.currentStepId ||
+      steps[0]?.id ||
+      '';
+    const step =
+      (id && steps.find((s: any) => s.id === id)) ||
+      this.session()?.currentStep ||
+      null;
     if (!step) {
       this.draftStepId = '';
       return;
     }
+    this.selectedStepId.set(step.id);
     this.draftStepId = step.id;
     this.draftType = step.type;
     this.draftTitle = step.title || '';
@@ -977,7 +1067,16 @@ export class HostLiveComponent implements OnInit, OnDestroy {
           this.qrDataUrl.set(url)
         );
         this.panelTick.update((n) => n + 1);
-        if (this.tab() === 'settings' && (s.currentStepId !== prevStepId || !this.draftStepId)) {
+        if (!this.selectedStepId() && s.currentStepId) {
+          this.selectedStepId.set(s.currentStepId);
+        }
+        if (this.tab() === 'settings' && (!this.draftStepId || !this.selectedStepId())) {
+          this.loadStepDraft();
+        } else if (
+          this.tab() === 'settings' &&
+          s.currentStepId !== prevStepId &&
+          this.selectedStepId() === s.currentStepId
+        ) {
           this.loadStepDraft();
         }
       }
