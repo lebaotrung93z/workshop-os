@@ -57,6 +57,10 @@ Host sessions created in this browser are tracked in `localStorage` (`wos_host_s
 
 Host can insert poll / input / voting / form (etc.) steps mid-session via `ApiService.insertStep` — adds after the current step or at the end without changing `currentStepId`. Participants and display pick up the updated `steps[]` over Firestore.
 
+### Edit step settings live
+
+Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll options, input columns / OKR board flags, votes-per-participant, and form KR linking via `ApiService.updateStep`. Step `type` stays locked. Saving a new timer duration clears any running countdown (optional Save & restart).
+
 ### UI theme (mockup)
 
 Visual language follows the hybrid mockup (not strict Bosch square/`#007bc0` defaults): primary `#0056D2`, ~8px radii, Inter, dark host sidebar, dark big-screen display, green/red/blue input columns. Tokens live in `web/src/styles/_workshop-theme.scss` and map onto existing `--bosch-*` CSS variables so `bosch-*` components pick up the mockup look.

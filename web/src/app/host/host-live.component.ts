@@ -173,8 +173,8 @@ import {
             </div>
 
             <div class="tabs">
-              <button type="button" class="tab" [class.on]="tab() === 'preview'" (click)="tab.set('preview')">Big Screen Preview</button>
-              <button type="button" class="tab" [class.on]="tab() === 'settings'" (click)="tab.set('settings')">Step Settings</button>
+              <button type="button" class="tab" [class.on]="tab() === 'preview'" (click)="setTab('preview')">Big Screen Preview</button>
+              <button type="button" class="tab" [class.on]="tab() === 'settings'" (click)="setTab('settings')">Step Settings</button>
             </div>
 
             @if (tab() === 'preview') {
@@ -191,15 +191,90 @@ import {
               <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
             } @else {
               <div class="settings">
-                <label>Activity type <input [value]="session()?.currentStep?.type || ''" readonly /></label>
-                <p class="section-label">Section groups</p>
-                <ul class="groups">
-                  @for (g of session()?.currentStep?.groups || []; track g.id; let gi = $index) {
-                    <li [attr.data-tone]="gi % 3">{{ g.title }}</li>
-                  } @empty {
-                    <li class="empty">No groups on this step</li>
+                @if (!session()?.currentStep) {
+                  <p class="hint">Start the session to edit the active step.</p>
+                } @else {
+                  <label>
+                    Activity type
+                    <input [value]="typeLabel(draftType)" readonly />
+                  </label>
+                  <label>
+                    Title
+                    <input [(ngModel)]="draftTitle" />
+                  </label>
+                  <label>
+                    Instructions
+                    <input [(ngModel)]="draftInstructions" />
+                  </label>
+                  <label>
+                    Timer (seconds)
+                    <input type="number" min="0" max="7200" [(ngModel)]="draftTimerSeconds" placeholder="0 = no timer" />
+                  </label>
+                  <p class="hint">0 or empty disables the timer for this step. Saving clears a running countdown.</p>
+
+                  @if (draftType === 'poll') {
+                    <p class="section-label">Poll options</p>
+                    @for (opt of draftOptions; track $index; let oi = $index) {
+                      <div class="row">
+                        <input [(ngModel)]="opt.label" placeholder="Option label" (ngModelChange)="syncOptionId(opt)" />
+                        <button type="button" class="icon-btn danger" (click)="removeOption(oi)" aria-label="Remove option">×</button>
+                      </div>
+                    }
+                    <app-bosch-button variant="secondary" (click)="addOption()">Add option</app-bosch-button>
                   }
-                </ul>
+
+                  @if (draftType === 'input') {
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="draftAnonymous" />
+                      Anonymous sticky notes
+                    </label>
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="draftLinkedBoard" (ngModelChange)="onLinkedBoardToggle()" />
+                      Linked board (Objective → Key Result)
+                    </label>
+                    <p class="section-label">{{ draftLinkedBoard ? 'Board' : 'Columns' }}</p>
+                    @for (g of draftGroups; track $index; let gi = $index) {
+                      <div class="row">
+                        <input [(ngModel)]="g.title" [placeholder]="draftLinkedBoard ? 'Objectives' : 'Column title'" />
+                        @if (!draftLinkedBoard) {
+                          <button type="button" class="icon-btn danger" (click)="removeGroup(gi)" aria-label="Remove column">×</button>
+                        }
+                      </div>
+                    }
+                    @if (!draftLinkedBoard) {
+                      <app-bosch-button variant="secondary" (click)="addGroup()">Add column</app-bosch-button>
+                    }
+                  }
+
+                  @if (draftType === 'voting') {
+                    <label>
+                      Votes per participant
+                      <input type="number" min="1" max="20" [(ngModel)]="draftVotesPerParticipant" />
+                    </label>
+                  }
+
+                  @if (draftType === 'form') {
+                    <label class="check">
+                      <input type="checkbox" [(ngModel)]="draftLinkActionToKr" />
+                      Link action to Key Result
+                    </label>
+                  }
+
+                  <div class="settings-actions">
+                    <app-bosch-button [disabled]="busySettings()" (click)="saveStepSettings(false)">
+                      {{ busySettings() ? 'Saving…' : 'Save step settings' }}
+                    </app-bosch-button>
+                    @if (canStartTimer() || timerActive()) {
+                      <app-bosch-button
+                        variant="secondary"
+                        [disabled]="busySettings() || !draftTimerSeconds"
+                        (click)="saveStepSettings(true)"
+                      >
+                        Save &amp; restart timer
+                      </app-bosch-button>
+                    }
+                  </div>
+                }
               </div>
             }
 
@@ -358,8 +433,34 @@ import {
     .join-url { font-size: 0.85rem; margin: 0 0 0.35rem; word-break: break-all; }
     .hint { color: var(--wos-text-muted); margin: 0; }
     .settings label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
-    .settings input { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.65rem; }
-    .section-label { font-size: 0.85rem; font-weight: 700; margin: 0 0 0.5rem; }
+    .settings input, .settings select { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.65rem; }
+    .settings .check {
+      align-items: center;
+      display: flex;
+      font-weight: 600;
+      gap: 0.5rem;
+      margin-bottom: 0.65rem;
+    }
+    .settings .row {
+      align-items: center;
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: 1fr auto;
+      margin-bottom: 0.5rem;
+    }
+    .settings .icon-btn {
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      cursor: pointer;
+      font-size: 1.1rem;
+      font-weight: 700;
+      line-height: 1;
+      padding: 0.35rem 0.55rem;
+    }
+    .settings .icon-btn.danger { color: var(--wos-danger); }
+    .settings-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .section-label { font-size: 0.85rem; font-weight: 700; margin: 0.35rem 0 0.5rem; }
     .groups { display: grid; gap: 0.45rem; list-style: none; margin: 0; padding: 0; }
     .groups li { background: #f8fafc; border-left: 4px solid var(--wos-primary); border-radius: var(--wos-radius); padding: 0.65rem 0.75rem; }
     .groups li[data-tone='0'] { background: var(--wos-success-soft); border-left-color: var(--wos-success); color: var(--wos-success-ink); }
@@ -400,8 +501,20 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   editingTitle = signal(false);
   titleDraft = '';
   busyStep = signal(false);
+  busySettings = signal(false);
   addStepType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' = 'poll';
   addStepTitle = '';
+  draftStepId = '';
+  draftType: 'welcome' | 'poll' | 'input' | 'voting' | 'form' = 'welcome';
+  draftTitle = '';
+  draftInstructions = '';
+  draftTimerSeconds: number | null = null;
+  draftOptions: { id: string; label: string }[] = [];
+  draftAnonymous = true;
+  draftLinkedBoard = false;
+  draftGroups: { id?: string; title: string }[] = [];
+  draftVotesPerParticipant = 3;
+  draftLinkActionToKr = false;
   joinUrl = '';
 
   stepTypes = [
@@ -435,6 +548,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
         this.panelTick.update((n) => n + 1);
+        if (this.tab() === 'settings') this.loadStepDraft();
       }
       if (e.type === 'participant.joined') {
         this.refreshParticipants();
@@ -451,6 +565,157 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
     if (this.tickHandle) clearInterval(this.tickHandle);
+  }
+
+  setTab(which: 'preview' | 'settings') {
+    this.tab.set(which);
+    if (which === 'settings') this.loadStepDraft();
+  }
+
+  typeLabel(type: string) {
+    return this.stepTypes.find((t) => t.value === type)?.label || type;
+  }
+
+  loadStepDraft() {
+    const step = this.session()?.currentStep;
+    if (!step) {
+      this.draftStepId = '';
+      return;
+    }
+    this.draftStepId = step.id;
+    this.draftType = step.type;
+    this.draftTitle = step.title || '';
+    this.draftInstructions = step.instructions || '';
+    this.draftTimerSeconds = step.timerSeconds ?? null;
+    const cfg = step.config || {};
+    this.draftOptions = Array.isArray(cfg.options)
+      ? cfg.options.map((o: any) => ({ id: String(o.id || ''), label: String(o.label || '') }))
+      : [
+          { id: 'great', label: 'Great' },
+          { id: 'ok', label: 'OK' },
+          { id: 'rough', label: 'Rough' }
+        ];
+    this.draftAnonymous = !!cfg.anonymous;
+    this.draftLinkedBoard = cfg.boardMode === 'okr';
+    this.draftGroups = (step.groups || []).map((g: any) => ({ id: g.id, title: g.title || '' }));
+    if (!this.draftGroups.length) {
+      this.draftGroups = this.draftLinkedBoard
+        ? [{ title: 'Objectives' }]
+        : [{ title: 'Column A' }, { title: 'Column B' }, { title: 'Column C' }];
+    }
+    this.draftVotesPerParticipant = Number(cfg.votesPerParticipant) || 3;
+    this.draftLinkActionToKr = cfg.linkTo === 'kr';
+  }
+
+  addOption() {
+    const n = this.draftOptions.length + 1;
+    this.draftOptions.push({ id: `opt${n}`, label: `Option ${n}` });
+  }
+
+  removeOption(index: number) {
+    this.draftOptions.splice(index, 1);
+  }
+
+  syncOptionId(opt: { id: string; label: string }) {
+    const slug = opt.label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|$)/g, '')
+      .slice(0, 24);
+    opt.id = slug || `opt-${Math.random().toString(36).slice(2, 7)}`;
+  }
+
+  addGroup() {
+    this.draftGroups.push({ title: `Column ${this.draftGroups.length + 1}` });
+  }
+
+  removeGroup(index: number) {
+    this.draftGroups.splice(index, 1);
+  }
+
+  onLinkedBoardToggle() {
+    if (this.draftLinkedBoard) {
+      this.draftGroups = [{ id: this.draftGroups[0]?.id, title: 'Objectives' }];
+      this.draftAnonymous = false;
+      if (!this.draftInstructions.trim()) {
+        this.draftInstructions = 'Host adds Objectives. Participants attach Key Results under each Objective.';
+      }
+    } else if (this.draftGroups.length < 2) {
+      this.draftGroups = [{ title: 'Column A' }, { title: 'Column B' }, { title: 'Column C' }];
+    }
+  }
+
+  private buildStepPatch() {
+    const timer =
+      this.draftTimerSeconds != null && Number(this.draftTimerSeconds) > 0
+        ? Math.floor(Number(this.draftTimerSeconds))
+        : null;
+    const patch: any = {
+      title: this.draftTitle.trim(),
+      instructions: this.draftInstructions,
+      timerSeconds: timer,
+      config: {},
+      groups: [] as Array<{ id?: string; title: string }>
+    };
+    if (this.draftType === 'poll') {
+      patch.config = {
+        options: this.draftOptions
+          .filter((o) => o.label.trim())
+          .map((o) => ({ id: o.id || this.slug(o.label), label: o.label.trim() }))
+      };
+    } else if (this.draftType === 'input') {
+      if (this.draftLinkedBoard) {
+        patch.config = {
+          anonymous: !!this.draftAnonymous,
+          boardMode: 'okr',
+          parentKind: 'objective',
+          childKind: 'kr',
+          parentLabel: 'Objective',
+          childLabel: 'Key Result'
+        };
+        patch.groups = [{ id: this.draftGroups[0]?.id, title: this.draftGroups[0]?.title?.trim() || 'Objectives' }];
+      } else {
+        patch.config = { anonymous: !!this.draftAnonymous };
+        patch.groups = this.draftGroups
+          .filter((g) => g.title.trim())
+          .map((g) => ({ id: g.id, title: g.title.trim() }));
+      }
+    } else if (this.draftType === 'voting') {
+      patch.config = { votesPerParticipant: Number(this.draftVotesPerParticipant) || 3 };
+    } else if (this.draftType === 'form') {
+      patch.config = this.draftLinkActionToKr ? { linkTo: 'kr', linkLabel: 'Key Result' } : {};
+    }
+    return patch;
+  }
+
+  private slug(value: string) {
+    return (
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|$)/g, '')
+        .slice(0, 24) || 'opt'
+    );
+  }
+
+  saveStepSettings(restartTimer: boolean) {
+    const stepId = this.draftStepId || this.session()?.currentStepId;
+    if (!stepId) return;
+    this.busySettings.set(true);
+    this.message.set('');
+    this.api.updateStep(this.id, stepId, this.buildStepPatch(), { restartTimer }).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.busySettings.set(false);
+        this.loadStepDraft();
+        this.message.set(restartTimer ? 'Step saved and timer restarted.' : 'Step settings saved.');
+        this.panelTick.update((n) => n + 1);
+      },
+      error: (e) => {
+        this.busySettings.set(false);
+        this.message.set(e?.error?.message || 'Could not save step');
+      }
+    });
   }
 
   stepTypeLabel() {
@@ -546,6 +811,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
           this.qrDataUrl.set(url)
         );
         this.panelTick.update((n) => n + 1);
+        if (this.tab() === 'settings') this.loadStepDraft();
       }
     });
     this.refreshParticipants();

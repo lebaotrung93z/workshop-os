@@ -581,6 +581,66 @@ export class ApiService {
     });
   }
 
+  /**
+   * Update allowlisted fields on a step (title, instructions, timer, config, groups).
+   * Type / id / status / stepOrder are locked. Optionally clear/restart the live timer.
+   */
+  updateStep(
+    id: string,
+    stepId: string,
+    patch: {
+      title?: string;
+      instructions?: string;
+      timerSeconds?: number | null;
+      config?: Record<string, unknown>;
+      groups?: Array<{ id?: string; title: string; groupOrder?: number }>;
+    },
+    opts?: { restartTimer?: boolean }
+  ): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const s = await getDoc(doc(db, 'sessions', id));
+        if (!s.exists()) throw new Error('Session not found');
+        const data = s.data()!;
+        if (data['status'] === 'CLOSED') throw new Error('Session is closed');
+        const steps = [...(data['steps'] || [])];
+        const idx = steps.findIndex((st: any) => st.id === stepId);
+        if (idx < 0) throw new Error('Step not found');
+        const cur = { ...steps[idx] };
+        if (patch.title != null) cur.title = String(patch.title).trim() || cur.title;
+        if (patch.instructions != null) cur.instructions = String(patch.instructions);
+        if (patch.timerSeconds !== undefined) {
+          const n = Number(patch.timerSeconds);
+          cur.timerSeconds = Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+        }
+        if (patch.config != null) cur.config = patch.config;
+        if (patch.groups != null) {
+          cur.groups = patch.groups.map((g, gi) => ({
+            id: g.id || randomId(),
+            title: String(g.title || '').trim() || `Column ${gi + 1}`,
+            groupOrder: g.groupOrder || gi + 1
+          }));
+        }
+        steps[idx] = cur;
+        const update: Record<string, unknown> = { steps };
+        if (opts?.restartTimer && stepId === data['currentStepId'] && cur.timerSeconds) {
+          update['timerEndsAt'] = new Date(Date.now() + cur.timerSeconds * 1000).toISOString();
+          update['timerPausedRemaining'] = null;
+        } else if (patch.timerSeconds !== undefined) {
+          // Duration changed — drop any running countdown so Start uses the new value.
+          Object.assign(update, clearTimerPatch());
+        }
+        await this.hostUpdate(id, update);
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Update step failed' } }));
+    });
+  }
+
   private defaultLiveStep(
     type: 'welcome' | 'poll' | 'input' | 'voting' | 'form',
     opts?: { title?: string; instructions?: string }
