@@ -148,12 +148,11 @@ export class ApiService {
       this.ensureTemplates()
         .then(() => getDocs(query(collection(db, 'templates'), orderBy('name'))))
         .then((snap) => {
-          // Only the built-in workshop formats are selectable.
-          const allowed = new Set(['okrs', 'retro', 'strategy']);
+          const hidden = new Set(['probe', 'okr', 'okr-linked']);
           const byKey = new Map<string, any>();
           for (const d of snap.docs) {
             const row = { id: d.id, ...d.data() } as any;
-            if (!row.key || !allowed.has(row.key)) continue;
+            if (!row.key || hidden.has(row.key)) continue;
             const prev = byKey.get(row.key);
             if (!prev || (row.seedRevision || 0) >= (prev.seedRevision || 0)) {
               byKey.set(row.key, row);
