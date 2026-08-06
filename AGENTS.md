@@ -23,6 +23,8 @@ npm start
 - Join: `/?code=XXXXXX` or `/#/j?code=`
 - Big screen: `/#/display/:sessionId`
 
+Host console is responsive for tablet/PC: icon-rail sidebar at ≤1024px, top chrome at ≤768px, live dual-pane until tablet width, format board mid-layout (palette strip + board/inspector) below ~1200px. Tokens: `--wos-bp-*` / `--wos-sidebar-*` in `_workshop-theme.scss`.
+
 Realtime uses Firestore `onSnapshot` (not WebSockets). AI summary is a client-side heuristic. Export is CSV / text in the browser.
 
 ### Deploy
