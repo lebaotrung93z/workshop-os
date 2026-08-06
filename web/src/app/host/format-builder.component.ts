@@ -127,15 +127,17 @@ interface DraftStep {
                   (cdkDragEnded)="onPaletteDragEnded()"
                   (click)="addStep(t.value)"
                 >
-                  <span class="palette-item__tone"></span>
+                  <span class="palette-item__icon" aria-hidden="true">{{ typeEmoji(t.value) }}</span>
                   <span class="palette-item__copy">
                     <strong>{{ t.label }}</strong>
                     <small>{{ t.hint }}</small>
                   </span>
                   <div class="palette-preview" *cdkDragPreview>
-                    <span class="flow-card" [attr.data-tone]="t.value">
+                    <article class="flow-card flow-card--preview" [attr.data-tone]="t.value">
+                      <div class="flow-card__badge">{{ typeEmoji(t.value) }}</div>
                       <strong>{{ t.label }}</strong>
-                    </span>
+                      <p>{{ t.hint }}</p>
+                    </article>
                   </div>
                 </button>
               }
@@ -176,7 +178,11 @@ interface DraftStep {
                   <div class="lane-item" cdkDrag [cdkDragData]="step">
                     <div class="drag-placeholder" *cdkDragPlaceholder></div>
                     @if (i > 0) {
-                      <div class="connector" aria-hidden="true"></div>
+                      <div class="connector" aria-hidden="true">
+                        <span class="connector__dot"></span>
+                        <span class="connector__line"></span>
+                        <span class="connector__arrow"></span>
+                      </div>
                     }
                     <article
                       class="flow-card"
@@ -184,10 +190,16 @@ interface DraftStep {
                       [class.is-selected]="selectedUid() === step.uid"
                       (click)="select(step.uid)"
                     >
+                      <div class="flow-card__shine" aria-hidden="true"></div>
                       <header class="flow-card__head">
-                        <button type="button" class="grip" cdkDragHandle aria-label="Drag to reorder">⋮⋮</button>
-                        <span class="flow-card__num">{{ i + 1 }}</span>
-                        <span class="flow-card__type">{{ typeLabel(step.type) }}</span>
+                        <button type="button" class="grip" cdkDragHandle aria-label="Drag to reorder">
+                          <span></span><span></span><span></span>
+                        </button>
+                        <div class="flow-card__badge" aria-hidden="true">{{ typeEmoji(step.type) }}</div>
+                        <div class="flow-card__head-copy">
+                          <span class="flow-card__type">{{ typeLabel(step.type) }}</span>
+                          <span class="flow-card__num">Step {{ i + 1 }}</span>
+                        </div>
                         <button
                           type="button"
                           class="icon-btn danger"
@@ -197,8 +209,71 @@ interface DraftStep {
                           <app-bosch-icon name="delete" />
                         </button>
                       </header>
+
                       <strong class="flow-card__title">{{ step.title || typeLabel(step.type) }}</strong>
-                      <p class="flow-card__hint">{{ step.instructions || 'No instructions yet' }}</p>
+                      <p class="flow-card__hint">{{ step.instructions || 'Add facilitator instructions…' }}</p>
+
+                      <div class="flow-card__stage" aria-hidden="true">
+                        @if (step.type === 'welcome') {
+                          <div class="mini mini--welcome">
+                            <div class="mini-qr"></div>
+                            <div class="mini-welcome-copy">
+                              <span class="mini-code">ABC123</span>
+                              <span>Join on phone</span>
+                            </div>
+                          </div>
+                        } @else if (step.type === 'poll') {
+                          <div class="mini mini--poll">
+                            @for (opt of step.options.slice(0, 3); track opt.id) {
+                              <div class="mini-bar">
+                                <span>{{ opt.label || 'Option' }}</span>
+                                <i [style.width.%]="miniPollWidth(opt, step, $index)"></i>
+                              </div>
+                            }
+                          </div>
+                        } @else if (step.type === 'input') {
+                          <div class="mini mini--input" [class.is-okr]="step.linkedBoard">
+                            @if (step.linkedBoard) {
+                              <div class="mini-okr">
+                                <span class="pill root">Theme</span>
+                                <span class="pill obj">Objective</span>
+                                <span class="pill kr">Key Result</span>
+                              </div>
+                            } @else {
+                              @for (g of step.groups.slice(0, 3); track $index) {
+                                <div class="mini-col">
+                                  <em>{{ g.title || 'Column' }}</em>
+                                  <span></span><span></span>
+                                </div>
+                              }
+                            }
+                          </div>
+                        } @else if (step.type === 'voting') {
+                          <div class="mini mini--voting">
+                            <div class="dot-row">
+                              @for (n of voteDots(step); track $index) {
+                                <i [class.on]="n"></i>
+                              }
+                            </div>
+                            <span>{{ step.votesPerParticipant || 3 }} votes / person</span>
+                          </div>
+                        } @else if (step.type === 'form') {
+                          <div class="mini mini--form">
+                            <div class="mini-field"></div>
+                            <div class="mini-field short"></div>
+                            <div class="mini-field"></div>
+                            @if (step.linkActionToKr) {
+                              <span class="mini-tag">Links to KR</span>
+                            }
+                          </div>
+                        }
+                      </div>
+
+                      <footer class="flow-card__meta">
+                        @for (chip of stepChips(step); track chip) {
+                          <span class="chip">{{ chip }}</span>
+                        }
+                      </footer>
                     </article>
                   </div>
                 }
@@ -211,15 +286,26 @@ interface DraftStep {
             @if (!selected()) {
               <p class="hint">Select a card on the board to edit title, options, and columns.</p>
             } @else {
-              <p class="inspector__type">{{ typeLabel(selected()!.type) }}</p>
+              <div class="inspector__hero" [attr.data-tone]="selected()!.type">
+                <span class="inspector__emoji">{{ typeEmoji(selected()!.type) }}</span>
+                <div>
+                  <p class="inspector__type">{{ typeLabel(selected()!.type) }}</p>
+                  <strong>{{ selected()!.title || typeLabel(selected()!.type) }}</strong>
+                </div>
+              </div>
               <label>
                 Title
                 <input [(ngModel)]="selected()!.title" />
               </label>
               <label>
                 Instructions
-                <input [(ngModel)]="selected()!.instructions" />
+                <textarea rows="3" [(ngModel)]="selected()!.instructions"></textarea>
               </label>
+              <label>
+                Timer (seconds)
+                <input type="number" min="0" max="7200" [(ngModel)]="selected()!.timerSeconds" placeholder="0 = no timer" />
+              </label>
+              <p class="hint">Optional countdown shown on host, display, and phones.</p>
 
               @if (selected()!.type === 'poll') {
                 <div class="sub">
@@ -377,8 +463,8 @@ interface DraftStep {
     .workspace {
       display: grid;
       gap: 1rem;
-      grid-template-columns: 220px minmax(0, 1fr) 300px;
-      min-height: 520px;
+      grid-template-columns: 240px minmax(0, 1fr) 320px;
+      min-height: 580px;
     }
     @media (max-width: 1100px) {
       .workspace { grid-template-columns: 1fr; }
@@ -386,26 +472,41 @@ interface DraftStep {
 
     .palette__list { display: grid; gap: 0.55rem; }
     .palette-item {
-      align-items: stretch;
+      align-items: center;
       background: #fff;
       border: 1px solid var(--wos-border);
-      border-radius: 12px;
+      border-radius: 14px;
       cursor: grab;
       display: grid;
       gap: 0.65rem;
-      grid-template-columns: 8px 1fr;
+      grid-template-columns: 2.4rem 1fr;
       overflow: hidden;
-      padding: 0;
+      padding: 0.45rem 0.55rem 0.45rem 0.45rem;
       text-align: left;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .palette-item:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      transform: translateY(-1px);
     }
     .palette-item:active { cursor: grabbing; }
-    .palette-item__tone { background: #94a3b8; }
-    .palette-item[data-tone='welcome'] .palette-item__tone { background: #38bdf8; }
-    .palette-item[data-tone='poll'] .palette-item__tone { background: #818cf8; }
-    .palette-item[data-tone='input'] .palette-item__tone { background: #34d399; }
-    .palette-item[data-tone='voting'] .palette-item__tone { background: #fbbf24; }
-    .palette-item[data-tone='form'] .palette-item__tone { background: #fb7185; }
-    .palette-item__copy { display: grid; gap: 0.15rem; padding: 0.65rem 0.7rem 0.65rem 0; }
+    .palette-item__icon {
+      align-items: center;
+      background: #f1f5f9;
+      border-radius: 10px;
+      display: inline-flex;
+      font-size: 1.15rem;
+      height: 2.4rem;
+      justify-content: center;
+      width: 2.4rem;
+    }
+    .palette-item[data-tone='welcome'] .palette-item__icon { background: #e0f2fe; }
+    .palette-item[data-tone='poll'] .palette-item__icon { background: #e0e7ff; }
+    .palette-item[data-tone='input'] .palette-item__icon { background: #d1fae5; }
+    .palette-item[data-tone='voting'] .palette-item__icon { background: #fef3c7; }
+    .palette-item[data-tone='form'] .palette-item__icon { background: #ffe4e6; }
+    .palette-item__copy { display: grid; gap: 0.1rem; }
     .palette-item__copy strong { font-size: 0.9rem; }
     .palette-item__copy small { color: var(--wos-text-muted); font-size: 0.75rem; }
     .palette-preview { padding: 0.25rem; }
@@ -413,10 +514,10 @@ interface DraftStep {
     .board {
       background:
         radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.35) 1px, transparent 0) 0 0 / 18px 18px,
-        #f8fafc;
+        linear-gradient(180deg, #eef2ff 0%, #f8fafc 48%, #f1f5f9 100%);
       display: flex;
       flex-direction: column;
-      min-height: 520px;
+      min-height: 580px;
       overflow: hidden;
     }
     .board__head {
@@ -452,7 +553,7 @@ interface DraftStep {
       flex: 1;
       gap: 0;
       overflow-x: auto;
-      padding: 0.5rem 0.25rem 1rem;
+      padding: 0.75rem 0.35rem 1.25rem;
     }
     .lane-item {
       align-items: center;
@@ -461,99 +562,331 @@ interface DraftStep {
       position: relative;
     }
     .connector {
-      background: linear-gradient(90deg, #94a3b8, #64748b);
-      flex: 0 0 28px;
-      height: 3px;
-      margin: 0 0.15rem;
+      align-items: center;
+      display: flex;
+      flex: 0 0 42px;
+      gap: 0;
+      justify-content: center;
+      margin: 0 0.1rem;
       position: relative;
     }
-    .connector::after {
-      border-bottom: 5px solid transparent;
-      border-left: 8px solid #64748b;
-      border-top: 5px solid transparent;
-      content: '';
-      position: absolute;
-      right: -6px;
-      top: 50%;
-      transform: translateY(-50%);
+    .connector__dot {
+      background: #64748b;
+      border-radius: 50%;
+      height: 7px;
+      width: 7px;
     }
+    .connector__line {
+      background: linear-gradient(90deg, #94a3b8, #64748b);
+      flex: 1;
+      height: 3px;
+    }
+    .connector__arrow {
+      border-bottom: 6px solid transparent;
+      border-left: 9px solid #64748b;
+      border-top: 6px solid transparent;
+      height: 0;
+      width: 0;
+    }
+
     .flow-card {
       background: #fff;
-      border: 2px solid transparent;
-      border-radius: 14px;
-      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 18px;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.7) inset,
+        0 14px 34px rgba(15, 23, 42, 0.12);
       cursor: pointer;
       display: grid;
-      gap: 0.45rem;
-      min-height: 150px;
-      padding: 0.75rem;
-      width: 210px;
+      gap: 0.55rem;
+      min-height: 286px;
+      overflow: hidden;
+      padding: 0.85rem;
+      position: relative;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      width: 248px;
     }
-    .flow-card[data-tone='welcome'] { background: linear-gradient(180deg, #e0f2fe, #fff 42%); border-color: #bae6fd; }
-    .flow-card[data-tone='poll'] { background: linear-gradient(180deg, #e0e7ff, #fff 42%); border-color: #c7d2fe; }
-    .flow-card[data-tone='input'] { background: linear-gradient(180deg, #d1fae5, #fff 42%); border-color: #a7f3d0; }
-    .flow-card[data-tone='voting'] { background: linear-gradient(180deg, #fef3c7, #fff 42%); border-color: #fde68a; }
-    .flow-card[data-tone='form'] { background: linear-gradient(180deg, #ffe4e6, #fff 42%); border-color: #fecdd3; }
+    .flow-card:hover {
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.8) inset,
+        0 18px 40px rgba(15, 23, 42, 0.16);
+      transform: translateY(-2px);
+    }
+    .flow-card--preview {
+      min-height: auto;
+      width: 220px;
+    }
+    .flow-card__shine {
+      background: linear-gradient(120deg, rgba(255,255,255,0.55), transparent 42%);
+      height: 72px;
+      left: 0;
+      pointer-events: none;
+      position: absolute;
+      right: 0;
+      top: 0;
+    }
+    .flow-card[data-tone='welcome'] {
+      background: linear-gradient(165deg, #dbeafe 0%, #eff6ff 34%, #ffffff 70%);
+      border-color: #93c5fd;
+    }
+    .flow-card[data-tone='poll'] {
+      background: linear-gradient(165deg, #ddd6fe 0%, #eef2ff 34%, #ffffff 70%);
+      border-color: #a5b4fc;
+    }
+    .flow-card[data-tone='input'] {
+      background: linear-gradient(165deg, #bbf7d0 0%, #ecfdf5 34%, #ffffff 70%);
+      border-color: #6ee7b7;
+    }
+    .flow-card[data-tone='voting'] {
+      background: linear-gradient(165deg, #fde68a 0%, #fffbeb 34%, #ffffff 70%);
+      border-color: #fcd34d;
+    }
+    .flow-card[data-tone='form'] {
+      background: linear-gradient(165deg, #fecdd3 0%, #fff1f2 34%, #ffffff 70%);
+      border-color: #fda4af;
+    }
     .flow-card.is-selected {
       border-color: var(--wos-primary);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--wos-primary) 25%, transparent);
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--wos-primary) 28%, transparent),
+        0 18px 40px rgba(15, 23, 42, 0.16);
     }
     .flow-card__head {
       align-items: center;
       display: flex;
-      gap: 0.35rem;
+      gap: 0.45rem;
+      position: relative;
+      z-index: 1;
     }
     .grip {
-      background: transparent;
-      border: 0;
-      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 8px;
       cursor: grab;
-      font-size: 0.85rem;
-      letter-spacing: -0.08em;
-      line-height: 1;
-      padding: 0.15rem;
+      display: grid;
+      gap: 2px;
+      padding: 0.35rem 0.3rem;
     }
-    .flow-card__num {
+    .grip span {
+      background: #94a3b8;
+      border-radius: 99px;
+      display: block;
+      height: 2px;
+      width: 10px;
+    }
+    .flow-card__badge {
       align-items: center;
-      background: rgba(15, 23, 42, 0.06);
-      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 12px;
       display: inline-flex;
-      font-size: 0.72rem;
-      font-weight: 800;
-      height: 1.35rem;
+      font-size: 1.15rem;
+      height: 2.1rem;
       justify-content: center;
-      width: 1.35rem;
+      width: 2.1rem;
+    }
+    .flow-card__head-copy {
+      display: grid;
+      flex: 1;
+      gap: 0.05rem;
+      min-width: 0;
     }
     .flow-card__type {
       color: var(--wos-text-secondary);
-      flex: 1;
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
     }
+    .flow-card__num {
+      color: var(--wos-text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
     .flow-card__title {
-      font-size: 1rem;
+      font-size: 1.05rem;
       line-height: 1.25;
+      position: relative;
+      z-index: 1;
     }
     .flow-card__hint {
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
       color: var(--wos-text-muted);
+      display: -webkit-box;
       font-size: 0.8rem;
       line-height: 1.35;
       margin: 0;
-      max-height: 3.2em;
       overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    .flow-card__stage {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 14px;
+      min-height: 92px;
+      padding: 0.55rem;
+      position: relative;
+      z-index: 1;
+    }
+    .mini { display: grid; gap: 0.4rem; height: 100%; }
+    .mini--welcome {
+      align-items: center;
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: 48px 1fr;
+    }
+    .mini-qr {
+      aspect-ratio: 1;
+      background:
+        linear-gradient(#0f172a 0 0) 0 0 / 35% 35%,
+        linear-gradient(#0f172a 0 0) 100% 0 / 35% 35%,
+        linear-gradient(#0f172a 0 0) 0 100% / 35% 35%,
+        linear-gradient(#0f172a 0 0) 100% 100% / 35% 35%,
+        repeating-linear-gradient(90deg, #0f172a 0 2px, transparent 2px 5px),
+        #fff;
+      background-repeat: no-repeat;
+      border: 2px solid #0f172a;
+      border-radius: 6px;
+    }
+    .mini-welcome-copy { display: grid; gap: 0.15rem; font-size: 0.72rem; color: #64748b; }
+    .mini-code {
+      color: #2563eb;
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+    .mini-bar {
+      align-items: center;
+      display: grid;
+      gap: 0.35rem;
+      grid-template-columns: 52px 1fr;
+    }
+    .mini-bar span {
+      color: #475569;
+      font-size: 0.68rem;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mini-bar i {
+      background: linear-gradient(90deg, #6366f1, #93c5fd);
+      border-radius: 999px;
+      display: block;
+      height: 8px;
+    }
+    .mini--input {
+      display: grid;
+      gap: 0.35rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .mini-col {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.3rem;
+    }
+    .mini-col em {
+      color: #64748b;
+      font-size: 0.62rem;
+      font-style: normal;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mini-col span {
+      background: #fef08a;
+      border-radius: 4px;
+      display: block;
+      height: 14px;
+      opacity: 0.9;
+    }
+    .mini-col span:last-child {
+      background: #bbf7d0;
+      width: 78%;
+    }
+    .mini-okr {
+      align-items: center;
+      display: grid;
+      gap: 0.3rem;
+      justify-items: center;
+    }
+    .mini-okr .pill {
+      border-radius: 999px;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+    }
+    .mini-okr .root { background: #2563eb; }
+    .mini-okr .obj { background: #7c3aed; }
+    .mini-okr .kr { background: #059669; }
+    .mini--voting {
+      align-content: center;
+      display: grid;
+      gap: 0.4rem;
+      justify-items: center;
+    }
+    .dot-row { display: flex; gap: 0.3rem; }
+    .dot-row i {
+      background: #e2e8f0;
+      border-radius: 50%;
+      display: block;
+      height: 12px;
+      width: 12px;
+    }
+    .dot-row i.on { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2); }
+    .mini--voting > span { color: #92400e; font-size: 0.72rem; font-weight: 700; }
+    .mini--form { display: grid; gap: 0.35rem; }
+    .mini-field {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      height: 12px;
+    }
+    .mini-field.short { width: 62%; }
+    .mini-tag {
+      background: #ffe4e6;
+      border-radius: 999px;
+      color: #be123c;
+      font-size: 0.65rem;
+      font-weight: 700;
+      justify-self: start;
+      padding: 0.15rem 0.45rem;
+    }
+
+    .flow-card__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: auto;
+      position: relative;
+      z-index: 1;
+    }
+    .chip {
+      background: rgba(15, 23, 42, 0.06);
+      border-radius: 999px;
+      color: #334155;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.18rem 0.45rem;
     }
     .drag-placeholder {
       background: color-mix(in srgb, var(--wos-primary) 12%, #fff);
       border: 2px dashed var(--wos-primary);
-      border-radius: 14px;
-      min-height: 150px;
-      width: 210px;
+      border-radius: 18px;
+      min-height: 286px;
+      width: 248px;
     }
     .cdk-drag-preview {
       box-sizing: border-box;
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.2);
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.22);
     }
     .cdk-drag-animating { transition: transform 180ms ease; }
     .board__lane.cdk-drop-list-dragging .lane-item:not(.cdk-drag-placeholder) {
@@ -561,13 +894,43 @@ interface DraftStep {
     }
 
     .inspector { align-content: start; }
+    .inspector__hero {
+      align-items: center;
+      border-radius: 14px;
+      display: flex;
+      gap: 0.65rem;
+      margin-bottom: 0.9rem;
+      padding: 0.7rem;
+    }
+    .inspector__hero[data-tone='welcome'] { background: #e0f2fe; }
+    .inspector__hero[data-tone='poll'] { background: #e0e7ff; }
+    .inspector__hero[data-tone='input'] { background: #d1fae5; }
+    .inspector__hero[data-tone='voting'] { background: #fef3c7; }
+    .inspector__hero[data-tone='form'] { background: #ffe4e6; }
+    .inspector__emoji {
+      align-items: center;
+      background: rgba(255,255,255,0.8);
+      border-radius: 12px;
+      display: inline-flex;
+      font-size: 1.25rem;
+      height: 2.4rem;
+      justify-content: center;
+      width: 2.4rem;
+    }
     .inspector__type {
       color: var(--wos-primary);
-      font-size: 0.8rem;
+      font-size: 0.72rem;
       font-weight: 800;
       letter-spacing: 0.04em;
-      margin: 0 0 0.75rem;
+      margin: 0;
       text-transform: uppercase;
+    }
+    .inspector textarea {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.65rem 0.75rem;
+      resize: vertical;
     }
     .sub { display: grid; gap: 0.5rem; margin-top: 0.2rem; }
     .sub-title { font-weight: 700; margin: 0.15rem 0 0; }
@@ -579,7 +942,7 @@ interface DraftStep {
     }
     .icon-btn {
       align-items: center;
-      background: #fff;
+      background: rgba(255, 255, 255, 0.9);
       border: 1px solid var(--wos-border);
       border-radius: var(--wos-radius);
       color: var(--wos-text-secondary);
@@ -671,6 +1034,55 @@ export class FormatBuilderComponent implements OnInit {
 
   typeLabel(type: StepType) {
     return this.paletteItems.find((t) => t.value === type)?.label || type;
+  }
+
+  typeEmoji(type: StepType) {
+    switch (type) {
+      case 'welcome':
+        return '👋';
+      case 'poll':
+        return '📊';
+      case 'input':
+        return '🗒️';
+      case 'voting':
+        return '⭐';
+      case 'form':
+        return '✅';
+      default:
+        return '•';
+    }
+  }
+
+  stepChips(step: DraftStep): string[] {
+    const chips: string[] = [];
+    if (step.timerSeconds && step.timerSeconds > 0) {
+      const m = Math.floor(step.timerSeconds / 60);
+      const s = step.timerSeconds % 60;
+      chips.push(m > 0 ? `${m}m${s ? ` ${s}s` : ''} timer` : `${s}s timer`);
+    }
+    if (step.type === 'poll') {
+      chips.push(`${step.options.filter((o) => o.label.trim()).length || 0} options`);
+    } else if (step.type === 'input') {
+      chips.push(step.linkedBoard ? 'OKR board' : `${step.groups.length} columns`);
+      if (step.anonymous) chips.push('Anonymous');
+    } else if (step.type === 'voting') {
+      chips.push(`${step.votesPerParticipant || 3} votes`);
+    } else if (step.type === 'form') {
+      chips.push(step.linkActionToKr ? 'KR-linked' : 'Actions');
+    } else if (step.type === 'welcome') {
+      chips.push('Lobby / QR');
+    }
+    return chips;
+  }
+
+  miniPollWidth(opt: DraftOption, step: DraftStep, index: number) {
+    const weights = [88, 62, 40, 28];
+    return weights[index] || 35;
+  }
+
+  voteDots(step: DraftStep) {
+    const n = Math.min(8, Math.max(1, Number(step.votesPerParticipant) || 3));
+    return Array.from({ length: 5 }, (_, i) => i < n);
   }
 
   addStep(type: StepType) {
