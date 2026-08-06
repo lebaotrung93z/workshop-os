@@ -301,12 +301,13 @@ import { cssBackgroundImage } from '../core/image-data-url';
     </div>
   `,
   styles: `
-    :host { display: block; }
+    :host { display: block; width: 100%; }
     .screen {
       background: radial-gradient(1200px 600px at 20% -10%, #1a2b4d 0%, transparent 55%), var(--wos-screen-bg);
       color: var(--wos-screen-text);
       min-height: 100vh;
       padding: 2rem 2.5rem 3rem;
+      width: 100%;
     }
 
     header {
