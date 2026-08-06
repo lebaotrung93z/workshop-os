@@ -331,7 +331,7 @@ import {
               <h2>Key Insights</h2>
               <ul class="insights">
                 @for (i of summary()?.insights || []; track i) {
-                  <li><span class="check">✓</span> {{ i }}</li>
+                  <li><span class="insight-check">✓</span> {{ i }}</li>
                 }
               </ul>
             } @else {
@@ -477,10 +477,22 @@ import {
     }
     .settings .check {
       align-items: center;
+      background: transparent;
+      border-radius: 0;
+      color: inherit;
       display: flex;
+      flex: none;
       font-weight: 600;
       gap: 0.5rem;
+      height: auto;
+      justify-content: flex-start;
       margin-bottom: 0.65rem;
+      width: auto;
+    }
+    .settings .check input {
+      flex: 0 0 auto;
+      margin: 0;
+      width: auto;
     }
     .settings .row {
       align-items: center;
@@ -512,7 +524,7 @@ import {
     .msg { color: var(--wos-primary); }
     .insights { display: grid; gap: 0.55rem; list-style: none; margin: 0; padding: 0; }
     .insights li { align-items: start; display: flex; gap: 0.55rem; }
-    .check { align-items: center; background: var(--wos-success-soft); border-radius: 50%; color: var(--wos-success-ink); display: inline-flex; flex: 0 0 1.35rem; font-weight: 800; height: 1.35rem; justify-content: center; width: 1.35rem; }
+    .insight-check { align-items: center; background: var(--wos-success-soft); border-radius: 50%; color: var(--wos-success-ink); display: inline-flex; flex: 0 0 1.35rem; font-weight: 800; height: 1.35rem; justify-content: center; width: 1.35rem; }
     .actions-list { display: grid; gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
     .actions-list li { align-items: start; background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); display: flex; gap: 0.75rem; padding: 0.85rem; }
     .actions-list__n { align-items: center; background: var(--wos-primary); border-radius: 50%; color: #fff; display: inline-flex; flex: 0 0 1.6rem; font-weight: 800; height: 1.6rem; justify-content: center; width: 1.6rem; }
@@ -584,15 +596,22 @@ export class HostLiveComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
+    // Restore this workshop's host token before any host writes (avoids clobbering registry).
+    this.api.activateHostSession(this.id);
     this.joinUrl = buildJoinUrl(location.origin, '');
     this.refresh();
     this.realtime.connect(this.id);
     this.tickHandle = setInterval(() => this.nowTick.set(Date.now()), 250);
     this.sub = this.realtime.events$.subscribe((e) => {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
+        const prevStepId = this.session()?.currentStepId;
         this.session.set(e.data);
         this.panelTick.update((n) => n + 1);
-        if (this.tab() === 'settings') this.loadStepDraft();
+        // Reload drafts only when the active step changes — not on every snapshot
+        // (joins/timer ticks would wipe in-progress Step Settings edits).
+        if (this.tab() === 'settings' && e.data?.currentStepId !== prevStepId) {
+          this.loadStepDraft();
+        }
       }
       if (e.type === 'participant.joined') {
         this.refreshParticipants();
@@ -663,6 +682,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   }
 
   syncOptionId(opt: { id: string; label: string }) {
+    // Only assign an id for new/blank options — renaming must not orphan existing votes.
+    if (opt.id?.trim()) return;
     const slug = opt.label
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -877,6 +898,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   refresh() {
     this.api.getHostSession(this.id).subscribe({
       next: (s) => {
+        const prevStepId = this.session()?.currentStepId;
         this.session.set(s);
         this.api.rememberHostSession({
           id: this.id,
@@ -890,7 +912,9 @@ export class HostLiveComponent implements OnInit, OnDestroy {
           this.qrDataUrl.set(url)
         );
         this.panelTick.update((n) => n + 1);
-        if (this.tab() === 'settings') this.loadStepDraft();
+        if (this.tab() === 'settings' && (s.currentStepId !== prevStepId || !this.draftStepId)) {
+          this.loadStepDraft();
+        }
       }
     });
     this.refreshParticipants();

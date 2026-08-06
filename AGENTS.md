@@ -59,7 +59,9 @@ Host can insert poll / input / voting / form (etc.) steps mid-session via `ApiSe
 
 ### Edit step settings live
 
-Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll options, input columns / OKR board flags, votes-per-participant, and form KR linking via `ApiService.updateStep`. Step `type` stays locked. Saving a new timer duration clears any running countdown (optional Save & restart).
+Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll options, input columns / OKR board flags, votes-per-participant, and form KR linking via `ApiService.updateStep`. Step `type` stays locked. Saving a new timer duration clears any running countdown (optional Save & restart). Draft fields reload only when the active step changes (not on every Firestore snapshot). Opening `/host/:id` calls `activateHostSession` so the correct per-workshop `hostToken` is restored from `wos_host_sessions`.
+
+Checkbox rows in Step Settings use `label.check`; summary insight bullets use `insight-check` — do not reuse a bare `.check` circle style globally or it will crush the checkbox labels.
 
 ### Welcome big screen
 

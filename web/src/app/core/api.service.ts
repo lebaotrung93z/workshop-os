@@ -109,9 +109,12 @@ export class ApiService {
   }
 
   rememberHostSession(meta: Partial<HostSessionRef> & { id: string; hostToken: string }) {
+    const prev = this.listHostSessions().find((s) => s.id === meta.id);
+    // Metadata refresh must not replace a stored token with another session's global token.
+    const hostToken = prev?.hostToken || meta.hostToken;
     this.upsertHostSessionRef({
       id: meta.id,
-      hostToken: meta.hostToken,
+      hostToken,
       title: meta.title || '',
       code: meta.code || '',
       status: meta.status || 'LOBBY',
@@ -135,11 +138,12 @@ export class ApiService {
   }
 
   private upsertHostSessionRef(ref: HostSessionRef) {
-    const list = this.listHostSessions().filter((s) => s.id !== ref.id);
     const prev = this.listHostSessions().find((s) => s.id === ref.id);
+    const list = this.listHostSessions().filter((s) => s.id !== ref.id);
     list.unshift({
       id: ref.id,
-      hostToken: ref.hostToken,
+      // Never blank out a known token; prefer explicit token from create/resume.
+      hostToken: ref.hostToken || prev?.hostToken || '',
       title: ref.title || prev?.title || 'Workshop',
       code: ref.code || prev?.code || '',
       status: ref.status || prev?.status || 'LOBBY',
