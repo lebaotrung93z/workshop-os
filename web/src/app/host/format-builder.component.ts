@@ -394,7 +394,8 @@ interface DraftStep {
     .page {
       display: grid;
       gap: 1rem;
-      max-width: 1280px;
+      max-width: 1400px;
+      width: 100%;
     }
     .top {
       align-items: end;
@@ -442,9 +443,6 @@ interface DraftStep {
       gap: 0.85rem;
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    @media (max-width: 900px) {
-      .meta { grid-template-columns: 1fr; }
-    }
     .section-label {
       color: var(--wos-text-secondary);
       font-size: 0.85rem;
@@ -460,10 +458,11 @@ interface DraftStep {
       gap: 0.5rem;
       margin-bottom: 0.55rem;
     }
-    input, select {
+    input, select, textarea {
       border: 1px solid var(--wos-border-strong);
       border-radius: var(--wos-radius);
       font: inherit;
+      max-width: 100%;
       padding: 0.65rem 0.75rem;
     }
     input:disabled { background: #f1f5f9; color: var(--wos-text-muted); }
@@ -471,11 +470,8 @@ interface DraftStep {
     .workspace {
       display: grid;
       gap: 1rem;
-      grid-template-columns: 240px minmax(0, 1fr) 320px;
+      grid-template-columns: 240px minmax(0, 1fr) minmax(280px, 320px);
       min-height: 580px;
-    }
-    @media (max-width: 1100px) {
-      .workspace { grid-template-columns: 1fr; }
     }
 
     .palette__list { display: grid; gap: 0.55rem; }
@@ -541,7 +537,19 @@ interface DraftStep {
       display: flex;
       flex-direction: column;
       min-height: 580px;
+      min-width: 0;
       overflow: hidden;
+      position: relative;
+    }
+    .board::after {
+      background: linear-gradient(90deg, transparent, rgba(248, 250, 252, 0.95));
+      content: '';
+      height: 100%;
+      pointer-events: none;
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 28px;
     }
     .board__head {
       align-items: start;
@@ -921,7 +929,7 @@ interface DraftStep {
       transition: transform 180ms ease;
     }
 
-    .inspector { align-content: start; }
+    .inspector { align-content: start; min-width: 0; }
     .inspector__hero {
       align-items: center;
       border-radius: 14px;
@@ -986,6 +994,70 @@ interface DraftStep {
     }
     .icon-btn.danger { color: var(--wos-danger); }
     .err { color: var(--wos-danger); font-weight: 600; margin: 0; }
+
+    /* Large PC */
+    @media (min-width: 1280px) {
+      .workspace {
+        grid-template-columns: 260px minmax(0, 1fr) 340px;
+      }
+    }
+
+    /* Laptop / large tablet: board + inspector, palette as horizontal strip */
+    @media (max-width: 1200px) {
+      .workspace {
+        grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+        grid-template-areas:
+          'palette palette'
+          'board inspector';
+      }
+      .palette { grid-area: palette; }
+      .board { grid-area: board; min-height: 480px; }
+      .inspector {
+        grid-area: inspector;
+        max-height: calc(100vh - 8rem);
+        overflow: auto;
+        position: sticky;
+        top: 0.75rem;
+      }
+      .palette__list {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 0.55rem;
+        overflow-x: auto;
+        padding-bottom: 0.15rem;
+      }
+      .palette-item {
+        flex: 0 0 190px;
+      }
+      .meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    /* Narrow tablet */
+    @media (max-width: 768px) {
+      .top__actions { width: 100%; }
+      .meta { grid-template-columns: 1fr; }
+      .workspace {
+        grid-template-areas:
+          'palette'
+          'board'
+          'inspector';
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+      .board { min-height: 420px; }
+      .inspector {
+        max-height: none;
+        position: static;
+      }
+      .flow-card {
+        width: min(248px, 78vw);
+      }
+      .drag-placeholder {
+        width: min(248px, 78vw);
+      }
+    }
   `
 })
 export class FormatBuilderComponent implements OnInit {

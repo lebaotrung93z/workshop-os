@@ -48,6 +48,13 @@
 
   --wos-font: Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
+  /* Host layout breakpoints / chrome */
+  --wos-bp-tablet: 768px;
+  --wos-bp-laptop: 1024px;
+  --wos-bp-desktop: 1280px;
+  --wos-sidebar-width: 232px;
+  --wos-sidebar-rail: 72px;
+
   /* Map Bosch component tokens → mockup so existing bosch-* components pick up style */
   --bosch-bg: var(--wos-bg);
   --bosch-bg-muted: #eef2f8;

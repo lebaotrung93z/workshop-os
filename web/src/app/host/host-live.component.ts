@@ -373,8 +373,10 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       font: inherit;
       font-size: 1.25rem;
       font-weight: 700;
-      min-width: min(420px, 70vw);
+      max-width: 100%;
+      min-width: min(280px, 100%);
       padding: 0.4rem 0.65rem;
+      width: min(420px, 100%);
     }
     .linkish {
       background: transparent;
@@ -405,22 +407,44 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       gap: 1rem;
       justify-content: space-between;
     }
+    .progress__main { flex: 1 1 220px; min-width: 0; }
     .progress__title { font-size: 1.25rem; margin: 0.15rem 0 0.35rem; }
     .progress__meta { color: var(--wos-text-muted); margin: 0; }
-    .progress__timer { align-items: end; display: grid; gap: 0.5rem; justify-items: end; }
+    .progress__timer { align-items: end; display: grid; flex: 0 1 auto; gap: 0.5rem; justify-items: end; }
     .timer-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: end; }
     .participants__head { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .participants__head h2, .steps h2, .summary h2 { font-size: 1rem; margin: 0 0 0.85rem; }
-    .layout { display: grid; gap: 1rem; grid-template-columns: 300px 1fr; }
-    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+    .layout {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+    }
+    .steps { min-width: 0; }
+    .control { min-width: 0; }
     .steps ol { display: grid; gap: 0.55rem; list-style: none; margin: 0; padding: 0; }
-    .steps li { align-items: center; background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); display: grid; gap: 0.65rem; grid-template-columns: auto 1fr auto; padding: 0.7rem; }
+    .steps li {
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      padding: 0.7rem;
+    }
+    .steps li > div { min-width: 0; }
     .steps li.active { background: var(--wos-primary-soft); border-color: #9db7ef; }
     .steps li.done { opacity: 0.92; }
     .num { align-items: center; background: #fff; border: 1px solid var(--wos-border-strong); border-radius: 50%; display: inline-flex; font-size: 0.8rem; font-weight: 800; height: 1.7rem; justify-content: center; width: 1.7rem; }
     .steps li.active .num { background: var(--wos-primary); border-color: var(--wos-primary); color: #fff; }
     .steps li.done .num { background: var(--wos-success); border-color: var(--wos-success); color: #fff; }
-    .steps strong { display: block; font-size: 0.9rem; }
+    .steps strong {
+      display: block;
+      font-size: 0.9rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
     .steps small { color: var(--wos-text-muted); text-transform: capitalize; }
     .add-step {
       border-top: 1px solid var(--wos-border);
@@ -435,6 +459,7 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       border-radius: var(--wos-radius);
       font: inherit;
       padding: 0.55rem 0.65rem;
+      width: 100%;
     }
     .add-step__actions { display: flex; flex-wrap: wrap; gap: 0.45rem; }
     .control__head { align-items: start; display: flex; gap: 1rem; justify-content: space-between; margin-bottom: 0.85rem; }
@@ -454,10 +479,21 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
     .timer--paused { background: #92400e; }
     .timer--ended { background: var(--wos-danger); }
     .timer--idle { background: #334155; opacity: 0.85; }
-    .tabs { display: flex; gap: 0.35rem; margin-bottom: 0.9rem; }
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.9rem; }
     .tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--wos-text-muted); cursor: pointer; font-weight: 700; padding: 0.45rem 0.35rem; }
     .tab.on { border-bottom-color: var(--wos-primary); color: var(--wos-primary); }
-    .qr-block { align-items: center; background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); display: flex; gap: 1rem; margin-bottom: 1rem; padding: 0.85rem; }
+    .qr-block {
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding: 0.85rem;
+    }
+    .qr-block > div { flex: 1 1 180px; min-width: 0; }
     .join-url { font-size: 0.85rem; margin: 0 0 0.35rem; word-break: break-all; }
     .hint { color: var(--wos-text-muted); margin: 0; }
     .settings label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
@@ -465,6 +501,7 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       border: 1px solid var(--wos-border-strong);
       border-radius: var(--wos-radius);
       font: inherit;
+      max-width: 100%;
       padding: 0.65rem;
     }
     .settings textarea { resize: vertical; }
@@ -533,6 +570,36 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
     .owner { align-items: center; color: var(--wos-text-secondary); display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.4rem; }
     .owner em { color: var(--wos-text-muted); font-style: normal; margin-left: auto; }
     .summary__tabs { display: flex; gap: 0.35rem; margin-bottom: 0.75rem; }
+
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
+      .progress__timer { justify-items: start; }
+      .timer-actions { justify-content: start; }
+    }
+
+    @media (max-width: 768px) {
+      .layout { grid-template-columns: 1fr; }
+      .steps {
+        max-height: none;
+      }
+      .steps ol {
+        display: flex;
+        gap: 0.55rem;
+        overflow-x: auto;
+        padding-bottom: 0.25rem;
+      }
+      .steps li {
+        flex: 0 0 min(240px, 78vw);
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+      .steps li .badge { grid-column: 2; justify-self: start; }
+      .qr-block { flex-direction: column; align-items: flex-start; }
+      h1 { font-size: 1.35rem; }
+    }
+
+    @media (min-width: 1280px) {
+      .layout { grid-template-columns: 320px minmax(0, 1fr); }
+    }
   `
 })
 export class HostLiveComponent implements OnInit, OnDestroy {

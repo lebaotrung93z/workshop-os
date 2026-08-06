@@ -89,7 +89,7 @@ import { HostShellComponent } from './host-shell.component';
     </app-host-shell>
   `,
   styles: `
-    .page { display: grid; gap: 1.25rem; max-width: 880px; }
+    .page { display: grid; gap: 1.25rem; max-width: 960px; width: 100%; }
     .hero { align-items: end; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .eyebrow { color: var(--wos-primary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; margin: 0 0 0.35rem; text-transform: uppercase; }
     h1 { font-size: 1.85rem; margin: 0; }
@@ -99,7 +99,14 @@ import { HostShellComponent } from './host-shell.component';
     label { display: grid; font-weight: 600; gap: 0.4rem; margin-bottom: 1.1rem; }
     input { border: 1px solid var(--wos-border-strong); border-radius: var(--wos-radius); padding: 0.75rem 0.85rem; }
     .section-label { color: var(--wos-text-secondary); font-size: 0.85rem; font-weight: 700; margin: 0 0 0.65rem; }
-    .templates { display: grid; gap: 0.75rem; }
+    .templates {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    @media (max-width: 700px) {
+      .templates { grid-template-columns: 1fr; }
+    }
     .tpl { background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius-lg); cursor: pointer; padding: 1rem; text-align: left; transition: border-color 0.15s, box-shadow 0.15s; }
     .tpl:hover { border-color: #9db7ef; }
     .tpl.active { background: var(--wos-primary-soft); border-color: var(--wos-primary); box-shadow: 0 0 0 3px var(--wos-primary-ring); }
