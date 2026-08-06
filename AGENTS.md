@@ -65,7 +65,7 @@ Checkbox rows in Step Settings use `label.check`; summary insight bullets use `i
 
 ### Welcome big screen
 
-On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings. Prefer a public image URL. Optionally pick a small local image (&lt;400KB) which is stored as a data URL in the session (no Firebase Storage / Blaze plan).
+On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings. **Upload** any common photo — it is resized/compressed in the browser to a data URL and stored on the session doc (no Firebase Storage / Blaze). Public image URLs still work as an alternative.
 
 ### UI theme (mockup)
 

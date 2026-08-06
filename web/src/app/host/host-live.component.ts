@@ -19,6 +19,7 @@ import {
   remainingSeconds,
   stepTimerSeconds
 } from '../core/timer.util';
+import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-data-url';
 
 @Component({
   selector: 'app-host-live',
@@ -221,19 +222,20 @@ import {
                         placeholder="Message shown on the projector / big screen…"
                       ></textarea>
                     </label>
-                    <label>
-                      Background image URL
-                      <input [(ngModel)]="draftBackgroundImageUrl" placeholder="https://…" />
-                    </label>
                     <label class="file-label">
-                      Or pick a small image (under 400KB)
+                      Upload background image
                       <input type="file" accept="image/*" (change)="onBackgroundFile($event)" />
                     </label>
+                    <p class="hint">Photos are compressed in the browser and saved with the session (no cloud storage).</p>
+                    <label>
+                      Or paste a public image URL
+                      <input [(ngModel)]="draftBackgroundImageUrl" placeholder="https://…" />
+                    </label>
                     @if (uploadingBg()) {
-                      <p class="hint">Reading image…</p>
+                      <p class="hint">Preparing image…</p>
                     }
                     @if (draftBackgroundImageUrl) {
-                      <div class="bg-preview" [style.background-image]="'url(' + draftBackgroundImageUrl + ')'"></div>
+                      <div class="bg-preview" [style.background-image]="bgPreviewCss()"></div>
                       <button type="button" class="linkish" (click)="draftBackgroundImageUrl = ''">Clear background</button>
                     }
                   }
@@ -765,27 +767,22 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      this.message.set('Please choose an image file');
-      return;
-    }
-    if (file.size > 400 * 1024) {
-      this.message.set('Image must be under 400KB, or paste a public image URL instead.');
-      return;
-    }
     this.uploadingBg.set(true);
     this.message.set('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.draftBackgroundImageUrl = String(reader.result || '');
-      this.uploadingBg.set(false);
-      this.message.set('Background ready — click Save step settings to apply.');
-    };
-    reader.onerror = () => {
-      this.uploadingBg.set(false);
-      this.message.set('Could not read image file');
-    };
-    reader.readAsDataURL(file);
+    void fileToEmbeddedImageDataUrl(file)
+      .then((dataUrl) => {
+        this.draftBackgroundImageUrl = dataUrl;
+        this.uploadingBg.set(false);
+        this.message.set('Background ready — click Save step settings to apply.');
+      })
+      .catch((err: unknown) => {
+        this.uploadingBg.set(false);
+        this.message.set(err instanceof Error ? err.message : 'Could not read image file');
+      });
+  }
+
+  bgPreviewCss() {
+    return cssBackgroundImage(this.draftBackgroundImageUrl);
   }
 
   private slug(value: string) {
