@@ -67,7 +67,7 @@ interface DraftStep {
             </p>
           </div>
           <div class="top__actions">
-            <a class="ghost" routerLink="/">Back</a>
+            <a class="ghost" routerLink="/host">Back</a>
             <app-bosch-button
               variant="secondary"
               icon="plus"

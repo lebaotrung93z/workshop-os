@@ -14,7 +14,7 @@ import { HostShellComponent } from './host-shell.component';
       <div class="page">
         <header class="hero">
           <div>
-            <p class="eyebrow">New workshop</p>
+            <p class="eyebrow">Sessions</p>
             <h1>Create a hybrid session</h1>
             <p class="lede">Prepare content first, or go live now · Host laptop · Participant mobile · Big screen</p>
           </div>
@@ -82,7 +82,6 @@ import { HostShellComponent } from './host-shell.component';
             >
               Customize template
             </app-bosch-button>
-            <a routerLink="/j">Join as participant</a>
           </div>
         </section>
       </div>

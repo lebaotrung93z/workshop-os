@@ -21,7 +21,7 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
             <app-bosch-icon name="dashboard" />
             <span class="nav-label">Dashboard</span>
           </a>
-          <a routerLink="/host" routerLinkActive="active" title="Sessions">
+          <a routerLink="/host" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" title="Sessions">
             <app-bosch-icon name="user" />
             <span class="nav-label">Sessions</span>
           </a>
@@ -38,10 +38,6 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
             <span class="nav-label">Settings</span>
           </a>
         </nav>
-        <a class="join-link" routerLink="/j">
-          <span class="nav-label">Join as participant</span>
-          <span class="join-link__short">Join</span>
-        </a>
       </aside>
       <main class="main">
         <ng-content />
@@ -152,19 +148,6 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
       pointer-events: none;
     }
 
-    .join-link {
-      align-items: center;
-      color: #93c5fd;
-      display: flex;
-      font-size: 0.85rem;
-      font-weight: 600;
-      margin-top: auto;
-      padding: 0.75rem;
-      text-decoration: none;
-    }
-
-    .join-link__short { display: none; }
-
     .main {
       background: var(--wos-bg);
       min-width: 0;
@@ -201,16 +184,6 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
       nav a {
         justify-content: center;
         padding: 0.75rem 0.4rem;
-      }
-
-      .join-link {
-        justify-content: center;
-        padding: 0.55rem 0.35rem;
-      }
-
-      .join-link__short {
-        display: inline;
-        font-size: 0.72rem;
       }
 
       .main {
@@ -257,16 +230,6 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
       nav a {
         flex: 0 0 auto;
         padding: 0.55rem 0.65rem;
-      }
-
-      .join-link {
-        flex: 0 0 auto;
-        margin-top: 0;
-        padding: 0.55rem 0.65rem;
-      }
-
-      .join-link__short {
-        display: none;
       }
 
       .main {

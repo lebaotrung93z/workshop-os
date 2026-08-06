@@ -1,0 +1,45 @@
+/** Product update log shown on the host Dashboard. Newest first. */
+export interface ChangelogEntry {
+  date: string;
+  title: string;
+  items: string[];
+}
+
+export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-06',
+    title: 'Host console navigation',
+    items: [
+      'Dashboard and Sessions are separate: overview vs create/resume workshops.',
+      'Sidebar brand (Workshop OS) links back to the homepage.',
+      'Host pages use the full main-pane width on wide screens.'
+    ]
+  },
+  {
+    date: '2026-08-05',
+    title: 'Responsive host & workflow board',
+    items: [
+      'Host console adapts for tablet and PC (icon rail, top chrome).',
+      'Miro-style drag-and-drop workflow board for custom session formats.',
+      'Welcome step supports photo upload via browser compression (no Storage).'
+    ]
+  },
+  {
+    date: '2026-08-04',
+    title: 'Live facilitation',
+    items: [
+      'Edit step settings while a workshop is live (title, timer, poll options, columns).',
+      'Insert new activity steps mid-session without leaving the current step.',
+      'Save workshops for later and resume from the Sessions list.'
+    ]
+  },
+  {
+    date: '2026-08-01',
+    title: 'OKR & participant tools',
+    items: [
+      'OKR linked board: host Objectives, participant KRs, KR-only voting.',
+      'Participants can edit or delete their own stickies, KRs, and actions.',
+      'Host live timer: start, pause, resume, and reset synced over Firestore.'
+    ]
+  }
+];
