@@ -23,6 +23,10 @@ npm start
 - Join: `/?code=XXXXXX` or `/#/j?code=`
 - Big screen: `/#/display/:sessionId`
 
+Routing uses **hash location** (`withHashLocation`) so deep links work on static hosting.
+
+There is **no ESLint target** in this app; sanity-check with `cd web && npx ng build --configuration=development` (or `npx tsc -p tsconfig.app.json --noEmit`). `npm test` / `ng test` uses Karma + ChromeHeadless; the stock `app.component.spec.ts` still expects the Angular CLI scaffold title and currently fails — ignore or update that spec when adding real unit tests. Do **not** run the legacy `api/` Spring Boot or Postgres for day-to-day work on `main`.
+
 Realtime uses Firestore `onSnapshot` (not WebSockets). AI summary is a client-side heuristic. Export is CSV / text in the browser.
 
 ### Deploy
