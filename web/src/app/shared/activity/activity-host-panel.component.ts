@@ -213,13 +213,21 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
     .panel { display: grid; gap: 0.85rem; }
     h3 { font-size: 0.95rem; margin: 0; }
     .bars, .vote-bars { display: grid; gap: 0.65rem; }
-    .bar-row, .vote-row { align-items: center; display: grid; gap: 0.65rem; grid-template-columns: 110px 1fr 40px; }
-    .vote-row { grid-template-columns: 2rem 1fr 2.5rem; }
+    .bar-row, .vote-row {
+      align-items: center;
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: minmax(72px, 110px) minmax(0, 1fr) 40px;
+    }
+    .vote-row { grid-template-columns: 2rem minmax(0, 1fr) 2.5rem; }
     .track { background: #e8eef8; border-radius: 999px; height: 12px; overflow: hidden; }
     .fill { background: linear-gradient(90deg, var(--wos-primary), #3d7dff); height: 12px; }
     .fill--purple { background: linear-gradient(90deg, #7c4dff, #5b8def); }
-    .columns { display: grid; gap: 0.75rem; grid-template-columns: repeat(3, 1fr); }
-    @media (max-width: 900px) { .columns { grid-template-columns: 1fr; } }
+    .columns {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
     .col { border-radius: var(--wos-radius-lg); min-height: 10rem; overflow: hidden; }
     .col header { font-weight: 700; padding: 0.7rem 0.85rem; }
     .col__body { display: grid; gap: 0.55rem; padding: 0.65rem; }
@@ -247,14 +255,20 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
     .action__meta { align-items: center; color: var(--wos-text-secondary); display: flex; gap: 0.4rem; }
     .action__meta em { color: var(--wos-text-muted); font-style: normal; margin-left: auto; }
     .kr-tag { color: var(--wos-primary); display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 0.35rem; }
-    .add-obj { display: grid; gap: 0.5rem; grid-template-columns: 1fr auto; }
+    .add-obj { display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr) auto; }
     .add-obj input, .root-edit input {
       border: 1px solid var(--wos-border-strong);
       border-radius: var(--wos-radius);
+      max-width: 100%;
       padding: 0.7rem 0.8rem;
     }
     .root-edit { display: grid; font-size: 0.85rem; font-weight: 700; gap: 0.4rem; }
-    .root-edit__row { display: grid; gap: 0.5rem; grid-template-columns: 1fr auto; }
+    .root-edit__row { display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr) auto; }
+
+    @media (max-width: 640px) {
+      .bar-row, .vote-row { grid-template-columns: 1fr; }
+      .add-obj, .root-edit__row { grid-template-columns: 1fr; }
+    }
 
     .host-tree { overflow-x: auto; padding: 0.5rem 0 1rem; }
     .tree-node { align-items: center; display: flex; flex-direction: column; position: relative; }
