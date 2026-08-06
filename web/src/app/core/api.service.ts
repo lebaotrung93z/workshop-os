@@ -12,11 +12,12 @@ import {
   type Unsubscribe
 } from 'firebase/firestore';
 import { Observable, Subject } from 'rxjs';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import { SEED_TEMPLATES } from './seed-templates';
 import { clearTimerPatch } from './timer.util';
 import { buildJoinUrl } from './join-url';
 import { okrInputStep } from './okr.util';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const HOST_SESSIONS_KEY = 'wos_host_sessions';
@@ -788,6 +789,27 @@ export class ApiService {
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Update failed' } }));
+    });
+  }
+
+  /** Upload an image for the welcome big-screen background; returns public download URL. */
+  uploadWelcomeBackground(sessionId: string, file: File): Observable<string> {
+    return new Observable((sub) => {
+      (async () => {
+        if (!this.hostToken()) throw new Error('Missing host token');
+        if (!file.type.startsWith('image/')) throw new Error('Please choose an image file');
+        if (file.size > 5 * 1024 * 1024) throw new Error('Image must be under 5MB');
+        const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'bg.jpg';
+        const path = `welcome-backgrounds/${sessionId}/${Date.now()}-${safe}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file, { contentType: file.type });
+        return getDownloadURL(storageRef);
+      })()
+        .then((url) => {
+          sub.next(url);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Upload failed' } }));
     });
   }
 

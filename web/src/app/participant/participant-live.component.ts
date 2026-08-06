@@ -64,7 +64,9 @@ import {
           <section class="panel">
             <div class="panel__head">
               <h2>{{ session()?.currentStep?.title || 'Welcome' }}</h2>
-              <p class="hint">{{ session()?.currentStep?.instructions }}</p>
+              <p class="hint welcome-body">
+                {{ welcomeBody() || session()?.currentStep?.instructions || 'Listen to the host and wait for the next step.' }}
+              </p>
             </div>
           </section>
         } @else if (session()?.currentStep?.type === 'poll') {
@@ -458,6 +460,7 @@ import {
       line-height: 1.4;
       margin: 0;
     }
+    .welcome-body { white-space: pre-wrap; }
 
     .panel__actions,
     .compose {
@@ -915,6 +918,10 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     const idx = steps.findIndex((s: any) => s.id === this.session()?.currentStepId);
     if (idx < 0) return '';
     return `Step ${idx + 1}/${steps.length}`;
+  }
+
+  welcomeBody() {
+    return String(this.session()?.currentStep?.config?.welcomeText || '').trim();
   }
 
   timerPaused() {
