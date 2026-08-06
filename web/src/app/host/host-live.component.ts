@@ -10,6 +10,14 @@ import QRCode from 'qrcode';
 import { ActivityHostPanelComponent } from '../shared/activity/activity-host-panel.component';
 import { buildJoinUrl } from '../core/join-url';
 import { HostShellComponent } from './host-shell.component';
+import {
+  formatCountdown,
+  hasTimer,
+  isTimerPaused,
+  isTimerRunning,
+  remainingSeconds,
+  stepTimerSeconds
+} from '../core/timer.util';
 
 @Component({
   selector: 'app-host-live',
@@ -33,13 +41,48 @@ import { HostShellComponent } from './host-shell.component';
                 <span class="badge badge--live">Live</span>
               }
             </div>
-            <p>
+            <p class="lede">
               Code <strong class="code">{{ session()?.code }}</strong>
-              · Step {{ currentIndex() }} of {{ (session()?.steps || []).length || 0 }}
+              · {{ session()?.participantCount || 0 }} online
             </p>
           </div>
           <a class="ghost" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
         </header>
+
+        <section class="progress card">
+          <div class="progress__main">
+            <p class="eyebrow">Facilitation</p>
+            <h2 class="progress__title">{{ session()?.currentStep?.title || 'Lobby' }}</h2>
+            <p class="progress__meta">
+              Step {{ currentIndex() }} of {{ stepTotal() }}
+              · {{ stepTypeLabel() }}
+              · {{ session()?.participantCount || 0 }} participants
+            </p>
+          </div>
+          <div class="progress__timer">
+            @if (timerLabel()) {
+              <div class="timer" [class.timer--paused]="timerPaused()" [class.timer--ended]="timerEnded()">
+                {{ timerLabel() }}
+              </div>
+            } @else if (canStartTimer()) {
+              <div class="timer timer--idle">{{ formatDuration(stepDuration()) }}</div>
+            }
+            <div class="timer-actions">
+              @if (canStartTimer() && !timerActive()) {
+                <app-bosch-button variant="secondary" (click)="startTimer()">Start timer</app-bosch-button>
+              }
+              @if (timerRunning()) {
+                <app-bosch-button variant="secondary" (click)="pauseTimer()">Pause</app-bosch-button>
+              }
+              @if (timerPaused()) {
+                <app-bosch-button variant="secondary" (click)="resumeTimer()">Resume</app-bosch-button>
+              }
+              @if (timerActive()) {
+                <app-bosch-button variant="secondary" (click)="resetTimer()">Reset</app-bosch-button>
+              }
+            </div>
+          </div>
+        </section>
 
         <section class="participants card">
           <div class="participants__head">
@@ -70,12 +113,9 @@ import { HostShellComponent } from './host-shell.component';
           <section class="card control">
             <div class="control__head">
               <div>
-                <p class="eyebrow">Live control · Step {{ currentIndex() }} of {{ (session()?.steps || []).length || 0 }}</p>
+                <p class="eyebrow">Live control · Step {{ currentIndex() }} of {{ stepTotal() }}</p>
                 <h2>{{ session()?.currentStep?.title || 'Lobby' }}</h2>
               </div>
-              @if (timerLabel()) {
-                <div class="timer">{{ timerLabel() }}</div>
-              }
             </div>
 
             <div class="tabs">
@@ -171,10 +211,21 @@ import { HostShellComponent } from './host-shell.component';
     .top { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .title-row { align-items: center; display: flex; gap: 0.65rem; }
     h1 { font-size: 1.55rem; margin: 0; }
-    .top p { color: var(--wos-text-muted); margin: 0.25rem 0 0; }
+    .top p, .lede { color: var(--wos-text-muted); margin: 0.25rem 0 0; }
     .code { color: var(--wos-primary); letter-spacing: 0.06em; }
     .ghost { background: #fff; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); color: var(--wos-text); font-weight: 600; padding: 0.6rem 0.9rem; text-decoration: none; }
     .card { background: var(--wos-surface); border: 1px solid var(--wos-border); border-radius: var(--wos-radius-lg); box-shadow: var(--wos-shadow); padding: 1rem 1.1rem; }
+    .progress {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: space-between;
+    }
+    .progress__title { font-size: 1.25rem; margin: 0.15rem 0 0.35rem; }
+    .progress__meta { color: var(--wos-text-muted); margin: 0; }
+    .progress__timer { align-items: end; display: grid; gap: 0.5rem; justify-items: end; }
+    .timer-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: end; }
     .participants__head { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .participants__head h2, .steps h2, .summary h2 { font-size: 1rem; margin: 0 0 0.85rem; }
     .layout { display: grid; gap: 1rem; grid-template-columns: 300px 1fr; }
@@ -191,7 +242,20 @@ import { HostShellComponent } from './host-shell.component';
     .control__head { align-items: start; display: flex; gap: 1rem; justify-content: space-between; margin-bottom: 0.85rem; }
     .eyebrow { color: var(--wos-primary); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.03em; margin: 0 0 0.25rem; text-transform: uppercase; }
     .control h2 { margin: 0; }
-    .timer { background: #0f172a; border-radius: var(--wos-radius); color: #fff; font-variant-numeric: tabular-nums; font-weight: 800; padding: 0.55rem 0.75rem; }
+    .timer {
+      background: #0f172a;
+      border-radius: var(--wos-radius);
+      color: #fff;
+      font-size: 1.35rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      min-width: 4.5rem;
+      padding: 0.55rem 0.85rem;
+      text-align: center;
+    }
+    .timer--paused { background: #92400e; }
+    .timer--ended { background: var(--wos-danger); }
+    .timer--idle { background: #334155; opacity: 0.85; }
     .tabs { display: flex; gap: 0.35rem; margin-bottom: 0.9rem; }
     .tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--wos-text-muted); cursor: pointer; font-weight: 700; padding: 0.45rem 0.35rem; }
     .tab.on { border-bottom-color: var(--wos-primary); color: var(--wos-primary); }
@@ -225,6 +289,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private realtime = inject(RealtimeService);
   private sub?: Subscription;
+  private tickHandle: ReturnType<typeof setInterval> | null = null;
 
   id = '';
   session = signal<any>(null);
@@ -235,6 +300,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   panelTick = signal(0);
   tab = signal<'preview' | 'settings'>('preview');
   summaryTab = signal<'insights' | 'actions'>('insights');
+  nowTick = signal(Date.now());
   joinUrl = '';
 
   currentIndex = computed(() => {
@@ -244,11 +310,14 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     return idx >= 0 ? idx + 1 : 0;
   });
 
+  stepTotal = computed(() => (this.session()?.steps || []).length || 0);
+
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || '';
     this.joinUrl = buildJoinUrl(location.origin, '');
     this.refresh();
     this.realtime.connect(this.id);
+    this.tickHandle = setInterval(() => this.nowTick.set(Date.now()), 250);
     this.sub = this.realtime.events$.subscribe((e) => {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
@@ -268,10 +337,78 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
+    if (this.tickHandle) clearInterval(this.tickHandle);
+  }
+
+  stepTypeLabel() {
+    const type = this.session()?.currentStep?.type;
+    return type ? String(type) : 'waiting';
+  }
+
+  stepDuration() {
+    return stepTimerSeconds(this.session());
+  }
+
+  canStartTimer() {
+    const s = this.session();
+    return !!s?.currentStep && s.status !== 'LOBBY' && s.status !== 'CLOSED' && this.stepDuration() > 0;
+  }
+
+  timerActive() {
+    return hasTimer(this.session());
+  }
+
+  timerRunning() {
+    return isTimerRunning(this.session());
+  }
+
+  timerPaused() {
+    return isTimerPaused(this.session());
+  }
+
+  timerEnded() {
+    const rem = remainingSeconds(this.session(), this.nowTick());
+    return rem === 0 && this.timerRunning();
   }
 
   timerLabel() {
-    return '';
+    this.nowTick();
+    const rem = remainingSeconds(this.session(), this.nowTick());
+    if (rem == null) return '';
+    const prefix = this.timerPaused() ? 'Paused ' : rem === 0 ? 'Time’s up ' : '';
+    return `${prefix}${formatCountdown(rem)}`;
+  }
+
+  formatDuration(seconds: number) {
+    return formatCountdown(seconds);
+  }
+
+  startTimer() {
+    this.api.startTimer(this.id).subscribe({
+      next: (s) => this.session.set(s),
+      error: (e) => this.message.set(e?.error?.message || 'Timer start failed')
+    });
+  }
+
+  pauseTimer() {
+    this.api.pauseTimer(this.id).subscribe({
+      next: (s) => this.session.set(s),
+      error: (e) => this.message.set(e?.error?.message || 'Pause failed')
+    });
+  }
+
+  resumeTimer() {
+    this.api.resumeTimer(this.id).subscribe({
+      next: (s) => this.session.set(s),
+      error: (e) => this.message.set(e?.error?.message || 'Resume failed')
+    });
+  }
+
+  resetTimer() {
+    this.api.clearTimer(this.id).subscribe({
+      next: (s) => this.session.set(s),
+      error: (e) => this.message.set(e?.error?.message || 'Reset failed')
+    });
   }
 
   stepLabel(step: any): string {

@@ -14,6 +14,7 @@ import {
 import { Observable, Subject } from 'rxjs';
 import { db } from './firebase';
 import { SEED_TEMPLATES } from './seed-templates';
+import { clearTimerPatch } from './timer.util';
 import { buildJoinUrl } from './join-url';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -402,7 +403,12 @@ export class ApiService {
         const steps = [...(data['steps'] || [])];
         if (steps[0]) steps[0] = { ...steps[0], status: 'ACTIVE' };
         const status = steps[0]?.type === 'welcome' ? 'WELCOME' : 'RUNNING';
-        await this.hostUpdate(id, { status, steps, currentStepId: steps[0]?.id || null });
+        await this.hostUpdate(id, {
+          status,
+          steps,
+          currentStepId: steps[0]?.id || null,
+          ...clearTimerPatch()
+        });
         return this.snapSession(id);
       })()
         .then((s) => {
@@ -439,7 +445,12 @@ export class ApiService {
         let status = 'RUNNING';
         if (cur.type === 'welcome') status = 'WELCOME';
         if (cur.type === 'form') status = 'ACTIONS';
-        await this.hostUpdate(id, { steps: updated, currentStepId: cur.id, status });
+        await this.hostUpdate(id, {
+          steps: updated,
+          currentStepId: cur.id,
+          status,
+          ...clearTimerPatch()
+        });
         return this.snapSession(id);
       })()
         .then((s) => {
@@ -452,13 +463,91 @@ export class ApiService {
 
   end(id: string): Observable<any> {
     return new Observable((sub) => {
-      this.hostUpdate(id, { status: 'CLOSED' })
+      this.hostUpdate(id, { status: 'CLOSED', ...clearTimerPatch() })
         .then(() => this.snapSession(id))
         .then((s) => {
           sub.next(s);
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'End failed' } }));
+    });
+  }
+
+  /** Start or restart countdown from current step duration (or explicit seconds). */
+  startTimer(id: string, seconds?: number): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const s = await getDoc(doc(db, 'sessions', id));
+        if (!s.exists()) throw new Error('Session not found');
+        const data = s.data()!;
+        const steps = data['steps'] || [];
+        const cur = steps.find((st: any) => st.id === data['currentStepId']);
+        const duration =
+          seconds != null && seconds > 0
+            ? Math.floor(seconds)
+            : Math.floor(Number(cur?.timerSeconds) || 0);
+        if (!duration) throw new Error('This step has no timer duration');
+        const timerEndsAt = new Date(Date.now() + duration * 1000).toISOString();
+        await this.hostUpdate(id, { timerEndsAt, timerPausedRemaining: null });
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Timer start failed' } }));
+    });
+  }
+
+  pauseTimer(id: string): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const s = await getDoc(doc(db, 'sessions', id));
+        if (!s.exists()) throw new Error('Session not found');
+        const data = s.data()!;
+        const endsAt = data['timerEndsAt'];
+        if (!endsAt) return this.snapSession(id);
+        const remaining = Math.max(0, Math.floor((Date.parse(String(endsAt)) - Date.now()) / 1000));
+        await this.hostUpdate(id, { timerEndsAt: null, timerPausedRemaining: remaining });
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Timer pause failed' } }));
+    });
+  }
+
+  resumeTimer(id: string): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const s = await getDoc(doc(db, 'sessions', id));
+        if (!s.exists()) throw new Error('Session not found');
+        const data = s.data()!;
+        const remaining = Math.floor(Number(data['timerPausedRemaining']) || 0);
+        if (!remaining) return this.snapSession(id);
+        const timerEndsAt = new Date(Date.now() + remaining * 1000).toISOString();
+        await this.hostUpdate(id, { timerEndsAt, timerPausedRemaining: null });
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Timer resume failed' } }));
+    });
+  }
+
+  clearTimer(id: string): Observable<any> {
+    return new Observable((sub) => {
+      this.hostUpdate(id, clearTimerPatch())
+        .then(() => this.snapSession(id))
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Timer clear failed' } }));
     });
   }
 

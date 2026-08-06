@@ -8,6 +8,12 @@ import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { buildJoinUrl } from '../core/join-url';
 import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../core/okr.util';
+import {
+  formatCountdown,
+  isTimerPaused,
+  isTimerRunning,
+  remainingSeconds
+} from '../core/timer.util';
 
 @Component({
   selector: 'app-display',
@@ -22,9 +28,22 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
           <p class="meta">
             Code <span class="code">{{ session()?.code }}</span>
             · {{ session()?.participantCount || 0 }} online
+            @if (stepIndexLabel()) {
+              · {{ stepIndexLabel() }}
+            }
+            @if (session()?.currentStep?.title) {
+              · {{ session()?.currentStep?.title }}
+            }
           </p>
         </div>
-        <app-bosch-avatar-stack [people]="participants()" [max]="8" size="lg" />
+        <div class="header-side">
+          @if (timerLabel()) {
+            <div class="timer" [class.timer--paused]="timerPaused()" [class.timer--ended]="timerEnded()">
+              {{ timerLabel() }}
+            </div>
+          }
+          <app-bosch-avatar-stack [people]="participants()" [max]="8" size="lg" />
+        </div>
       </header>
 
       @if (showJoinScreen()) {
@@ -58,7 +77,7 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
 
       @if (!showJoinScreen() && isOkrSession()) {
         <section class="tree-section">
-          <h2>OKR workflow</h2>
+          <h2>{{ session()?.currentStep?.title || 'OKR workflow' }}</h2>
           <div class="okr-tree" role="tree">
             <div class="tree-node tree-node--root" role="treeitem">
               <div class="tree-pill tree-pill--root" [class.is-empty]="!rootLabel()">
@@ -284,6 +303,29 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
       justify-content: space-between;
       margin-bottom: 2rem;
     }
+
+    .header-side {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .timer {
+      background: #0b1220;
+      border: 2px solid #60a5fa;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 2rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      min-width: 6rem;
+      padding: 0.55rem 1rem;
+      text-align: center;
+    }
+    .timer--paused { border-color: #fbbf24; color: #fde68a; }
+    .timer--ended { border-color: #f87171; color: #fecaca; }
 
     .brand {
       color: #93c5fd;
@@ -649,6 +691,33 @@ export class DisplayComponent implements OnInit, OnDestroy {
   actions = signal<any[]>([]);
   summary = signal<any>(null);
   expanded = signal<Record<string, boolean>>({});
+  private nowTick = signal(Date.now());
+  private tickHandle: ReturnType<typeof setInterval> | null = null;
+
+  stepIndexLabel() {
+    const steps = [...(this.session()?.steps || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder);
+    const idx = steps.findIndex((s: any) => s.id === this.session()?.currentStepId);
+    if (idx < 0) return '';
+    return `Step ${idx + 1}/${steps.length}`;
+  }
+
+  timerPaused() {
+    return isTimerPaused(this.session());
+  }
+
+  timerEnded() {
+    const rem = remainingSeconds(this.session(), this.nowTick());
+    return rem === 0 && isTimerRunning(this.session());
+  }
+
+  timerLabel() {
+    this.nowTick();
+    const rem = remainingSeconds(this.session(), this.nowTick());
+    if (rem == null) return '';
+    if (this.timerPaused()) return `Paused ${formatCountdown(rem)}`;
+    if (rem === 0) return 'Time’s up';
+    return formatCountdown(rem);
+  }
 
   isOkr() {
     const step = this.session()?.currentStep;
@@ -713,6 +782,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     this.id = this.route.snapshot.paramMap.get('sessionId') || '';
     this.refresh();
     this.realtime.connect(this.id);
+    this.tickHandle = setInterval(() => this.nowTick.set(Date.now()), 250);
     this.sub = this.realtime.events$.subscribe((e) => {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
@@ -733,6 +803,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
+    if (this.tickHandle) clearInterval(this.tickHandle);
   }
 
   showJoinScreen() {

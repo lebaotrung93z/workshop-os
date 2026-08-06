@@ -7,6 +7,12 @@ import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.comp
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
+import {
+  formatCountdown,
+  isTimerPaused,
+  isTimerRunning,
+  remainingSeconds
+} from '../core/timer.util';
 
 @Component({
   selector: 'app-participant-live',
@@ -25,7 +31,17 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
           </div>
           <div class="meta">
             <span class="chip" [attr.data-tone]="statusTone()">{{ statusLabel() }}</span>
-            <span class="meta__step">{{ session()?.currentStep?.title || 'Lobby' }}</span>
+            <span class="meta__step">
+              @if (stepIndexLabel()) {
+                {{ stepIndexLabel() }} ·
+              }
+              {{ session()?.currentStep?.title || 'Lobby' }}
+            </span>
+            @if (timerLabel()) {
+              <span class="meta__timer" [class.is-paused]="timerPaused()" [class.is-ended]="timerEnded()">
+                {{ timerLabel() }}
+              </span>
+            }
           </div>
         </header>
 
@@ -398,6 +414,19 @@ import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
       font-size: 0.86rem;
       font-weight: 600;
     }
+
+    .meta__timer {
+      background: #0f172a;
+      border-radius: var(--wos-radius-pill);
+      color: #fff;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      margin-left: auto;
+      padding: 0.28rem 0.65rem;
+    }
+    .meta__timer.is-paused { background: #92400e; }
+    .meta__timer.is-ended { background: var(--wos-danger); }
 
     .panel {
       background: #f7f9fc;
@@ -849,6 +878,8 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   private boardEntries = signal<any[]>([]); // all entries on OKR input step for objectives/parents
   private voteTallies = signal<any[]>([]);
   private myActionsList = signal<any[]>([]);
+  private nowTick = signal(Date.now());
+  private tickHandle: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit() {
     this.id = this.route.snapshot.paramMap.get('id') || this.api.sessionId();
@@ -856,6 +887,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     if (!this.owner && this.displayName() !== 'You') this.owner = this.displayName();
     this.realtime.connect(this.id);
     this.refresh();
+    this.tickHandle = setInterval(() => this.nowTick.set(Date.now()), 250);
     this.sub = this.realtime.events$.subscribe((e) => {
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
@@ -875,6 +907,32 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
+    if (this.tickHandle) clearInterval(this.tickHandle);
+  }
+
+  stepIndexLabel() {
+    const steps = [...(this.session()?.steps || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder);
+    const idx = steps.findIndex((s: any) => s.id === this.session()?.currentStepId);
+    if (idx < 0) return '';
+    return `Step ${idx + 1}/${steps.length}`;
+  }
+
+  timerPaused() {
+    return isTimerPaused(this.session());
+  }
+
+  timerEnded() {
+    const rem = remainingSeconds(this.session(), this.nowTick());
+    return rem === 0 && isTimerRunning(this.session());
+  }
+
+  timerLabel() {
+    this.nowTick();
+    const rem = remainingSeconds(this.session(), this.nowTick());
+    if (rem == null) return '';
+    if (this.timerPaused()) return `Paused ${formatCountdown(rem)}`;
+    if (rem === 0) return 'Time’s up';
+    return formatCountdown(rem);
   }
 
   isOkr() {
