@@ -63,7 +63,7 @@ Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll 
 
 ### Welcome big screen
 
-On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings (URL or file). Display join/welcome hero uses the image as a full-bleed background with the custom text. Prefer a public image URL. File upload uses Firebase Storage when enabled (`welcome-backgrounds/{sessionId}/`); otherwise small images (&lt;400KB) embed as data URLs. Enable Storage in the Firebase console if you need larger uploads.
+On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings. Prefer a public image URL. Optionally pick a small local image (&lt;400KB) which is stored as a data URL in the session (no Firebase Storage / Blaze plan).
 
 ### UI theme (mockup)
 

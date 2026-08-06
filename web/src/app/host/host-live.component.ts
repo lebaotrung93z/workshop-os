@@ -223,14 +223,14 @@ import {
                     </label>
                     <label>
                       Background image URL
-                      <input [(ngModel)]="draftBackgroundImageUrl" placeholder="https://… or upload below" />
+                      <input [(ngModel)]="draftBackgroundImageUrl" placeholder="https://…" />
                     </label>
                     <label class="file-label">
-                      Upload background image
+                      Or pick a small image (under 400KB)
                       <input type="file" accept="image/*" (change)="onBackgroundFile($event)" />
                     </label>
                     @if (uploadingBg()) {
-                      <p class="hint">Uploading image…</p>
+                      <p class="hint">Reading image…</p>
                     }
                     @if (draftBackgroundImageUrl) {
                       <div class="bg-preview" [style.background-image]="'url(' + draftBackgroundImageUrl + ')'"></div>
@@ -744,36 +744,27 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.message.set('Please choose an image file');
+      return;
+    }
+    if (file.size > 400 * 1024) {
+      this.message.set('Image must be under 400KB, or paste a public image URL instead.');
+      return;
+    }
     this.uploadingBg.set(true);
     this.message.set('');
-    this.api.uploadWelcomeBackground(this.id, file).subscribe({
-      next: (url) => {
-        this.draftBackgroundImageUrl = url;
-        this.uploadingBg.set(false);
-        this.message.set('Background uploaded — click Save step settings to apply.');
-      },
-      error: () => {
-        // Storage may not be enabled on this Firebase project — embed small images instead.
-        if (file.size > 400 * 1024) {
-          this.uploadingBg.set(false);
-          this.message.set(
-            'Upload unavailable (enable Firebase Storage) or use an image under 400KB / paste an image URL.'
-          );
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-          this.draftBackgroundImageUrl = String(reader.result || '');
-          this.uploadingBg.set(false);
-          this.message.set('Background ready — click Save step settings to apply.');
-        };
-        reader.onerror = () => {
-          this.uploadingBg.set(false);
-          this.message.set('Could not read image file');
-        };
-        reader.readAsDataURL(file);
-      }
-    });
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.draftBackgroundImageUrl = String(reader.result || '');
+      this.uploadingBg.set(false);
+      this.message.set('Background ready — click Save step settings to apply.');
+    };
+    reader.onerror = () => {
+      this.uploadingBg.set(false);
+      this.message.set('Could not read image file');
+    };
+    reader.readAsDataURL(file);
   }
 
   private slug(value: string) {
