@@ -1,6 +1,15 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import {
+  CdkDrag,
+  CdkDragDrop,
+  CdkDragHandle,
+  CdkDragPlaceholder,
+  CdkDragPreview,
+  CdkDropList,
+  moveItemInArray
+} from '@angular/cdk/drag-drop';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
 import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.component';
 import { ApiService } from '../core/api.service';
@@ -18,6 +27,7 @@ interface DraftOption {
 }
 
 interface DraftStep {
+  uid: string;
   type: StepType;
   title: string;
   instructions: string;
@@ -36,6 +46,11 @@ interface DraftStep {
   imports: [
     FormsModule,
     RouterLink,
+    CdkDropList,
+    CdkDrag,
+    CdkDragHandle,
+    CdkDragPlaceholder,
+    CdkDragPreview,
     BoschButtonComponent,
     BoschIconComponent,
     HostShellComponent
@@ -43,19 +58,28 @@ interface DraftStep {
   template: `
     <app-host-shell>
       <div class="page">
-        <header class="hero">
-          <div>
-            <p class="eyebrow">{{ customizing() ? 'Edit template' : 'Templates' }}</p>
-            <h1>{{ customizing() ? 'Customize template' : 'Build a custom format' }}</h1>
+        <header class="top">
+          <div class="top__copy">
+            <p class="eyebrow">{{ customizing() ? 'Edit template' : 'Workflow board' }}</p>
+            <h1>{{ customizing() ? 'Customize on the board' : 'Design your workshop flow' }}</h1>
             <p class="lede">
-              @if (customizing()) {
-                Edit any step, then save as your custom template
-              } @else {
-                Name the format, configure the flow, then save or start a session
-              }
+              Drag activities from the palette onto the board — reorder like sticky notes on a Miro board.
             </p>
           </div>
-          <a class="ghost" routerLink="/">Back to templates</a>
+          <div class="top__actions">
+            <a class="ghost" routerLink="/">Back</a>
+            <app-bosch-button
+              variant="secondary"
+              icon="plus"
+              [disabled]="busy()"
+              (click)="saveAsCustom()"
+            >
+              {{ busy() && saveMode() === 'template' ? 'Saving…' : 'Save template' }}
+            </app-bosch-button>
+            <app-bosch-button icon="dashboard" [disabled]="busy()" (click)="createAndStart()">
+              {{ busy() && saveMode() === 'session' ? 'Starting…' : 'Save & start' }}
+            </app-bosch-button>
+          </div>
         </header>
 
         @if (customizing() && sourceName()) {
@@ -64,8 +88,7 @@ interface DraftStep {
           </p>
         }
 
-        <section class="panel">
-          <p class="section-label">Format details</p>
+        <section class="meta card">
           <label>
             Format name
             <input [(ngModel)]="formatName" placeholder="Product discovery workshop" />
@@ -74,163 +97,323 @@ interface DraftStep {
             Purpose
             <input [(ngModel)]="description" placeholder="Why are we running this workshop?" />
           </label>
-          <label class="last">
+          <label>
             Workshop title
             <input [(ngModel)]="workshopTitle" placeholder="Discovery – Q3 planning" />
           </label>
         </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="section-label">Steps</p>
-              <p class="hint">Order matters — participants move through these in sequence</p>
+        <div class="workspace">
+          <aside class="palette card">
+            <p class="section-label">Activities</p>
+            <p class="hint">Drag onto the board, or click to add</p>
+            <div
+              id="palette-list"
+              class="palette__list"
+              cdkDropList
+              [cdkDropListData]="paletteItems"
+              [cdkDropListSortingDisabled]="true"
+              [cdkDropListConnectedTo]="['board-list']"
+              [cdkDropListEnterPredicate]="blockPaletteEnter"
+            >
+              @for (t of paletteItems; track t.value) {
+                <button
+                  type="button"
+                  class="palette-item"
+                  [attr.data-tone]="t.value"
+                  cdkDrag
+                  [cdkDragData]="t.value"
+                  (cdkDragStarted)="onPaletteDragStarted()"
+                  (cdkDragEnded)="onPaletteDragEnded()"
+                  (click)="addStep(t.value)"
+                >
+                  <span class="palette-item__icon" aria-hidden="true">
+                    <app-bosch-icon [name]="typeIcon(t.value)" />
+                  </span>
+                  <span class="palette-item__copy">
+                    <strong>{{ t.label }}</strong>
+                    <small>{{ t.hint }}</small>
+                  </span>
+                  <div class="palette-preview" *cdkDragPreview>
+                    <article class="flow-card flow-card--preview" [attr.data-tone]="t.value">
+                      <div class="flow-card__badge">
+                        <app-bosch-icon [name]="typeIcon(t.value)" />
+                      </div>
+                      <strong>{{ t.label }}</strong>
+                      <p>{{ t.hint }}</p>
+                    </article>
+                  </div>
+                </button>
+              }
             </div>
-            <span class="count">{{ steps().length }} steps</span>
-          </div>
+          </aside>
 
-          <div class="add-row">
-            <label class="inline">
-              Add step
-              <select [(ngModel)]="addType">
-                @for (t of stepTypes; track t.value) {
-                  <option [value]="t.value">{{ t.label }}</option>
-                }
-              </select>
-            </label>
-            <app-bosch-button variant="secondary" icon="plus" (click)="addStep()">Add</app-bosch-button>
-          </div>
+          <section class="board card">
+            <div class="board__head">
+              <div>
+                <p class="section-label">Flow board</p>
+                <p class="hint">Left → right is the live workshop order</p>
+              </div>
+              <span class="count">{{ steps().length }} steps</span>
+            </div>
 
-          @if (steps().length === 0) {
-            <p class="hint">No steps yet. Add a welcome step to start.</p>
-          }
-
-          <div class="steps">
-            @for (step of steps(); track $index; let i = $index) {
-              <article class="step">
-                <header class="step-head">
-                  <div class="step-title">
-                    <span class="step-num">{{ i + 1 }}</span>
-                    <strong>{{ typeLabel(step.type) }}</strong>
-                  </div>
-                  <div class="step-actions">
-                    <button type="button" class="icon-btn" [disabled]="i === 0" (click)="move(i, -1)" aria-label="Move up">
-                      <app-bosch-icon name="chevron-down" class="flip" />
-                    </button>
-                    <button type="button" class="icon-btn" [disabled]="i === steps().length - 1" (click)="move(i, 1)" aria-label="Move down">
-                      <app-bosch-icon name="chevron-down" />
-                    </button>
-                    <button type="button" class="icon-btn danger" (click)="remove(i)" aria-label="Remove step">
-                      <app-bosch-icon name="delete" />
-                    </button>
-                  </div>
-                </header>
-
-                <label>
-                  Title
-                  <input [(ngModel)]="step.title" />
-                </label>
-                <label>
-                  Instructions
-                  <input [(ngModel)]="step.instructions" />
-                </label>
-
-                @if (step.type === 'poll') {
-                  <div class="sub">
-                    <p class="sub-title">Options</p>
-                    @for (opt of step.options; track $index; let oi = $index) {
-                      <div class="row">
-                        <input [(ngModel)]="opt.label" placeholder="Option label" (ngModelChange)="syncOptionId(opt)" />
-                        <button type="button" class="icon-btn danger" (click)="removeOption(step, oi)" aria-label="Remove option">
+            @if (steps().length === 0) {
+              <div
+                class="board__empty"
+                id="board-list"
+                cdkDropList
+                [cdkDropListData]="steps()"
+                [cdkDropListConnectedTo]="['palette-list']"
+                (cdkDropListDropped)="onBoardDrop($event)"
+              >
+                <p>Drop an activity here to start the flow</p>
+              </div>
+            } @else {
+              <div
+                class="board__lane"
+                id="board-list"
+                cdkDropList
+                cdkDropListOrientation="horizontal"
+                [cdkDropListData]="steps()"
+                [cdkDropListConnectedTo]="['palette-list']"
+                (cdkDropListDropped)="onBoardDrop($event)"
+              >
+                @for (step of steps(); track step.uid; let i = $index) {
+                  <div class="lane-item" cdkDrag [cdkDragData]="step">
+                    <div class="drag-placeholder" *cdkDragPlaceholder></div>
+                    @if (i > 0) {
+                      <div class="connector" aria-hidden="true">
+                        <span class="connector__dot"></span>
+                        <span class="connector__line"></span>
+                        <span class="connector__arrow"></span>
+                      </div>
+                    }
+                    <article
+                      class="flow-card"
+                      [attr.data-tone]="step.type"
+                      [class.is-selected]="selectedUid() === step.uid"
+                      (click)="select(step.uid)"
+                    >
+                      <div class="flow-card__shine" aria-hidden="true"></div>
+                      <header class="flow-card__head">
+                        <button type="button" class="grip" cdkDragHandle aria-label="Drag to reorder">
+                          <span></span><span></span><span></span>
+                        </button>
+                        <div class="flow-card__badge" aria-hidden="true">
+                          <app-bosch-icon [name]="typeIcon(step.type)" />
+                        </div>
+                        <div class="flow-card__head-copy">
+                          <span class="flow-card__type">{{ typeLabel(step.type) }}</span>
+                          <span class="flow-card__num">Step {{ i + 1 }}</span>
+                        </div>
+                        <button
+                          type="button"
+                          class="icon-btn danger"
+                          (click)="remove(step.uid); $event.stopPropagation()"
+                          aria-label="Remove step"
+                        >
                           <app-bosch-icon name="delete" />
                         </button>
-                      </div>
-                    }
-                    <app-bosch-button variant="secondary" (click)="addOption(step)">Add option</app-bosch-button>
-                  </div>
-                }
+                      </header>
 
-                @if (step.type === 'input') {
-                  <div class="sub">
-                    <label class="check">
-                      <input type="checkbox" [(ngModel)]="step.anonymous" />
-                      Anonymous sticky notes
-                    </label>
-                    <label class="check">
-                      <input type="checkbox" [(ngModel)]="step.linkedBoard" (ngModelChange)="onLinkedBoardToggle(step)" />
-                      Linked board (Objective → Key Result)
-                    </label>
-                    @if (step.linkedBoard) {
-                      <p class="hint">Host adds Objectives; participants attach Key Results under each one.</p>
-                    }
-                    <p class="sub-title">{{ step.linkedBoard ? 'Board' : 'Columns' }}</p>
-                    @for (g of step.groups; track $index; let gi = $index) {
-                      <div class="row">
-                        <input
-                          [(ngModel)]="g.title"
-                          [placeholder]="step.linkedBoard ? 'Objectives' : 'Column title'"
-                          [disabled]="step.linkedBoard && gi === 0"
-                        />
-                        @if (!step.linkedBoard) {
-                          <button type="button" class="icon-btn danger" (click)="removeGroup(step, gi)" aria-label="Remove column">
-                            <app-bosch-icon name="delete" />
-                          </button>
+                      <strong class="flow-card__title">{{ step.title || typeLabel(step.type) }}</strong>
+                      <p class="flow-card__hint">{{ step.instructions || 'Add facilitator instructions…' }}</p>
+
+                      <div class="flow-card__stage" aria-hidden="true">
+                        @if (step.type === 'welcome') {
+                          <div class="mini mini--welcome">
+                            <div class="mini-qr"></div>
+                            <div class="mini-welcome-copy">
+                              <span class="mini-code">ABC123</span>
+                              <span>Join on phone</span>
+                            </div>
+                          </div>
+                        } @else if (step.type === 'poll') {
+                          <div class="mini mini--poll">
+                            @for (opt of step.options.slice(0, 3); track opt.id) {
+                              <div class="mini-bar">
+                                <span>{{ opt.label || 'Option' }}</span>
+                                <i [style.width.%]="miniPollWidth(opt, step, $index)"></i>
+                              </div>
+                            }
+                          </div>
+                        } @else if (step.type === 'input') {
+                          <div class="mini mini--input" [class.is-okr]="step.linkedBoard">
+                            @if (step.linkedBoard) {
+                              <div class="mini-okr">
+                                <span class="pill root">Theme</span>
+                                <span class="pill obj">Objective</span>
+                                <span class="pill kr">Key Result</span>
+                              </div>
+                            } @else {
+                              @for (g of step.groups.slice(0, 3); track $index) {
+                                <div class="mini-col">
+                                  <em>{{ g.title || 'Column' }}</em>
+                                  <span></span><span></span>
+                                </div>
+                              }
+                            }
+                          </div>
+                        } @else if (step.type === 'voting') {
+                          <div class="mini mini--voting">
+                            <div class="dot-row">
+                              @for (n of voteDots(step); track $index) {
+                                <i [class.on]="n"></i>
+                              }
+                            </div>
+                            <span>{{ step.votesPerParticipant || 3 }} votes / person</span>
+                          </div>
+                        } @else if (step.type === 'form') {
+                          <div class="mini mini--form">
+                            <div class="mini-field"></div>
+                            <div class="mini-field short"></div>
+                            <div class="mini-field"></div>
+                            @if (step.linkActionToKr) {
+                              <span class="mini-tag">Links to KR</span>
+                            }
+                          </div>
                         }
                       </div>
-                    }
-                    @if (!step.linkedBoard) {
-                      <app-bosch-button variant="secondary" (click)="addGroup(step)">Add column</app-bosch-button>
-                    }
+
+                      <footer class="flow-card__meta">
+                        @for (chip of stepChips(step); track chip) {
+                          <span class="chip">{{ chip }}</span>
+                        }
+                      </footer>
+                    </article>
                   </div>
                 }
-
-                @if (step.type === 'voting') {
-                  <label>
-                    Votes per participant
-                    <input type="number" min="1" max="20" [(ngModel)]="step.votesPerParticipant" />
-                  </label>
-                }
-
-                @if (step.type === 'form') {
-                  <label class="check">
-                    <input type="checkbox" [(ngModel)]="step.linkActionToKr" />
-                    Link action to Key Result
-                  </label>
-                  @if (step.linkActionToKr) {
-                    <p class="hint">Participants pick a KR after voting, then define the action.</p>
-                  }
-                }
-              </article>
+              </div>
             }
-          </div>
-        </section>
+          </section>
+
+          <aside class="inspector card">
+            <p class="section-label">Step settings</p>
+            @if (!selected()) {
+              <p class="hint">Select a card on the board to edit title, options, and columns.</p>
+            } @else {
+              <div class="inspector__hero" [attr.data-tone]="selected()!.type">
+                <span class="inspector__emoji">
+                  <app-bosch-icon [name]="typeIcon(selected()!.type)" />
+                </span>
+                <div>
+                  <p class="inspector__type">{{ typeLabel(selected()!.type) }}</p>
+                  <strong>{{ selected()!.title || typeLabel(selected()!.type) }}</strong>
+                </div>
+              </div>
+              <label>
+                Title
+                <input [(ngModel)]="selected()!.title" />
+              </label>
+              <label>
+                Instructions
+                <textarea rows="3" [(ngModel)]="selected()!.instructions"></textarea>
+              </label>
+              <label>
+                Timer (seconds)
+                <input type="number" min="0" max="7200" [(ngModel)]="selected()!.timerSeconds" placeholder="0 = no timer" />
+              </label>
+              <p class="hint">Optional countdown shown on host, display, and phones.</p>
+
+              @if (selected()!.type === 'poll') {
+                <div class="sub">
+                  <p class="sub-title">Options</p>
+                  @for (opt of selected()!.options; track $index; let oi = $index) {
+                    <div class="row">
+                      <input [(ngModel)]="opt.label" placeholder="Option label" (ngModelChange)="syncOptionId(opt)" />
+                      <button type="button" class="icon-btn danger" (click)="removeOption(selected()!, oi)" aria-label="Remove option">
+                        <app-bosch-icon name="delete" />
+                      </button>
+                    </div>
+                  }
+                  <app-bosch-button variant="secondary" (click)="addOption(selected()!)">Add option</app-bosch-button>
+                </div>
+              }
+
+              @if (selected()!.type === 'input') {
+                <div class="sub">
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="selected()!.anonymous" />
+                    Anonymous sticky notes
+                  </label>
+                  <label class="check">
+                    <input type="checkbox" [(ngModel)]="selected()!.linkedBoard" (ngModelChange)="onLinkedBoardToggle(selected()!)" />
+                    Linked board (Objective → Key Result)
+                  </label>
+                  @if (selected()!.linkedBoard) {
+                    <p class="hint">Host adds Objectives; participants attach Key Results under each one.</p>
+                  }
+                  <p class="sub-title">{{ selected()!.linkedBoard ? 'Board' : 'Columns' }}</p>
+                  @for (g of selected()!.groups; track $index; let gi = $index) {
+                    <div class="row">
+                      <input
+                        [(ngModel)]="g.title"
+                        [placeholder]="selected()!.linkedBoard ? 'Objectives' : 'Column title'"
+                        [disabled]="selected()!.linkedBoard && gi === 0"
+                      />
+                      @if (!selected()!.linkedBoard) {
+                        <button type="button" class="icon-btn danger" (click)="removeGroup(selected()!, gi)" aria-label="Remove column">
+                          <app-bosch-icon name="delete" />
+                        </button>
+                      }
+                    </div>
+                  }
+                  @if (!selected()!.linkedBoard) {
+                    <app-bosch-button variant="secondary" (click)="addGroup(selected()!)">Add column</app-bosch-button>
+                  }
+                </div>
+              }
+
+              @if (selected()!.type === 'voting') {
+                <label>
+                  Votes per participant
+                  <input type="number" min="1" max="20" [(ngModel)]="selected()!.votesPerParticipant" />
+                </label>
+              }
+
+              @if (selected()!.type === 'form') {
+                <label class="check">
+                  <input type="checkbox" [(ngModel)]="selected()!.linkActionToKr" />
+                  Link action to Key Result
+                </label>
+                @if (selected()!.linkActionToKr) {
+                  <p class="hint">Participants pick a KR after voting, then define the action.</p>
+                }
+              }
+            }
+          </aside>
+        </div>
 
         @if (error()) {
           <p class="err">{{ error() }}</p>
         }
-
-        <div class="actions">
-          <app-bosch-button
-            variant="secondary"
-            icon="plus"
-            [disabled]="busy()"
-            (click)="saveAsCustom()"
-          >
-            {{ busy() && saveMode() === 'template' ? 'Saving…' : 'Save as custom template' }}
-          </app-bosch-button>
-          <app-bosch-button icon="dashboard" [disabled]="busy()" (click)="createAndStart()">
-            {{ busy() && saveMode() === 'session' ? 'Starting…' : 'Save & start workshop' }}
-          </app-bosch-button>
-        </div>
       </div>
     </app-host-shell>
   `,
   styles: `
-    .page { display: grid; gap: 1.25rem; max-width: 880px; }
-    .hero { align-items: end; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
-    .eyebrow { color: var(--wos-primary); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; margin: 0 0 0.35rem; text-transform: uppercase; }
-    h1 { font-size: 1.85rem; margin: 0; }
-    .lede { color: var(--wos-text-muted); margin: 0.35rem 0 0; }
+    .page {
+      display: grid;
+      gap: 1rem;
+      max-width: 1280px;
+    }
+    .top {
+      align-items: end;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: space-between;
+    }
+    .eyebrow {
+      color: var(--wos-primary);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin: 0 0 0.35rem;
+      text-transform: uppercase;
+    }
+    h1 { font-size: 1.75rem; margin: 0; }
+    .lede { color: var(--wos-text-muted); margin: 0.35rem 0 0; max-width: 42rem; }
+    .top__actions { align-items: center; display: flex; flex-wrap: wrap; gap: 0.55rem; }
     .ghost {
       background: var(--wos-surface);
       border: 1px solid var(--wos-border);
@@ -244,31 +427,128 @@ interface DraftStep {
       background: var(--wos-primary-soft);
       border: 1px solid color-mix(in srgb, var(--wos-primary) 28%, #fff);
       border-radius: var(--wos-radius);
-      color: var(--wos-text);
       margin: 0;
       padding: 0.75rem 1rem;
     }
-    .panel {
+    .card {
       background: var(--wos-surface);
       border: 1px solid var(--wos-border);
       border-radius: var(--wos-radius-lg);
       box-shadow: var(--wos-shadow);
-      padding: 1.25rem;
+      padding: 1rem;
     }
-    .panel-head {
-      align-items: start;
-      display: flex;
-      gap: 1rem;
-      justify-content: space-between;
-      margin-bottom: 1rem;
+    .meta {
+      display: grid;
+      gap: 0.85rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    @media (max-width: 900px) {
+      .meta { grid-template-columns: 1fr; }
     }
     .section-label {
       color: var(--wos-text-secondary);
       font-size: 0.85rem;
       font-weight: 700;
-      margin: 0 0 0.65rem;
+      margin: 0 0 0.35rem;
     }
-    .panel-head .section-label { margin-bottom: 0.25rem; }
+    .hint { color: var(--wos-text-muted); font-size: 0.86rem; margin: 0 0 0.75rem; }
+    label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
+    label.check {
+      align-items: center;
+      display: flex;
+      font-weight: 600;
+      gap: 0.5rem;
+      margin-bottom: 0.55rem;
+    }
+    input, select {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.65rem 0.75rem;
+    }
+    input:disabled { background: #f1f5f9; color: var(--wos-text-muted); }
+
+    .workspace {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: 240px minmax(0, 1fr) 320px;
+      min-height: 580px;
+    }
+    @media (max-width: 1100px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    .palette__list { display: grid; gap: 0.55rem; }
+    .palette-item {
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: 14px;
+      cursor: grab;
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: 2.4rem 1fr;
+      overflow: hidden;
+      padding: 0.45rem 0.55rem 0.45rem 0.45rem;
+      text-align: left;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    }
+    .palette-item:hover {
+      border-color: #93c5fd;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+      transform: translateY(-1px);
+    }
+    .palette-item:active { cursor: grabbing; }
+    .palette-item__icon {
+      align-items: center;
+      background: #f1f5f9;
+      border-radius: 10px;
+      color: #0f172a;
+      display: inline-flex;
+      height: 2.4rem;
+      justify-content: center;
+      width: 2.4rem;
+    }
+    .palette-item__icon ::ng-deep .bosch-icon,
+    .palette-item__icon ::ng-deep .bosch-icon__svg {
+      height: 1.15rem;
+      width: 1.15rem;
+    }
+    .palette-item[data-tone='welcome'] .palette-item__icon { background: #e0f2fe; color: #0369a1; }
+    .palette-item[data-tone='poll'] .palette-item__icon { background: #e0e7ff; color: #4338ca; }
+    .palette-item[data-tone='input'] .palette-item__icon { background: #d1fae5; color: #047857; }
+    .palette-item[data-tone='voting'] .palette-item__icon { background: #fef3c7; color: #b45309; }
+    .palette-item[data-tone='form'] .palette-item__icon { background: #ffe4e6; color: #be123c; }
+    .flow-card[data-tone='welcome'] .flow-card__badge { color: #0369a1; }
+    .flow-card[data-tone='poll'] .flow-card__badge { color: #4338ca; }
+    .flow-card[data-tone='input'] .flow-card__badge { color: #047857; }
+    .flow-card[data-tone='voting'] .flow-card__badge { color: #b45309; }
+    .flow-card[data-tone='form'] .flow-card__badge { color: #be123c; }
+    .inspector__hero[data-tone='welcome'] .inspector__emoji { color: #0369a1; }
+    .inspector__hero[data-tone='poll'] .inspector__emoji { color: #4338ca; }
+    .inspector__hero[data-tone='input'] .inspector__emoji { color: #047857; }
+    .inspector__hero[data-tone='voting'] .inspector__emoji { color: #b45309; }
+    .inspector__hero[data-tone='form'] .inspector__emoji { color: #be123c; }
+    .palette-item__copy { display: grid; gap: 0.1rem; }
+    .palette-item__copy strong { font-size: 0.9rem; }
+    .palette-item__copy small { color: var(--wos-text-muted); font-size: 0.75rem; }
+    .palette-preview { padding: 0.25rem; }
+
+    .board {
+      background:
+        radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.35) 1px, transparent 0) 0 0 / 18px 18px,
+        linear-gradient(180deg, #eef2ff 0%, #f8fafc 48%, #f1f5f9 100%);
+      display: flex;
+      flex-direction: column;
+      min-height: 580px;
+      overflow: hidden;
+    }
+    .board__head {
+      align-items: start;
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
     .count {
       background: #fff;
       border: 1px solid var(--wos-border);
@@ -277,90 +557,434 @@ interface DraftStep {
       font-size: 0.75rem;
       font-weight: 700;
       padding: 0.2rem 0.55rem;
-      white-space: nowrap;
     }
-    label { display: grid; font-weight: 600; gap: 0.4rem; margin-bottom: 1.1rem; }
-    label.last { margin-bottom: 0; }
-    label.inline { margin: 0; }
-    label.check {
+    .board__empty {
+      align-items: center;
+      border: 2px dashed #cbd5e1;
+      border-radius: 16px;
+      color: var(--wos-text-muted);
+      display: grid;
+      flex: 1;
+      font-weight: 600;
+      justify-items: center;
+      min-height: 280px;
+      padding: 2rem;
+    }
+    .board__lane {
+      align-items: stretch;
+      display: flex;
+      flex: 1;
+      gap: 0;
+      overflow-x: auto;
+      padding: 0.75rem 0.35rem 1.25rem;
+    }
+    .lane-item {
       align-items: center;
       display: flex;
-      font-weight: 600;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
+      flex: 0 0 auto;
+      position: relative;
     }
-    input, select {
+    .connector {
+      align-items: center;
+      display: flex;
+      flex: 0 0 42px;
+      gap: 0;
+      justify-content: center;
+      margin: 0 0.1rem;
+      position: relative;
+    }
+    .connector__dot {
+      background: #64748b;
+      border-radius: 50%;
+      height: 7px;
+      width: 7px;
+    }
+    .connector__line {
+      background: linear-gradient(90deg, #94a3b8, #64748b);
+      flex: 1;
+      height: 3px;
+    }
+    .connector__arrow {
+      border-bottom: 6px solid transparent;
+      border-left: 9px solid #64748b;
+      border-top: 6px solid transparent;
+      height: 0;
+      width: 0;
+    }
+
+    .flow-card {
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 18px;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.7) inset,
+        0 14px 34px rgba(15, 23, 42, 0.12);
+      cursor: pointer;
+      display: grid;
+      gap: 0.55rem;
+      min-height: 286px;
+      overflow: hidden;
+      padding: 0.85rem;
+      position: relative;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      width: 248px;
+    }
+    .flow-card:hover {
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.8) inset,
+        0 18px 40px rgba(15, 23, 42, 0.16);
+      transform: translateY(-2px);
+    }
+    .flow-card--preview {
+      min-height: auto;
+      width: 220px;
+    }
+    .flow-card__shine {
+      background: linear-gradient(120deg, rgba(255,255,255,0.55), transparent 42%);
+      height: 72px;
+      left: 0;
+      pointer-events: none;
+      position: absolute;
+      right: 0;
+      top: 0;
+    }
+    .flow-card[data-tone='welcome'] {
+      background: linear-gradient(165deg, #dbeafe 0%, #eff6ff 34%, #ffffff 70%);
+      border-color: #93c5fd;
+    }
+    .flow-card[data-tone='poll'] {
+      background: linear-gradient(165deg, #ddd6fe 0%, #eef2ff 34%, #ffffff 70%);
+      border-color: #a5b4fc;
+    }
+    .flow-card[data-tone='input'] {
+      background: linear-gradient(165deg, #bbf7d0 0%, #ecfdf5 34%, #ffffff 70%);
+      border-color: #6ee7b7;
+    }
+    .flow-card[data-tone='voting'] {
+      background: linear-gradient(165deg, #fde68a 0%, #fffbeb 34%, #ffffff 70%);
+      border-color: #fcd34d;
+    }
+    .flow-card[data-tone='form'] {
+      background: linear-gradient(165deg, #fecdd3 0%, #fff1f2 34%, #ffffff 70%);
+      border-color: #fda4af;
+    }
+    .flow-card.is-selected {
+      border-color: var(--wos-primary);
+      box-shadow:
+        0 0 0 3px color-mix(in srgb, var(--wos-primary) 28%, transparent),
+        0 18px 40px rgba(15, 23, 42, 0.16);
+    }
+    .flow-card__head {
+      align-items: center;
+      display: flex;
+      gap: 0.45rem;
+      position: relative;
+      z-index: 1;
+    }
+    .grip {
+      background: rgba(255, 255, 255, 0.7);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 8px;
+      cursor: grab;
+      display: grid;
+      gap: 2px;
+      padding: 0.35rem 0.3rem;
+    }
+    .grip span {
+      background: #94a3b8;
+      border-radius: 99px;
+      display: block;
+      height: 2px;
+      width: 10px;
+    }
+    .flow-card__badge {
+      align-items: center;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 12px;
+      color: #0f172a;
+      display: inline-flex;
+      height: 2.1rem;
+      justify-content: center;
+      width: 2.1rem;
+    }
+    .flow-card__badge ::ng-deep .bosch-icon,
+    .flow-card__badge ::ng-deep .bosch-icon__svg {
+      height: 1.05rem;
+      width: 1.05rem;
+    }
+    .flow-card__head-copy {
+      display: grid;
+      flex: 1;
+      gap: 0.05rem;
+      min-width: 0;
+    }
+    .flow-card__type {
+      color: var(--wos-text-secondary);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .flow-card__num {
+      color: var(--wos-text-muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .flow-card__title {
+      font-size: 1.05rem;
+      line-height: 1.25;
+      position: relative;
+      z-index: 1;
+    }
+    .flow-card__hint {
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      color: var(--wos-text-muted);
+      display: -webkit-box;
+      font-size: 0.8rem;
+      line-height: 1.35;
+      margin: 0;
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    .flow-card__stage {
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid rgba(15, 23, 42, 0.06);
+      border-radius: 14px;
+      min-height: 92px;
+      padding: 0.55rem;
+      position: relative;
+      z-index: 1;
+    }
+    .mini { display: grid; gap: 0.4rem; height: 100%; }
+    .mini--welcome {
+      align-items: center;
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: 48px 1fr;
+    }
+    .mini-qr {
+      aspect-ratio: 1;
+      background:
+        linear-gradient(#0f172a 0 0) 0 0 / 35% 35%,
+        linear-gradient(#0f172a 0 0) 100% 0 / 35% 35%,
+        linear-gradient(#0f172a 0 0) 0 100% / 35% 35%,
+        linear-gradient(#0f172a 0 0) 100% 100% / 35% 35%,
+        repeating-linear-gradient(90deg, #0f172a 0 2px, transparent 2px 5px),
+        #fff;
+      background-repeat: no-repeat;
+      border: 2px solid #0f172a;
+      border-radius: 6px;
+    }
+    .mini-welcome-copy { display: grid; gap: 0.15rem; font-size: 0.72rem; color: #64748b; }
+    .mini-code {
+      color: #2563eb;
+      font-size: 0.95rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+    }
+    .mini-bar {
+      align-items: center;
+      display: grid;
+      gap: 0.35rem;
+      grid-template-columns: 52px 1fr;
+    }
+    .mini-bar span {
+      color: #475569;
+      font-size: 0.68rem;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mini-bar i {
+      background: linear-gradient(90deg, #6366f1, #93c5fd);
+      border-radius: 999px;
+      display: block;
+      height: 8px;
+    }
+    .mini--input {
+      display: grid;
+      gap: 0.35rem;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .mini-col {
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      display: grid;
+      gap: 0.25rem;
+      padding: 0.3rem;
+    }
+    .mini-col em {
+      color: #64748b;
+      font-size: 0.62rem;
+      font-style: normal;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mini-col span {
+      background: #fef08a;
+      border-radius: 4px;
+      display: block;
+      height: 14px;
+      opacity: 0.9;
+    }
+    .mini-col span:last-child {
+      background: #bbf7d0;
+      width: 78%;
+    }
+    .mini-okr {
+      align-items: center;
+      display: grid;
+      gap: 0.3rem;
+      justify-items: center;
+    }
+    .mini-okr .pill {
+      border-radius: 999px;
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+    }
+    .mini-okr .root { background: #2563eb; }
+    .mini-okr .obj { background: #7c3aed; }
+    .mini-okr .kr { background: #059669; }
+    .mini--voting {
+      align-content: center;
+      display: grid;
+      gap: 0.4rem;
+      justify-items: center;
+    }
+    .dot-row { display: flex; gap: 0.3rem; }
+    .dot-row i {
+      background: #e2e8f0;
+      border-radius: 50%;
+      display: block;
+      height: 12px;
+      width: 12px;
+    }
+    .dot-row i.on { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2); }
+    .mini--voting > span { color: #92400e; font-size: 0.72rem; font-weight: 700; }
+    .mini--form { display: grid; gap: 0.35rem; }
+    .mini-field {
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      height: 12px;
+    }
+    .mini-field.short { width: 62%; }
+    .mini-tag {
+      background: #ffe4e6;
+      border-radius: 999px;
+      color: #be123c;
+      font-size: 0.65rem;
+      font-weight: 700;
+      justify-self: start;
+      padding: 0.15rem 0.45rem;
+    }
+
+    .flow-card__meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: auto;
+      position: relative;
+      z-index: 1;
+    }
+    .chip {
+      background: rgba(15, 23, 42, 0.06);
+      border-radius: 999px;
+      color: #334155;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.18rem 0.45rem;
+    }
+    .drag-placeholder {
+      background: color-mix(in srgb, var(--wos-primary) 12%, #fff);
+      border: 2px dashed var(--wos-primary);
+      border-radius: 18px;
+      min-height: 286px;
+      width: 248px;
+    }
+    .cdk-drag-preview {
+      box-sizing: border-box;
+      box-shadow: 0 22px 48px rgba(15, 23, 42, 0.22);
+    }
+    .cdk-drag-animating { transition: transform 180ms ease; }
+    .board__lane.cdk-drop-list-dragging .lane-item:not(.cdk-drag-placeholder) {
+      transition: transform 180ms ease;
+    }
+
+    .inspector { align-content: start; }
+    .inspector__hero {
+      align-items: center;
+      border-radius: 14px;
+      display: flex;
+      gap: 0.65rem;
+      margin-bottom: 0.9rem;
+      padding: 0.7rem;
+    }
+    .inspector__hero[data-tone='welcome'] { background: #e0f2fe; }
+    .inspector__hero[data-tone='poll'] { background: #e0e7ff; }
+    .inspector__hero[data-tone='input'] { background: #d1fae5; }
+    .inspector__hero[data-tone='voting'] { background: #fef3c7; }
+    .inspector__hero[data-tone='form'] { background: #ffe4e6; }
+    .inspector__emoji {
+      align-items: center;
+      background: rgba(255,255,255,0.8);
+      border-radius: 12px;
+      color: #0f172a;
+      display: inline-flex;
+      height: 2.4rem;
+      justify-content: center;
+      width: 2.4rem;
+    }
+    .inspector__emoji ::ng-deep .bosch-icon,
+    .inspector__emoji ::ng-deep .bosch-icon__svg {
+      height: 1.2rem;
+      width: 1.2rem;
+    }
+    .inspector__type {
+      color: var(--wos-primary);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      margin: 0;
+      text-transform: uppercase;
+    }
+    .inspector textarea {
       border: 1px solid var(--wos-border-strong);
       border-radius: var(--wos-radius);
       font: inherit;
-      padding: 0.75rem 0.85rem;
+      padding: 0.65rem 0.75rem;
+      resize: vertical;
     }
-    input:disabled { background: #f1f5f9; color: var(--wos-text-muted); }
-    .add-row {
-      align-items: end;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .hint { color: var(--wos-text-muted); margin: 0 0 0.75rem; }
-    .steps { display: grid; gap: 0.85rem; }
-    .step {
-      background: #f8fafc;
-      border: 1px solid var(--wos-border);
-      border-radius: var(--wos-radius-lg);
-      padding: 1rem;
-    }
-    .step-head {
-      align-items: center;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 0.85rem;
-    }
-    .step-title { align-items: center; display: flex; gap: 0.65rem; }
-    .step-num {
-      align-items: center;
-      background: var(--wos-primary-soft);
-      border-radius: 8px;
-      color: var(--wos-primary);
-      display: inline-flex;
-      font-size: 0.8rem;
-      font-weight: 800;
-      height: 1.75rem;
-      justify-content: center;
-      width: 1.75rem;
-    }
-    .step-actions { display: flex; gap: 0.35rem; }
-    .icon-btn {
-      align-items: center;
-      background: #fff;
-      border: 1px solid var(--wos-border);
-      border-radius: var(--wos-radius);
-      color: var(--wos-text-secondary);
-      cursor: pointer;
-      display: inline-flex;
-      justify-content: center;
-      padding: 0.4rem;
-    }
-    .icon-btn:hover:not(:disabled) { border-color: #9db7ef; color: var(--wos-primary); }
-    .icon-btn:disabled { cursor: not-allowed; opacity: 0.4; }
-    .icon-btn.danger { color: var(--wos-danger); }
-    .icon-btn.danger:hover:not(:disabled) { border-color: var(--wos-danger); }
-    .flip { display: inline-flex; transform: rotate(180deg); }
-    .sub { display: grid; gap: 0.5rem; margin-top: 0.35rem; }
-    .sub-title { font-weight: 700; margin: 0.25rem 0 0; }
+    .sub { display: grid; gap: 0.5rem; margin-top: 0.2rem; }
+    .sub-title { font-weight: 700; margin: 0.15rem 0 0; }
     .row {
       align-items: center;
       display: grid;
       gap: 0.5rem;
       grid-template-columns: 1fr auto;
     }
-    .actions {
+    .icon-btn {
       align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text-secondary);
+      cursor: pointer;
+      display: inline-flex;
+      justify-content: center;
+      padding: 0.3rem;
     }
+    .icon-btn.danger { color: var(--wos-danger); }
     .err { color: var(--wos-danger); font-weight: 600; margin: 0; }
   `
 })
@@ -369,33 +993,41 @@ export class FormatBuilderComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
 
-  stepTypes = [
-    { value: 'welcome' as StepType, label: 'Welcome' },
-    { value: 'poll' as StepType, label: 'Poll' },
-    { value: 'input' as StepType, label: 'Input (sticky wall)' },
-    { value: 'voting' as StepType, label: 'Voting' },
-    { value: 'form' as StepType, label: 'Action form' }
+  paletteItems = [
+    { value: 'welcome' as StepType, label: 'Welcome', hint: 'Kickoff + join code' },
+    { value: 'poll' as StepType, label: 'Poll', hint: 'Quick pulse check' },
+    { value: 'input' as StepType, label: 'Sticky wall', hint: 'Ideas / OKR board' },
+    { value: 'voting' as StepType, label: 'Voting', hint: 'Prioritize items' },
+    { value: 'form' as StepType, label: 'Action form', hint: 'Owners & due dates' }
   ];
+
+  stepTypes = this.paletteItems;
 
   formatName = '';
   description = '';
   workshopTitle = '';
-  addType: StepType = 'welcome';
   steps = signal<DraftStep[]>([]);
+  selectedUid = signal<string | null>(null);
   busy = signal(false);
   error = signal('');
   customizing = signal(false);
   sourceName = signal('');
   saveMode = signal<'template' | 'session' | null>(null);
+  private paletteDragging = false;
+
+  /** Palette is source-only — never accept drops back onto it. */
+  blockPaletteEnter = () => false;
 
   constructor() {
-    this.steps.set([
+    const initial = [
       this.blankStep('welcome'),
       this.blankStep('poll'),
       this.blankStep('input'),
       this.blankStep('voting'),
       this.blankStep('form')
-    ]);
+    ];
+    this.steps.set(initial);
+    this.selectedUid.set(initial[0]?.uid || null);
   }
 
   ngOnInit() {
@@ -412,7 +1044,9 @@ export class FormatBuilderComponent implements OnInit {
         const ordered = [...(tpl.steps || [])].sort(
           (a: any, b: any) => (a.stepOrder || 0) - (b.stepOrder || 0)
         );
-        this.steps.set(ordered.map((s: any) => this.fromTemplateStep(s)));
+        const mapped = ordered.map((s: any) => this.fromTemplateStep(s));
+        this.steps.set(mapped);
+        this.selectedUid.set(mapped[0]?.uid || null);
         this.busy.set(false);
       },
       error: (e) => {
@@ -422,27 +1056,109 @@ export class FormatBuilderComponent implements OnInit {
     });
   }
 
+  selected() {
+    const uid = this.selectedUid();
+    return this.steps().find((s) => s.uid === uid) || null;
+  }
+
+  select(uid: string) {
+    this.selectedUid.set(uid);
+  }
+
   typeLabel(type: StepType) {
-    return this.stepTypes.find((t) => t.value === type)?.label || type;
+    return this.paletteItems.find((t) => t.value === type)?.label || type;
   }
 
-  addStep() {
-    this.steps.update((list) => [...list, this.blankStep(this.addType)]);
+  typeIcon(type: StepType) {
+    switch (type) {
+      case 'welcome':
+        return 'welcome';
+      case 'poll':
+        return 'poll';
+      case 'input':
+        return 'input';
+      case 'voting':
+        return 'voting';
+      case 'form':
+        return 'form';
+      default:
+        return 'settings';
+    }
   }
 
-  remove(index: number) {
-    this.steps.update((list) => list.filter((_, i) => i !== index));
+  stepChips(step: DraftStep): string[] {
+    const chips: string[] = [];
+    if (step.timerSeconds && step.timerSeconds > 0) {
+      const m = Math.floor(step.timerSeconds / 60);
+      const s = step.timerSeconds % 60;
+      chips.push(m > 0 ? `${m}m${s ? ` ${s}s` : ''} timer` : `${s}s timer`);
+    }
+    if (step.type === 'poll') {
+      chips.push(`${step.options.filter((o) => o.label.trim()).length || 0} options`);
+    } else if (step.type === 'input') {
+      chips.push(step.linkedBoard ? 'OKR board' : `${step.groups.length} columns`);
+      if (step.anonymous) chips.push('Anonymous');
+    } else if (step.type === 'voting') {
+      chips.push(`${step.votesPerParticipant || 3} votes`);
+    } else if (step.type === 'form') {
+      chips.push(step.linkActionToKr ? 'KR-linked' : 'Actions');
+    } else if (step.type === 'welcome') {
+      chips.push('Lobby / QR');
+    }
+    return chips;
   }
 
-  move(index: number, delta: number) {
-    const next = index + delta;
-    this.steps.update((list) => {
-      if (next < 0 || next >= list.length) return list;
-      const copy = [...list];
-      const [item] = copy.splice(index, 1);
-      copy.splice(next, 0, item);
-      return copy;
-    });
+  miniPollWidth(opt: DraftOption, step: DraftStep, index: number) {
+    const weights = [88, 62, 40, 28];
+    return weights[index] || 35;
+  }
+
+  voteDots(step: DraftStep) {
+    const n = Math.min(8, Math.max(1, Number(step.votesPerParticipant) || 3));
+    return Array.from({ length: 5 }, (_, i) => i < n);
+  }
+
+  addStep(type: StepType) {
+    // Ignore the click that follows a successful palette drag.
+    if (this.paletteDragging) return;
+    const step = this.blankStep(type);
+    this.steps.update((list) => [...list, step]);
+    this.selectedUid.set(step.uid);
+  }
+
+  onPaletteDragStarted() {
+    this.paletteDragging = true;
+  }
+
+  onPaletteDragEnded() {
+    // Keep the flag through the trailing click event.
+    setTimeout(() => {
+      this.paletteDragging = false;
+    }, 0);
+  }
+
+  remove(uid: string) {
+    this.steps.update((list) => list.filter((s) => s.uid !== uid));
+    if (this.selectedUid() === uid) {
+      this.selectedUid.set(this.steps()[0]?.uid || null);
+    }
+  }
+
+  onBoardDrop(event: CdkDragDrop<DraftStep[]>) {
+    if (event.previousContainer === event.container) {
+      const list = [...this.steps()];
+      moveItemInArray(list, event.previousIndex, event.currentIndex);
+      this.steps.set(list);
+      return;
+    }
+    const type = event.item.data as StepType;
+    if (!type || typeof type !== 'string') return;
+    const step = this.blankStep(type);
+    const list = [...this.steps()];
+    const index = Math.min(Math.max(event.currentIndex, 0), list.length);
+    list.splice(index, 0, step);
+    this.steps.set(list);
+    this.selectedUid.set(step.uid);
   }
 
   addOption(step: DraftStep) {
@@ -455,6 +1171,7 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   syncOptionId(opt: DraftOption) {
+    if (opt.id?.trim()) return;
     const slug = opt.label
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -623,6 +1340,7 @@ export class FormatBuilderComponent implements OnInit {
 
   private blankStep(type: StepType): DraftStep {
     const step: DraftStep = {
+      uid: this.uid(),
       type,
       title: this.typeLabel(type),
       instructions: '',
@@ -661,11 +1379,17 @@ export class FormatBuilderComponent implements OnInit {
     return step;
   }
 
+  private uid() {
+    return `d-${Math.random().toString(36).slice(2, 10)}`;
+  }
+
   private slug(value: string) {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|$)/g, '')
-      .slice(0, 24) || 'opt';
+    return (
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|$)/g, '')
+        .slice(0, 24) || 'opt'
+    );
   }
 }

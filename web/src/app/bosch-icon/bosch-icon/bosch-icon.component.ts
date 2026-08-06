@@ -77,10 +77,18 @@ export class BoschIconComponent {
     'chevron-left': 'arrow-left',
     'chevron-right': 'arrow-right',
     'chevron-down': 'down',
-    dashboard: 'desktop-dashboard'
+    dashboard: 'desktop-dashboard',
+    welcome: 'qr-code',
+    poll: 'poll',
+    input: 'sticky-note',
+    voting: 'favorites',
+    form: 'checklist',
+    'qr-code': 'qr-code',
+    'sticky-note': 'sticky-note',
+    checklist: 'checklist'
   };
 
-  private static readonly starIconNames = new Set(['star']);
+  private static readonly starIconNames = new Set(['star', 'voting']);
   private static readonly cache = new Map<string, SafeHtml>();
 
   protected readonly iconHtml = signal<SafeHtml | null>(null);

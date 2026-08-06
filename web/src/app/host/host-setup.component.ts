@@ -18,7 +18,7 @@ import { HostShellComponent } from './host-shell.component';
             <h1>Create a hybrid session</h1>
             <p class="lede">Prepare content first, or go live now · Host laptop · Participant mobile · Big screen</p>
           </div>
-          <a class="ghost" routerLink="/host/format">Build custom format</a>
+          <a class="ghost" routerLink="/host/format">Design on board</a>
         </header>
 
         @if (savedSessions().length) {
