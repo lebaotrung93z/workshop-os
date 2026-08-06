@@ -9,13 +9,13 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
   template: `
     <div class="shell">
       <aside class="sidebar">
-        <div class="brand">
+        <a class="brand" routerLink="/" title="Workshop OS home">
           <span class="brand__mark">W</span>
           <div class="brand__copy">
             <strong>Workshop OS</strong>
             <small>Host console</small>
           </div>
-        </div>
+        </a>
         <nav>
           <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" title="Dashboard">
             <app-bosch-icon name="dashboard" />
@@ -78,9 +78,19 @@ import { BoschIconComponent } from '../bosch-icon/bosch-icon/bosch-icon.componen
 
     .brand {
       align-items: center;
+      color: inherit;
       display: flex;
       gap: 0.75rem;
       padding: 0.35rem 0.55rem 0.85rem;
+      text-decoration: none;
+    }
+
+    .brand:hover .brand__copy strong {
+      color: #fff;
+    }
+
+    .brand:hover .brand__mark {
+      filter: brightness(1.08);
     }
 
     .brand__mark {
