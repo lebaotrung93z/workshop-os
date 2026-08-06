@@ -11,7 +11,8 @@ export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
     title: 'Group participants activity',
     items: [
       'New breakout step: host divides joined participants into teams randomly or manually.',
-      'Participants and big screen show group membership in real time.',
+      'Host can assign a discussion topic to each group (settings or live board).',
+      'Participants and big screen show group membership and topics in real time.',
       'Add from Templates board palette or mid-session via Add step.'
     ]
   },

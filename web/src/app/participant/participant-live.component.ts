@@ -79,6 +79,12 @@ import {
               <div class="breakout-card">
                 <p class="breakout-label">You are in</p>
                 <h3>{{ myBreakoutGroup()?.title }}</h3>
+                @if (myBreakoutGroup()?.topic) {
+                  <p class="breakout-topic">
+                    <span>Topic</span>
+                    {{ myBreakoutGroup()?.topic }}
+                  </p>
+                }
                 <p class="section-label">Teammates</p>
                 <ul class="teammates">
                   @for (p of myBreakoutTeammates(); track p.id) {
@@ -878,6 +884,24 @@ import {
       color: var(--wos-primary);
       font-size: 1.35rem;
       margin: 0;
+    }
+    .breakout-topic {
+      background: var(--wos-primary-soft);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text);
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin: 0;
+      padding: 0.65rem 0.75rem;
+    }
+    .breakout-topic span {
+      color: var(--wos-primary);
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      margin-bottom: 0.2rem;
+      text-transform: uppercase;
     }
     .section-label {
       color: var(--wos-text-secondary);

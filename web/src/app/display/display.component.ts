@@ -262,6 +262,9 @@ import { cssBackgroundImage } from '../core/image-data-url';
                   <strong>{{ g.title }}</strong>
                   <span>{{ breakoutMembers(g.id).length }}</span>
                 </header>
+                @if (g.topic) {
+                  <p class="breakout-topic">{{ g.topic }}</p>
+                }
                 <div class="breakout-people">
                   @if (breakoutMembers(g.id).length) {
                     <app-bosch-avatar-stack [people]="breakoutMembers(g.id)" [max]="10" size="md" />
@@ -758,6 +761,13 @@ import { cssBackgroundImage } from '../core/image-data-url';
     .breakout-card[data-tone='0'] header { background: rgba(15, 157, 88, 0.2); color: #86efac; }
     .breakout-card[data-tone='1'] header { background: rgba(217, 48, 37, 0.18); color: #fca5a5; }
     .breakout-card[data-tone='2'] header { background: rgba(26, 115, 232, 0.2); color: #93c5fd; }
+    .breakout-topic {
+      color: #e2e8f0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin: 0;
+      padding: 0.75rem 1rem 0;
+    }
     .breakout-people { display: grid; gap: 0.75rem; padding: 1rem; }
     .breakout-people ul {
       color: var(--wos-screen-muted);

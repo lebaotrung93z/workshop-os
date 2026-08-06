@@ -207,13 +207,13 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
           </div>
         </div>
 
-        @if (people().length === 0) {
-          <p class="empty">Waiting for participants to join…</p>
-        } @else {
-          <div class="breakout-board">
-            <div class="breakout-col breakout-col--wait">
-              <header>Unassigned <span>{{ unassigned().length }}</span></header>
-              <div class="breakout-col__body">
+        <div class="breakout-board">
+          <div class="breakout-col breakout-col--wait">
+            <header>Unassigned <span>{{ unassigned().length }}</span></header>
+            <div class="breakout-col__body">
+              @if (people().length === 0) {
+                <p class="empty">Waiting for participants to join…</p>
+              } @else {
                 @for (p of unassigned(); track p.id) {
                   <button
                     type="button"
@@ -227,42 +227,52 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
                 } @empty {
                   <p class="empty">Everyone is assigned</p>
                 }
+              }
+            </div>
+          </div>
+
+          @for (g of breakoutGroups(); track g.id; let gi = $index) {
+            <div class="breakout-col" [attr.data-tone]="gi % 3">
+              <header>
+                {{ g.title }}
+                <span>{{ membersOf(g.id).length }}</span>
+              </header>
+              <div class="breakout-col__body">
+                <label class="topic-field">
+                  Topic
+                  <input
+                    [ngModel]="topicDraft(g.id)"
+                    (ngModelChange)="setTopicDraft(g.id, $event)"
+                    (blur)="saveTopics()"
+                    (keyup.enter)="$any($event.target).blur()"
+                    placeholder="Assign a topic…"
+                  />
+                </label>
+                @if (pickingId()) {
+                  <button type="button" class="drop-here" (click)="assignPicked(g.id)">
+                    Move here
+                  </button>
+                }
+                @for (p of membersOf(g.id); track p.id) {
+                  <button
+                    type="button"
+                    class="person"
+                    [class.on]="pickingId() === p.id"
+                    (click)="togglePick(p.id)"
+                  >
+                    <app-bosch-avatar [name]="p.displayName" size="sm" />
+                    <span>{{ p.displayName }}</span>
+                  </button>
+                } @empty {
+                  @if (!pickingId() && people().length) {
+                    <p class="empty">Empty — pick someone, then Move here</p>
+                  }
+                }
               </div>
             </div>
-
-            @for (g of breakoutGroups(); track g.id; let gi = $index) {
-              <div class="breakout-col" [attr.data-tone]="gi % 3">
-                <header>
-                  {{ g.title }}
-                  <span>{{ membersOf(g.id).length }}</span>
-                </header>
-                <div class="breakout-col__body">
-                  @if (pickingId()) {
-                    <button type="button" class="drop-here" (click)="assignPicked(g.id)">
-                      Move here
-                    </button>
-                  }
-                  @for (p of membersOf(g.id); track p.id) {
-                    <button
-                      type="button"
-                      class="person"
-                      [class.on]="pickingId() === p.id"
-                      (click)="togglePick(p.id)"
-                    >
-                      <app-bosch-avatar [name]="p.displayName" size="sm" />
-                      <span>{{ p.displayName }}</span>
-                    </button>
-                  } @empty {
-                    @if (!pickingId()) {
-                      <p class="empty">Empty — pick someone, then Move here</p>
-                    }
-                  }
-                </div>
-              </div>
-            }
-          </div>
-          <p class="hint">Manual: tap a participant, then tap <strong>Move here</strong> on a group. Or use Shuffle randomly.</p>
-        }
+          }
+        </div>
+        <p class="hint">Assign a topic per group, then shuffle or tap a participant and <strong>Move here</strong>.</p>
       }
 
       @if (!isOkrSession() && (session?.currentStep?.type === 'form' || actions().length)) {
@@ -400,6 +410,21 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
       cursor: pointer;
       font-weight: 700;
       padding: 0.55rem;
+    }
+    .topic-field {
+      display: grid;
+      font-size: 0.75rem;
+      font-weight: 700;
+      gap: 0.25rem;
+      color: var(--wos-text-secondary);
+    }
+    .topic-field input {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 0.45rem 0.55rem;
+      width: 100%;
     }
     .vote-head, .okr-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.65rem; justify-content: space-between; }
     .vote-head span, .okr-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
@@ -611,6 +636,8 @@ export class ActivityHostPanelComponent implements OnChanges {
   actions = signal<any[]>([]);
   people = signal<{ id: string; displayName: string }[]>([]);
   pickingId = signal('');
+  topicDrafts = signal<Record<string, string>>({});
+  private topicDirty = false;
   expanded = signal<Record<string, boolean>>({});
   newObjective = '';
   treeRootDraft = '';
@@ -631,6 +658,7 @@ export class ActivityHostPanelComponent implements OnChanges {
     this.api.tallyVotes(this.session.id, voteStepId).subscribe((v) => this.votes.set(v));
     this.api.listActions(this.session.id).subscribe((a) => this.actions.set(a));
     if (this.session.currentStep?.type === 'breakout') {
+      this.syncTopicDrafts();
       this.api.listParticipants(this.session.id).subscribe({
         next: (list) =>
           this.people.set(
@@ -639,6 +667,46 @@ export class ActivityHostPanelComponent implements OnChanges {
         error: () => this.people.set([])
       });
     }
+  }
+
+  private syncTopicDrafts() {
+    if (this.topicDirty) return;
+    const next: Record<string, string> = {};
+    for (const g of this.breakoutGroups()) {
+      next[g.id] = String(g.topic || '');
+    }
+    this.topicDrafts.set(next);
+  }
+
+  topicDraft(groupId: string) {
+    return this.topicDrafts()[groupId] ?? '';
+  }
+
+  setTopicDraft(groupId: string, value: string) {
+    this.topicDirty = true;
+    this.topicDrafts.update((m) => ({ ...m, [groupId]: value }));
+  }
+
+  saveTopics() {
+    const stepId = this.session?.currentStep?.id || this.session?.currentStepId;
+    if (!this.session?.id || !stepId || !this.topicDirty) return;
+    const drafts = this.topicDrafts();
+    const groups = this.breakoutGroups().map((g: any) => ({
+      id: g.id,
+      title: g.title,
+      groupOrder: g.groupOrder,
+      topic: drafts[g.id] ?? g.topic ?? ''
+    }));
+    this.busy.set(true);
+    this.api.updateStep(this.session.id, stepId, { groups }).subscribe({
+      next: (s) => {
+        this.session = s;
+        this.topicDirty = false;
+        this.busy.set(false);
+        this.syncTopicDrafts();
+      },
+      error: () => this.busy.set(false)
+    });
   }
 
   breakoutGroups() {

@@ -308,12 +308,15 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
                   }
 
                   @if (draftType === 'breakout') {
-                    <p class="section-label">Groups</p>
-                    <p class="hint">Rename teams here. Assign people from Big Screen Preview when this step is live.</p>
+                    <p class="section-label">Groups &amp; topics</p>
+                    <p class="hint">Name each team and assign a discussion topic. People are assigned from Big Screen Preview.</p>
                     @for (g of draftGroups; track $index; let gi = $index) {
-                      <div class="row">
-                        <input [(ngModel)]="g.title" placeholder="Group name" />
-                        <button type="button" class="icon-btn danger" (click)="removeGroup(gi)" aria-label="Remove group">×</button>
+                      <div class="breakout-draft">
+                        <div class="row">
+                          <input [(ngModel)]="g.title" placeholder="Group name" />
+                          <button type="button" class="icon-btn danger" (click)="removeGroup(gi)" aria-label="Remove group">×</button>
+                        </div>
+                        <input class="topic-input" [(ngModel)]="g.topic" placeholder="Topic for this group…" />
                       </div>
                     }
                     <app-bosch-button variant="secondary" (click)="addBreakoutGroup()">Add group</app-bosch-button>
@@ -598,6 +601,18 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       grid-template-columns: 1fr auto;
       margin-bottom: 0.5rem;
     }
+    .breakout-draft {
+      display: grid;
+      gap: 0.4rem;
+      margin-bottom: 0.75rem;
+    }
+    .breakout-draft .row { margin-bottom: 0; }
+    .topic-input {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      padding: 0.65rem 0.75rem;
+      width: 100%;
+    }
     .settings .icon-btn {
       background: #fff;
       border: 1px solid var(--wos-border);
@@ -694,7 +709,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   draftOptions: { id: string; label: string }[] = [];
   draftAnonymous = true;
   draftLinkedBoard = false;
-  draftGroups: { id?: string; title: string }[] = [];
+  draftGroups: { id?: string; title: string; topic?: string }[] = [];
   draftVotesPerParticipant = 3;
   draftLinkActionToKr = false;
   draftWelcomeText = '';
@@ -833,10 +848,18 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         ];
     this.draftAnonymous = !!cfg.anonymous;
     this.draftLinkedBoard = cfg.boardMode === 'okr';
-    this.draftGroups = (step.groups || []).map((g: any) => ({ id: g.id, title: g.title || '' }));
+    this.draftGroups = (step.groups || []).map((g: any) => ({
+      id: g.id,
+      title: g.title || '',
+      topic: g.topic || ''
+    }));
     if (!this.draftGroups.length) {
       if (this.draftType === 'breakout') {
-        this.draftGroups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+        this.draftGroups = [
+          { title: 'Group 1', topic: '' },
+          { title: 'Group 2', topic: '' },
+          { title: 'Group 3', topic: '' }
+        ];
       } else {
         this.draftGroups = this.draftLinkedBoard
           ? [{ title: 'Objectives' }]
@@ -874,7 +897,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   }
 
   addBreakoutGroup() {
-    this.draftGroups.push({ title: `Group ${this.draftGroups.length + 1}` });
+    this.draftGroups.push({ title: `Group ${this.draftGroups.length + 1}`, topic: '' });
   }
 
   removeGroup(index: number) {
@@ -946,9 +969,13 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       patch.config = { assignments: { ...prevAssignments } };
       patch.groups = this.draftGroups
         .filter((g) => g.title.trim())
-        .map((g) => ({ id: g.id, title: g.title.trim() }));
+        .map((g) => ({ id: g.id, title: g.title.trim(), topic: (g.topic || '').trim() }));
       if (!patch.groups.length) {
-        patch.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+        patch.groups = [
+          { title: 'Group 1', topic: '' },
+          { title: 'Group 2', topic: '' },
+          { title: 'Group 3', topic: '' }
+        ];
       }
     }
     return patch;

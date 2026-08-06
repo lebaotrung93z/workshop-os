@@ -19,6 +19,7 @@ type StepType = 'welcome' | 'poll' | 'input' | 'voting' | 'form' | 'breakout';
 
 interface DraftGroup {
   title: string;
+  topic?: string;
 }
 
 interface DraftOption {
@@ -277,7 +278,11 @@ interface DraftStep {
                             @for (g of step.groups.slice(0, 3); track $index) {
                               <div class="mini-team">
                                 <em>{{ g.title || 'Group' }}</em>
-                                <span class="mini-avatars"><i></i><i></i><i></i></span>
+                                @if (g.topic) {
+                                  <small>{{ g.topic }}</small>
+                                } @else {
+                                  <span class="mini-avatars"><i></i><i></i><i></i></span>
+                                }
                               </div>
                             }
                           </div>
@@ -392,14 +397,17 @@ interface DraftStep {
 
               @if (selected()!.type === 'breakout') {
                 <div class="sub">
-                  <p class="sub-title">Groups</p>
-                  <p class="hint">Host assigns joined participants randomly or manually when this step is live.</p>
+                  <p class="sub-title">Groups &amp; topics</p>
+                  <p class="hint">Name teams and assign a topic. Host divides participants when live.</p>
                   @for (g of selected()!.groups; track $index; let gi = $index) {
-                    <div class="row">
-                      <input [(ngModel)]="g.title" placeholder="Group name" />
-                      <button type="button" class="icon-btn danger" (click)="removeGroup(selected()!, gi)" aria-label="Remove group">
-                        <app-bosch-icon name="delete" />
-                      </button>
+                    <div class="breakout-draft">
+                      <div class="row">
+                        <input [(ngModel)]="g.title" placeholder="Group name" />
+                        <button type="button" class="icon-btn danger" (click)="removeGroup(selected()!, gi)" aria-label="Remove group">
+                          <app-bosch-icon name="delete" />
+                        </button>
+                      </div>
+                      <input [(ngModel)]="g.topic" placeholder="Topic for this group…" />
                     </div>
                   }
                   <app-bosch-button variant="secondary" (click)="addBreakoutGroup(selected()!)">Add group</app-bosch-button>
@@ -938,6 +946,15 @@ interface DraftStep {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .mini-team small {
+      color: #64748b;
+      font-size: 0.58rem;
+      line-height: 1.2;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
     .mini-avatars {
       display: flex;
       gap: 2px;
@@ -1050,6 +1067,18 @@ interface DraftStep {
       display: grid;
       gap: 0.5rem;
       grid-template-columns: 1fr auto;
+    }
+    .breakout-draft {
+      display: grid;
+      gap: 0.4rem;
+      margin-bottom: 0.35rem;
+    }
+    .breakout-draft > input {
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      font: inherit;
+      padding: 0.55rem 0.7rem;
+      width: 100%;
     }
     .icon-btn {
       align-items: center;
@@ -1332,7 +1361,7 @@ export class FormatBuilderComponent implements OnInit {
   }
 
   addBreakoutGroup(step: DraftStep) {
-    step.groups.push({ title: `Group ${step.groups.length + 1}` });
+    step.groups.push({ title: `Group ${step.groups.length + 1}`, topic: '' });
   }
 
   removeGroup(step: DraftStep, index: number) {
@@ -1436,9 +1465,16 @@ export class FormatBuilderComponent implements OnInit {
         const ordered = [...groups].sort(
           (a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0)
         );
-        draft.groups = ordered.map((g: any) => ({ title: String(g.title || '') }));
+        draft.groups = ordered.map((g: any) => ({
+          title: String(g.title || ''),
+          topic: String(g.topic || '')
+        }));
       } else {
-        draft.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+        draft.groups = [
+          { title: 'Group 1', topic: '' },
+          { title: 'Group 2', topic: '' },
+          { title: 'Group 3', topic: '' }
+        ];
       }
     }
 
@@ -1487,7 +1523,10 @@ export class FormatBuilderComponent implements OnInit {
       base.config = { assignments: {} };
       base.groups = step.groups
         .filter((g) => g.title.trim())
-        .map((g) => ({ title: g.title.trim() }));
+        .map((g) => ({
+          title: g.title.trim(),
+          ...(String(g.topic || '').trim() ? { topic: String(g.topic).trim() } : {})
+        }));
       if (!base.groups.length) {
         base.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
       }
@@ -1547,7 +1586,11 @@ export class FormatBuilderComponent implements OnInit {
     } else if (type === 'breakout') {
       step.title = 'Breakout groups';
       step.instructions = 'Host will divide participants into groups.';
-      step.groups = [{ title: 'Group 1' }, { title: 'Group 2' }, { title: 'Group 3' }];
+      step.groups = [
+        { title: 'Group 1', topic: '' },
+        { title: 'Group 2', topic: '' },
+        { title: 'Group 3', topic: '' }
+      ];
       step.timerSeconds = 180;
     }
     return step;

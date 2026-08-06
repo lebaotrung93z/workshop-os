@@ -597,7 +597,7 @@ export class ApiService {
       instructions?: string;
       timerSeconds?: number | null;
       config?: Record<string, unknown>;
-      groups?: Array<{ id?: string; title: string; groupOrder?: number }>;
+      groups?: Array<{ id?: string; title: string; groupOrder?: number; topic?: string }>;
     },
     opts?: { restartTimer?: boolean }
   ): Observable<any> {
@@ -619,11 +619,24 @@ export class ApiService {
         }
         if (patch.config != null) cur.config = patch.config;
         if (patch.groups != null) {
-          cur.groups = patch.groups.map((g, gi) => ({
-            id: g.id || randomId(),
-            title: String(g.title || '').trim() || `Column ${gi + 1}`,
-            groupOrder: g.groupOrder || gi + 1
-          }));
+          cur.groups = patch.groups.map((g, gi) => {
+            const prev =
+              (g.id && (cur.groups || []).find((x: any) => x.id === g.id)) ||
+              (cur.groups || [])[gi] ||
+              null;
+            const row: any = {
+              id: g.id || prev?.id || randomId(),
+              title: String(g.title || '').trim() || prev?.title || `Group ${gi + 1}`,
+              groupOrder: g.groupOrder || prev?.groupOrder || gi + 1
+            };
+            if (Object.prototype.hasOwnProperty.call(g, 'topic')) {
+              const topic = String(g.topic || '').trim();
+              if (topic) row.topic = topic;
+            } else if (prev?.topic) {
+              row.topic = String(prev.topic);
+            }
+            return row;
+          });
         }
         steps[idx] = cur;
         const update: Record<string, unknown> = { steps };
