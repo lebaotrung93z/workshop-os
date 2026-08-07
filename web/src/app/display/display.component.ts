@@ -15,13 +15,19 @@ import {
   remainingSeconds
 } from '../core/timer.util';
 import { cssBackgroundImage } from '../core/image-data-url';
+import {
+  focusOrigin,
+  focusScale,
+  isValidDisplayFocus,
+  type DisplayFocusRect
+} from '../core/display-focus.util';
 
 @Component({
   selector: 'app-display',
   standalone: true,
   imports: [BoschAvatarComponent, BoschAvatarStackComponent],
   template: `
-    <div class="screen">
+    <div class="screen" [class.screen--focused]="hasFocus()">
       <header>
         <div>
           <p class="brand">Workshop OS</p>
@@ -38,6 +44,9 @@ import { cssBackgroundImage } from '../core/image-data-url';
           </p>
         </div>
         <div class="header-side">
+          @if (hasFocus()) {
+            <p class="focus-badge">Zoomed</p>
+          }
           @if (timerLabel()) {
             <div class="timer" [class.timer--paused]="timerPaused()" [class.timer--ended]="timerEnded()">
               {{ timerLabel() }}
@@ -47,6 +56,12 @@ import { cssBackgroundImage } from '../core/image-data-url';
         </div>
       </header>
 
+      <div class="focus-viewport">
+        <div
+          class="focus-stage"
+          [style.transform]="stageTransform()"
+          [style.transform-origin]="stageOrigin()"
+        >
       @if (showJoinScreen()) {
         <section
           class="hero"
@@ -356,6 +371,17 @@ import { cssBackgroundImage } from '../core/image-data-url';
           </ul>
         </section>
       }
+        </div>
+        @if (focusRect(); as f) {
+          <div
+            class="focus-cutout"
+            [style.left.%]="f.x"
+            [style.top.%]="f.y"
+            [style.width.%]="f.w"
+            [style.height.%]="f.h"
+          ></div>
+        }
+      </div>
     </div>
   `,
   styles: `
@@ -363,6 +389,8 @@ import { cssBackgroundImage } from '../core/image-data-url';
     .screen {
       background: radial-gradient(1200px 600px at 20% -10%, #1a2b4d 0%, transparent 55%), var(--wos-screen-bg);
       color: var(--wos-screen-text);
+      display: flex;
+      flex-direction: column;
       min-height: 100vh;
       padding: 2rem 2.5rem 3rem;
       width: 100%;
@@ -382,6 +410,48 @@ import { cssBackgroundImage } from '../core/image-data-url';
       display: flex;
       flex-wrap: wrap;
       gap: 1rem;
+    }
+
+    .focus-badge {
+      background: rgba(96, 165, 250, 0.18);
+      border: 1px solid rgba(96, 165, 250, 0.45);
+      border-radius: 999px;
+      color: #93c5fd;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      margin: 0;
+      padding: 0.35rem 0.7rem;
+      text-transform: uppercase;
+    }
+    .focus-viewport {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+    .focus-stage {
+      min-height: 100%;
+      transform: scale(1);
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform;
+    }
+    .focus-cutout {
+      border: 2px solid rgba(96, 165, 250, 0.85);
+      border-radius: 12px;
+      box-shadow: 0 0 0 9999px rgba(2, 8, 23, 0.45);
+      opacity: 0;
+      pointer-events: none;
+      position: absolute;
+      z-index: 4;
+    }
+    .screen--focused .focus-cutout {
+      animation: focus-flash 0.9s ease forwards;
+    }
+    @keyframes focus-flash {
+      0% { opacity: 0.85; }
+      40% { opacity: 0.85; }
+      100% { opacity: 0; }
     }
 
     .timer {
@@ -856,6 +926,26 @@ export class DisplayComponent implements OnInit, OnDestroy {
     const idx = steps.findIndex((s: any) => s.id === this.session()?.currentStepId);
     if (idx < 0) return '';
     return `Step ${idx + 1}/${steps.length}`;
+  }
+
+  focusRect(): DisplayFocusRect | null {
+    const raw = this.session()?.displayFocus;
+    return isValidDisplayFocus(raw) ? raw : null;
+  }
+
+  hasFocus() {
+    return !!this.focusRect();
+  }
+
+  stageOrigin() {
+    const f = this.focusRect();
+    return f ? focusOrigin(f) : '50% 50%';
+  }
+
+  stageTransform() {
+    const f = this.focusRect();
+    if (!f) return 'scale(1)';
+    return `scale(${focusScale(f)})`;
   }
 
   timerPaused() {

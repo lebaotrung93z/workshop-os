@@ -35,3 +35,5 @@ npx -y firebase-tools@latest deploy --only firestore:rules --project workshop-os
 - Realtime uses Firestore `onSnapshot` (replaces WebSockets).
 - AI summary is a free **heuristic** client aggregator (no Groq key in the browser).
 - Export is CSV / text report generated in the browser.
+
+Full host / participant / big-screen workflows: [`docs/FLOWS.md`](docs/FLOWS.md).

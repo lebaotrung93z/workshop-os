@@ -15,6 +15,7 @@ import { Observable, Subject } from 'rxjs';
 import { db } from './firebase';
 import { SEED_TEMPLATES } from './seed-templates';
 import { clearTimerPatch } from './timer.util';
+import { clearDisplayFocusPatch, type DisplayFocusRect } from './display-focus.util';
 import { buildJoinUrl } from './join-url';
 import { okrInputStep } from './okr.util';
 
@@ -476,14 +477,19 @@ export class ApiService {
         const s = await getDoc(doc(db, 'sessions', id));
         if (!s.exists()) throw new Error('Session not found');
         const data = s.data()!;
-        const steps = [...(data['steps'] || [])];
-        if (steps[0]) steps[0] = { ...steps[0], status: 'ACTIVE' };
-        const status = steps[0]?.type === 'welcome' ? 'WELCOME' : 'RUNNING';
+        const steps = [...(data['steps'] || [])].sort((a: any, b: any) => a.stepOrder - b.stepOrder);
+        const updated = steps.map((st: any, i: number) => ({
+          ...st,
+          status: i === 0 ? 'ACTIVE' : 'PENDING'
+        }));
+        const first = updated[0];
+        const status = first?.type === 'welcome' ? 'WELCOME' : 'RUNNING';
         await this.hostUpdate(id, {
           status,
-          steps,
-          currentStepId: steps[0]?.id || null,
-          ...clearTimerPatch()
+          steps: updated,
+          currentStepId: first?.id || null,
+          ...clearTimerPatch(),
+          ...clearDisplayFocusPatch()
         });
         return this.snapSession(id);
       })()
@@ -525,7 +531,8 @@ export class ApiService {
           steps: updated,
           currentStepId: cur.id,
           status,
-          ...clearTimerPatch()
+          ...clearTimerPatch(),
+          ...clearDisplayFocusPatch()
         });
         return this.snapSession(id);
       })()
@@ -539,7 +546,7 @@ export class ApiService {
 
   end(id: string): Observable<any> {
     return new Observable((sub) => {
-      this.hostUpdate(id, { status: 'CLOSED', ...clearTimerPatch() })
+      this.hostUpdate(id, { status: 'CLOSED', ...clearTimerPatch(), ...clearDisplayFocusPatch() })
         .then(() => this.snapSession(id))
         .then((s) => {
           sub.next(s);
@@ -839,6 +846,23 @@ export class ApiService {
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Timer clear failed' } }));
     });
+  }
+
+  /** Zoom the big screen into a normalized percent rect of the content stage. */
+  setDisplayFocus(id: string, focus: DisplayFocusRect | null): Observable<any> {
+    return new Observable((sub) => {
+      this.hostUpdate(id, { displayFocus: focus })
+        .then(() => this.snapSession(id))
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Focus update failed' } }));
+    });
+  }
+
+  clearDisplayFocus(id: string): Observable<any> {
+    return this.setDisplayFocus(id, null);
   }
 
   /** Host-editable workshop title. */

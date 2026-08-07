@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-07',
+    title: 'Big screen highlight & zoom',
+    items: [
+      'Host can drag a rectangle on Big Screen Preview to spotlight and zoom that area on the projector.',
+      'Reset zoom from the host console; zoom clears automatically when the step changes.'
+    ]
+  },
+  {
     date: '2026-08-06',
     title: 'End activity',
     items: [

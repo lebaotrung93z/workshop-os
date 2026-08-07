@@ -1,30 +1,31 @@
-# Workshop OS — All Flows
+# Workshop OS — Product workflows
 
-> **Production note:** Live deploy on Render uses **Firebase Firestore** (see `main`), not Spring Boot/Postgres. The host / participant / big-screen flows below still describe the product. Persistence and realtime are Firestore `onSnapshot` instead of REST + STOMP.
+Hybrid workshop facilitation: **Host laptop** · **Participant mobile** · **Big Screen**.
 
+**Stack:** Angular 18 (`web/`) + **Firebase Firestore** (Spark, project `workshop-os-bosch`) + Render static hosting.  
+**Realtime:** Firestore `onSnapshot` (no REST API / STOMP).  
+**Auth:** host/join tokens in `localStorage` (no login).
 
-Hybrid workshop facilitation: **Host laptop** · **Participant mobile web** · **Big Screen**.
-
-Stack: Angular 18 (`web/`) + Spring Boot REST / STOMP (`api/`) + Postgres.
+Live site: https://workshop-os-web.onrender.com/
 
 ---
 
 ## 1. Actors & surfaces
 
-| Actor | URL | Device | Auth |
+| Actor | Route (hash) | Device | Auth |
 |---|---|---|---|
-| Host | `/` or `/host` → `/host/:sessionId` | Laptop | `X-Host-Token` (issued once on create) |
-| Participant | `/j` → `/p/:sessionId` | Phone | `X-Join-Token` (issued once on join) |
-| Big Screen | `/display/:sessionId` | Projector / TV | None (public) |
+| Host | `/#/` dashboard, `/#/host` sessions, `/#/host/:id` live | Laptop | `hostToken` |
+| Participant | `/#/j` → `/#/p/:sessionId` | Phone | `joinToken` |
+| Big Screen | `/#/display/:sessionId` | Projector / TV | None (public read) |
 
-There is **no traditional login** (no users / passwords / OAuth / JWT). Access is token-based:
+Scan-friendly join QR encodes `/?code=XXXXXX` (loads `index.html`, then routes into `/#/j?code=`).
 
-| Token | Issued when | Stored | Sent as | Verified against |
-|---|---|---|---|---|
-| `hostToken` | `POST /api/sessions` | `localStorage` → `wos_host_token` | `X-Host-Token` | SHA-256 of `sessions.host_token_hash` |
-| `joinToken` | `POST /api/sessions/{code}/join` | `localStorage` → `wos_join_token` | `X-Join-Token` | SHA-256 of `participants.join_token_hash` |
+| Token | Issued when | Stored | Used for |
+|---|---|---|---|
+| `hostToken` | Session create | `wos_host_token` + `wos_host_sessions[]` | Host writes (start/advance/settings/hide/…) |
+| `joinToken` | Join | `wos_join_token` | Participant writes (entries/votes/actions) |
 
-Join codes are 6 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I/O/0/1).
+Join codes: 6 chars from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`.
 
 ---
 
@@ -33,343 +34,241 @@ Join codes are 6 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I/O/0/1)
 ```mermaid
 sequenceDiagram
   participant H as Host
-  participant API as API
+  participant FS as Firestore
   participant P as Participant
   participant D as Big Screen
 
-  H->>API: GET /templates
-  H->>API: POST /sessions {templateId, title}
-  API-->>H: session + hostToken + code
-  H->>H: open /host/:id (LOBBY) + QR
-  D->>API: GET /sessions/:id/display
-  P->>API: POST /sessions/{code}/join
-  API-->>P: joinToken
-  API-->>H: WS participant.joined
-  API-->>D: WS participant.joined
-  H->>API: POST /sessions/:id/start
-  API-->>H: WS step.changed (WELCOME)
-  API-->>P: WS step.changed
-  API-->>D: WS step.changed
-  loop Each step (poll → input → voting → form)
-    H->>API: POST /sessions/:id/advance
-    P->>API: activity (entries / votes / actions)
-    API-->>H: WS entry/vote/action events
-    API-->>D: WS entry/vote/action events
+  H->>FS: Read/seed templates
+  H->>FS: Create session + sessionCodes/{code}
+  FS-->>H: sessionId + hostToken
+  H->>H: Open /host/:id LOBBY + QR
+  D->>FS: onSnapshot session
+  P->>FS: Join via code + name
+  FS-->>H: participantCount / roster
+  FS-->>D: participantCount
+  H->>FS: Start session
+  FS-->>P: currentStep welcome
+  FS-->>D: welcome / QR
+  loop Steps poll input voting form end groups
+    H->>FS: Advance / edit settings / timer
+    P->>FS: Entries votes actions
+    FS-->>H: Live results
+    FS-->>D: Live visuals
   end
-  H->>API: POST /sessions/:id/summary
-  H->>API: GET export.xlsx / export.pdf
-  H->>API: POST /sessions/:id/end
-  API-->>P: WS session.ended (CLOSED)
+  H->>FS: Heuristic summary + CSV export
+  H->>FS: End session CLOSED
 ```
 
-1. Host opens `/`, picks a template + title → **Create session**.
-2. Host lands on `/host/:id` in **LOBBY** with join code + QR (`{origin}/j?code={CODE}`).
-3. Big screen opens `/display/:sessionId` (tokenless).
-4. Participants open `/j`, enter code + name → join → `/p/:id`.
-5. Host clicks **Start session** → first step activates.
-6. Host advances through **welcome → poll → input → voting → form**.
-7. Participants interact per step type; host + display update live over STOMP.
-8. Host generates **AI summary**, downloads **Excel/PDF**, then **Ends** the session (`CLOSED`).
+1. Host opens **Dashboard** (`/#/`), then **Sessions** (`/#/host`).
+2. Pick a template (or **Create manual format** / customize) → create or prepare session.
+3. Open **big screen**; share QR / code.
+4. Participants scan or open join → enter name.
+5. Host **Start** → run steps (welcome → poll → input → voting → form → optional groups/end).
+6. Host may insert/edit steps, run the timer, hide stickies, generate summary, export CSV.
+7. Host **Ends** session (`CLOSED`).
 
 ---
 
-## 3. Session lifecycle
+## 3. Host navigation
 
-### Status enum
+| Route | Component | Purpose |
+|---|---|---|
+| `/#/` | `HostDashboardComponent` | Live / completed / prepared charts from `wos_host_sessions`, product changelog, **Join as participant** |
+| `/#/host` | `HostSetupComponent` | Create / resume workshops, pick templates |
+| `/#/host/format` | `FormatBuilderComponent` | Miro-style custom format board |
+| `/#/host/:id` | `HostLiveComponent` | Live facilitation console |
+| `/#/j` | `JoinComponent` | Participant join |
+| `/#/p/:id` | `ParticipantLiveComponent` | Mobile activity UI |
+| `/#/display/:sessionId` | `DisplayComponent` | Projector view |
 
-`DRAFT` · `LOBBY` · `WELCOME` · `RUNNING` · `SUMMARIZING` · `ACTIONS` · `EXPORTING` · `CLOSED`
+Sidebar brand returns to Dashboard. Join CTA lives on Dashboard only (not Sessions).
 
-### Transitions actually used
+### Save for later
 
-```
-create ──────────────────────────────► LOBBY
-start ───────────────────────────────► WELCOME  (first step type = welcome)
-                                    or RUNNING
-advance / back ──────────────────────► WELCOME | RUNNING | ACTIONS
-                                       (welcome→WELCOME, form→ACTIONS, else RUNNING)
-POST /summary ───────────────────────► SUMMARIZING
-end ─────────────────────────────────► CLOSED
-```
-
-**Unused today:** `DRAFT`, `EXPORTING` (export does not change status).
-
-### Per-step status
-
-On the cloned `session_steps`: `PENDING` → `ACTIVE` → `DONE`.
-
-- On create: all steps `PENDING`; `currentStepId` points at the first step (not yet `ACTIVE`).
-- On start / advance / back: current → `DONE` (when leaving), target → `ACTIVE`.
-
-### Join rules
-
-Participants may join any time **except** when status is `CLOSED`. Mid-session joins are allowed.
+Sessions created in this browser are tracked in `localStorage` (`wos_host_sessions`).  
+Flow: Create & prepare → title / OKR theme / Objectives in LOBBY → **Save for later** → resume from Sessions. Opening `/host/:id` calls `activateHostSession` so the correct `hostToken` is restored.
 
 ---
 
-## 4. UI routes
+## 4. Session lifecycle
 
-| Path | Component | Purpose |
-|---|---|---|
-| `''` / `host` | `HostSetupComponent` | Create workshop (title + template) |
-| `host/:id` | `HostLiveComponent` | Live control: QR, Start/Back/Next/End, AI summary, Excel/PDF, open big screen, live results |
-| `j` | `JoinComponent` | Participant join (code + display name; supports `?code=`) |
-| `p/:id` | `ParticipantLiveComponent` | Mobile activity UI driven by `currentStep.type` |
-| `display/:sessionId` | `DisplayComponent` | Projector view: lobby code, poll bars, sticky columns, vote board, actions + AI insights |
-| `**` | redirect → `''` | Fallback |
+### Status
+
+`LOBBY` → `WELCOME` | `RUNNING` | `ACTIONS` → `CLOSED`
+
+| Event | Status |
+|---|---|
+| Create | `LOBBY` |
+| Start (first step welcome) | `WELCOME` |
+| Start / advance (other) | `RUNNING` |
+| On form step | `ACTIONS` |
+| End | `CLOSED` |
+
+Per-step flags on embedded `steps[]`: `PENDING` → `ACTIVE` → `DONE`.
+
+Participants may join until `CLOSED`.
 
 ---
 
-## 5. Host flows
+## 5. Host live flows
 
-### 5.1 Create session
+### Lobby
 
-1. `GET /api/templates` → list templates.
-2. Host picks template + optional title.
-3. `POST /api/sessions` `{ templateId, title? }`.
-4. API clones template steps/groups into a new session (`LOBBY`), returns session view + **one-time** `hostToken`.
-5. Frontend stores token and navigates to `/host/:id`.
+- Join code, QR (`/?code=`), participant roster/avatars, **Open big screen**.
+- Optional OKR theme / seed Objectives before Start.
 
-### 5.2 Lobby / QR
+### Step control
 
-- Shows join code, QR (`/j?code={CODE}`), participant count, **Open big screen** link.
-- Live updates via STOMP `participant.joined`.
+| Action | Effect |
+|---|---|
+| Start | Activate first step |
+| Next / Back | Move `currentStepId`; update step statuses |
+| Add step | `insertStep` — poll / input / voting / form / groups / end after current or at end |
+| Step Settings | Edit title, instructions, timer, poll options, columns, votes budget, welcome media, OKR flags (`updateStep`) |
+| Timer | Start / pause / resume / reset → `timerEndsAt` + `timerPausedRemaining` on session |
+| Highlight & zoom | Drag a rect on Big Screen Preview → `displayFocus` zoom on projector; Reset clears |
+| Hide entry | Soft-hide sticky (`hidden: true`) |
+| AI summary | Client heuristic → `sessions/{id}/summary/latest` |
+| CSV / Report | Browser-generated download |
+| End session | Status `CLOSED` |
 
-### 5.3 Step control
+### Live results panel
 
-| Action | Endpoint | Effect |
-|---|---|---|
-| Start session | `POST /api/sessions/{id}/start` + `X-Host-Token` | Activate first step |
-| Next step | `POST /api/sessions/{id}/advance` | Current → DONE, next → ACTIVE |
-| Back | `POST /api/sessions/{id}/back` | Previous step |
-| End | `POST /api/sessions/{id}/end` | Status → `CLOSED` |
-
-All of these publish `step.changed` or `session.ended` on `/topic/session/{id}`.
-
-### 5.4 Live results (host panel)
-
-`ActivityHostPanelComponent` renders based on current step type:
-
-- **poll** — bar chart from `GET …/poll/tally`
-- **input** — sticky wall + **Hide** (`DELETE …/entries/{id}`)
-- **voting** — sticky wall + Hide + vote leaderboard
-- **form** — actions table
-
-### 5.5 AI summary
-
-1. Host clicks **AI summary** → `POST /api/sessions/{id}/summary` + `X-Host-Token`.
-2. Status → `SUMMARIZING`.
-3. Aggregates non-hidden entries, top vote tallies, actions.
-4. Provider (`AI_PROVIDER`, default `groq`; or `ollama`). Empty `GROQ_API_KEY` → **heuristic fallback**.
-5. Persists to `ai_summaries`; publishes `summary.ready`.
-
-### 5.6 Export
-
-| Button | Endpoint | Output |
-|---|---|---|
-| Excel | `GET /api/sessions/{id}/export.xlsx` + `X-Host-Token` | Sheets: Entries, Actions, Summary |
-| PDF | `GET /api/sessions/{id}/export.pdf` + `X-Host-Token` | Report: entries, actions, AI insights |
-
-Status is **not** changed to `EXPORTING`.
+| Step | Host sees |
+|---|---|
+| poll | Option bars |
+| input | Sticky wall (+ OKR tree when `boardMode: 'okr'`) |
+| voting | Wall + leaderboard |
+| form | Actions table |
+| groups | Breakout teams + topics |
+| end | Closing preview |
 
 ---
 
 ## 6. Participant flows
 
-### 6.1 Join
+### Join
 
-1. Open `/j` (or QR `/j?code=XXXXXX`).
-2. Enter display name (+ code if not prefilled).
-3. `POST /api/sessions/{code}/join` `{ displayName }`.
-4. Receive `sessionId`, `participantId`, `joinToken`.
-5. Navigate to `/p/:sessionId`; connect STOMP.
+1. Scan QR or open `/#/j?code=XXXXXX` (or `/`?code=`).
+2. Enter display name.
+3. App writes `sessions/{id}/participants/{participantId}` with `joinToken`.
+4. Navigate to `/#/p/:id` and subscribe to session snapshots.
 
-Fails if session is `CLOSED`.
+### Per-step activity
 
-### 6.2 Per-step activity
-
-| Step type | Participant UI | API call |
-|---|---|---|
-| **welcome** | Read instructions | — |
-| **poll** | Tap one option | `POST …/entries` `{ content: optionId }` + `X-Join-Token` (replaces prior answer) |
-| **input** | Pick group + sticky text | `POST …/entries` `{ content, groupId? }` (+ anonymous if config says so) |
-| **voting** | Vote on prior input stickies | `POST …/votes` `{ entryId }` (budget from `votesPerParticipant`, default 3) |
-| **form** | Action / owner / due date | `POST …/actions` `{ action, owner?, dueDate? }` |
-
-Lobby / closed states show wait / ended messages.
-
----
-
-## 7. Big Screen (display) flows
-
-- Tokenless: `GET /api/sessions/{id}/display` + STOMP subscribe.
-- **LOBBY** — large join code + participant count.
-- **welcome** — title + instructions.
-- **poll** — live bars from `poll/tally`.
-- **input** — sticky columns by group.
-- **voting** — vote leaderboard.
-- **form** — actions table (+ AI insights when present).
-- Updates on every WS event (`step.changed`, `entry.*`, `vote.updated`, `action.created`, `summary.ready`, `session.ended`).
-
----
-
-## 8. Step types (activity model)
-
-Enum: `welcome` | `poll` | `input` | `voting` | `form`
-
-| Type | Config | Host | Participant | Display |
-|---|---|---|---|---|
-| welcome | `{}` | Instructions | Read-only | Large title/instructions |
-| poll | `options: [{id,label}]` | Bar chart | Tap option | Live bars |
-| input | `anonymous: bool` | Sticky wall + Hide | Group + text | Columns by group |
-| voting | `votesPerParticipant: int` | Wall + Hide + leaderboard | Cast votes (budget) | Ranked leaderboard |
-| form | `{}` | Actions table | Submit action | Actions (+ AI) |
-
-**Voting data source:** all non-hidden session entries whose step type is `input` (not limited to the immediately previous step). For OKR boards (`boardMode: 'okr'`), voting lists **Key Results only** (`kind: 'kr'` / `parentId` set).
-
-**Anonymous input:** when `anonymous:true`, `authorId` is stored as null. Poll answers always keep the author.
-
----
-
-## 9. Templates (seeded)
-
-Default workspace `11111111-1111-1111-1111-111111111111`.
-
-All three templates share the sequence: **welcome → poll → input → voting → form**.
-
-### Sprint Retrospective (`retro`)
-
-| # | Type | Title | Config / groups |
-|---|---|---|---|
-| 1 | welcome | Welcome | |
-| 2 | poll | Check-in | great / ok / rough |
-| 3 | input | Sprint Reflection | anonymous; What went well? · What to improve? · Action ideas |
-| 4 | voting | Prioritize | 3 votes |
-| 5 | form | Action Plan | |
-
-### Strategy Workshop (`strategy`)
-
-| # | Type | Title | Config / groups |
-|---|---|---|---|
-| 1 | welcome | Welcome | |
-| 2 | poll | Alignment check | clear / partial / unclear |
-| 3 | input | Opportunities & Risks | named; Opportunities · Risks · Bets |
-| 4 | voting | Prioritize themes | 5 votes |
-| 5 | form | Commitments | |
-
-### OKRs (`okrs`)
-
-Linked Objective → Key Result → Action workflow:
-
-| # | Type | Title | Config / groups |
-|---|---|---|---|
-| 1 | welcome | Welcome | Host seeds Objectives later |
-| 2 | poll | Confidence | high / med / low |
-| 3 | input | OKR board | `boardMode: 'okr'`; host adds Objectives; participants attach KRs (`parentId`) |
-| 4 | voting | Prioritize KRs | 3 votes; **KRs only** |
-| 5 | form | Commitments | `linkTo: 'kr'`; action stores `sourceEntryId` + `sourceLabel` |
-
-**Big screen / host:** Top-down collapsible tree across all OKR steps — host-editable root theme (not a fixed “OKRs” label), then Objectives → Key Results → Actions. Node colors: primary (root), purple (Objectives), green (KRs), info blue (actions).
-
-**Format builder:** Purpose field + “Linked board (Objective → KR)” on input steps + “Link action to Key Result” on form steps.
-
----
-
-## 10. REST API reference
-
-Base: `/api`. Health: `GET /actuator/health`.
-
-### Templates — `/api/templates`
-
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| GET | `/templates` | none | List for default workspace |
-| GET | `/templates/{id}` | none | Single template + steps |
-
-### Sessions — `/api/sessions`
-
-| Method | Path | Auth | Body | Notes |
-|---|---|---|---|---|
-| POST | `/sessions` | none | `{ templateId, title? }` | Create → LOBBY + `hostToken` |
-| GET | `/sessions/{id}` | `X-Host-Token` | — | Full host view |
-| GET | `/sessions/by-code/{code}` | none | — | Public preview |
-| GET | `/sessions/{id}/display` | none | — | Display / participant view |
-| POST | `/sessions/{code}/join` | none | `{ displayName }` | Returns `joinToken` |
-| POST | `/sessions/{id}/start` | `X-Host-Token` | `{}` | Start |
-| POST | `/sessions/{id}/advance` | `X-Host-Token` | `{}` | Next |
-| POST | `/sessions/{id}/back` | `X-Host-Token` | `{}` | Previous |
-| POST | `/sessions/{id}/end` | `X-Host-Token` | `{}` | Close |
-
-### Activities — `/api/sessions/{sessionId}`
-
-| Method | Path | Auth | Body | Notes |
-|---|---|---|---|---|
-| POST | `…/entries` | `X-Join-Token` | `{ content, groupId? }` | Sticky or poll answer |
-| DELETE | `…/entries/{entryId}` | `X-Host-Token` | — | Soft-hide |
-| GET | `…/entries` | none | `?stepId=` | Visible entries (voting → all input stickies) |
-| POST | `…/votes` | `X-Join-Token` | `{ entryId }` | Cast vote |
-| GET | `…/votes/tally` | none | `?stepId=` | Tallies desc |
-| GET | `…/steps/{stepId}/votes/tally` | none | — | Same for step |
-| GET | `…/poll/tally` | none | `?stepId=` | Option counts |
-| POST | `…/actions` | host **or** join token | `{ action, owner?, dueDate?, sourceEntryId? }` | Create action |
-| GET | `…/actions` | none | — | List actions |
-
-### Summary / Export
-
-| Method | Path | Auth | Notes |
-|---|---|---|---|
-| POST | `/sessions/{id}/summary` | `X-Host-Token` | Generate AI summary |
-| GET | `/sessions/{id}/summary` | none | Latest or “No summary yet” |
-| GET | `/sessions/{id}/export.xlsx` | `X-Host-Token` | Excel download |
-| GET | `/sessions/{id}/export.pdf` | `X-Host-Token` | PDF download |
-
----
-
-## 11. Realtime (STOMP / SockJS)
-
-- Endpoint: `/ws` (SockJS)
-- Subscribe: `/topic/session/{sessionId}`
-- Payload: `{ type: string, data: object }`
-
-| Event `type` | When | `data` |
-|---|---|---|
-| `participant.joined` | join | `participantId`, `displayName`, `participantCount` |
-| `step.changed` | start / advance / back | full session view |
-| `session.ended` | end | full session view |
-| `entry.created` | submit entry/poll | entry view |
-| `entry.hidden` | host hide | `{ entryId, hidden: true }` |
-| `vote.updated` | cast vote | `{ tally, votesRemaining }` |
-| `action.created` | submit action | action view |
-| `summary.ready` | AI generate | summary view |
-
-Host, participant, and display clients all subscribe to the same topic and filter by `type`.
-
----
-
-## 12. Other flows
-
-| Flow | Detail |
+| Type | Participant UI |
 |---|---|
-| **Load check** | `python3 scripts/load-check.py` — create + start + 50 parallel joins + 50 display GETs; assert `participantCount == 50` |
-| **PWA** | `manifest.webmanifest` + `public/sw.js` (caches shell); registered in `main.ts` |
-| **CORS** | Default `http://localhost:4200`; set `CORS_ORIGINS` for deploy |
-| **AI providers** | `AI_PROVIDER=groq` (default) or `ollama`; empty Groq key → heuristic fallback |
-| **Timers** | Template `timer_seconds` seeded; live countdown not wired yet (`timerEndsAt` always null) |
+| **welcome** | Instructions / welcome media |
+| **poll** | Tap one option (stored as entry `content` = option id) |
+| **input** | Columns / stickies; OKR: submit KRs under Objectives (`parentId`) |
+| **voting** | Vote on stickies (budget `votesPerParticipant`); OKR = KRs only |
+| **form** | Action / owner / due date (optional link to KR) |
+| **groups** | See assigned team + discussion topic |
+| **end** | Closing text / image; optional outbound QR |
+
+Participants can **edit/delete their own** stickies, KRs, and actions (owner rules in `firestore.rules`).
 
 ---
 
-## 13. Local run (quick)
+## 7. Big Screen flows
+
+Public `onSnapshot` on the session (+ entries / votes / actions / participants).
+
+| State | Display |
+|---|---|
+| LOBBY / welcome | Large QR + code + count; optional welcome text / background image |
+| poll | Live bars |
+| input | Sticky columns or OKR tree |
+| voting | Leaderboard |
+| form | Actions (+ summary insights) |
+| groups | Teams and topics |
+| end | Closing message / image / QR link |
+| CLOSED | Ended |
+
+---
+
+## 8. Step types
+
+| Type | Config highlights | Notes |
+|---|---|---|
+| `welcome` | `welcomeText`, `backgroundImageUrl` | Image is a compressed data URL (no Storage) |
+| `poll` | `options: [{id,label}]` | |
+| `input` | `anonymous`, `boardMode: 'okr'`, groups/columns | OKR: host Objectives, participant KRs |
+| `voting` | `votesPerParticipant` | Votes on input entries (KRs only for OKR) |
+| `form` | `linkTo: 'kr'` | Actions may store `sourceEntryId` |
+| `groups` | team lists + topics | Random or manual grouping |
+| `end` | closing text, image, outbound URL → QR | Closing beat after activities |
+
+---
+
+## 9. Templates
+
+Built-in seeds (auto-written when missing; `seedRevision` bump refreshes):
+
+| Key | Arc |
+|---|---|
+| `retro` | welcome → poll → input (3 columns) → voting → form |
+| `strategy` | welcome → poll → input → voting → form |
+| `okr` / OKRs | welcome → poll → OKR board → KR voting → commitments |
+
+### Custom format board (`/#/host/format`)
+
+1. Drag activities from the left palette onto a left→right lane (CDK DragDrop).
+2. Reorder cards; edit selected card in the inspector.
+3. **Save template** or **Save & start**.
+4. Customize-from-home uses `?from=<templateId>` and always saves a **new** custom template.
+
+---
+
+## 10. Firestore model
+
+| Path | Role |
+|---|---|
+| `templates/{id}` | Seeded + custom formats (`steps[]` embedded) |
+| `sessionCodes/{code}` | `{ sessionId }` for join lookup |
+| `sessions/{id}` | Session doc: status, code, `hostToken`, `steps[]`, timer fields, counts |
+| `sessions/{id}/participants/{id}` | Roster + `joinToken` |
+| `sessions/{id}/entries/{id}` | Stickies / poll answers / OKR nodes |
+| `sessions/{id}/votes/{entryId_participantId}` | Unique votes |
+| `sessions/{id}/actions/{id}` | Action items |
+| `sessions/{id}/summary/latest` | Heuristic summary |
+
+Rules: public read of workshop data; host updates require matching `hostToken`; participant writes require matching `joinToken`. See [`firestore.rules`](../firestore.rules).
+
+---
+
+## 11. Realtime events (client)
+
+`RealtimeService` / `ApiService.connectRealtime` maps snapshots to the same event names the UI expects:
+
+| Event | Source |
+|---|---|
+| `step.changed` / `session.ended` | Session doc |
+| `participant.joined` | Participants collection |
+| `entry.created` / hide refresh | Entries |
+| `vote.updated` | Votes |
+| `action.created` | Actions |
+| `summary.ready` | Summary doc |
+
+---
+
+## 12. Local run & deploy
 
 ```bash
-# DB (native Postgres on 5433 — see AGENTS.md / README)
-sudo pg_ctlcluster 16 main start   # or: docker compose up -d
-
-# API
-cd api && ./mvnw spring-boot:run
-
-# Web
 cd web && npm start
+# http://localhost:4200/
 ```
 
-- Host: http://localhost:4200/
-- Join: http://localhost:4200/j
-- Big screen: `/display/:sessionId` (link from host control)
+Push to `main` → Render builds static site.
+
+```bash
+npx -y firebase-tools@latest deploy --only firestore:rules --project workshop-os-bosch
+```
+
+---
+
+## 13. Out of scope / free-tier limits
+
+- No Spring Boot / Postgres in production (`api/` is legacy; Render API stub returns 410).
+- No Cloud Functions / Blaze; no Groq secret in the browser (heuristic summary only).
+- No Firebase Storage (images as compressed data URLs on the session/step config).

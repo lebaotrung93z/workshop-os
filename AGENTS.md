@@ -72,7 +72,7 @@ Visual language follows the hybrid mockup (not strict Bosch square/`#007bc0` def
 
 ### Docs
 
-Product flows: [`docs/FLOWS.md`](docs/FLOWS.md) (originally written for the Spring MVP; host/participant/display flows still apply; persistence is Firestore).
+Product workflows (current Firestore stack): [`docs/FLOWS.md`](docs/FLOWS.md).
 
 ### Legacy Spring MVP branch
 
