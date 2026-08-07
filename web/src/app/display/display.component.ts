@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, inject, signal, viewChild } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import QRCode from 'qrcode';
@@ -16,8 +16,7 @@ import {
 } from '../core/timer.util';
 import { cssBackgroundImage } from '../core/image-data-url';
 import {
-  focusOrigin,
-  focusScale,
+  focusStageTransform,
   isValidDisplayFocus,
   type DisplayFocusRect
 } from '../core/display-focus.util';
@@ -56,11 +55,12 @@ import {
         </div>
       </header>
 
-      <div class="focus-viewport">
+      <div class="focus-viewport" #focusViewport>
         <div
           class="focus-stage"
-          [style.transform]="stageTransform()"
-          [style.transform-origin]="stageOrigin()"
+          #focusStage
+          [class.focus-stage--zoomed]="hasFocus()"
+          [style.transform]="stageCssTransform()"
         >
       @if (showJoinScreen()) {
         <section
@@ -371,17 +371,10 @@ import {
           </ul>
         </section>
       }
-        @if (focusRect(); as f) {
-          <div
-            class="focus-dim"
-            aria-hidden="true"
-            [style.left.%]="f.x"
-            [style.top.%]="f.y"
-            [style.width.%]="f.w"
-            [style.height.%]="f.h"
-          ></div>
-        }
         </div>
+        @if (hasFocus()) {
+          <div class="focus-veil" aria-hidden="true"></div>
+        }
       </div>
     </div>
   `,
@@ -406,8 +399,12 @@ import {
       margin-bottom: 2rem;
       transition: opacity 0.35s ease;
     }
+    .screen--focused {
+      padding: 0.75rem 1rem 1rem;
+    }
     .screen--focused header {
-      opacity: 0.35;
+      margin-bottom: 0.65rem;
+      opacity: 0.4;
     }
 
     .header-side {
@@ -429,34 +426,40 @@ import {
       padding: 0.35rem 0.7rem;
       text-transform: uppercase;
     }
+
     .focus-viewport {
       background: #020817;
       flex: 1 1 auto;
-      min-height: 0;
+      min-height: 50vh;
       overflow: hidden;
       position: relative;
     }
     .focus-stage {
       min-height: 100%;
       position: relative;
-      transform: scale(1);
-      transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+      transform-origin: 0 0;
+      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
       will-change: transform;
     }
-    .screen--focused .focus-viewport {
-      background: #0b1220;
+    .focus-stage--zoomed {
+      /* Disable nested scrollports so the stage transform owns the view */
+      pointer-events: none;
     }
-    /* Clear window over the selection; everything else stays grayed out and zooms with the stage. */
-    .focus-dim {
-      background: transparent;
-      border: 3px solid rgba(147, 197, 253, 0.95);
-      border-radius: 10px;
-      box-shadow:
-        0 0 0 9999px rgba(2, 8, 23, 0.82),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    .focus-stage--zoomed .tree-section {
+      overflow: visible;
+    }
+    /* Letterbox / crop outside the magnified selection */
+    .focus-veil {
+      border: 3px solid rgba(147, 197, 253, 0.9);
+      border-radius: 12px;
+      bottom: 10px;
+      box-shadow: 0 0 0 9999px rgba(2, 8, 23, 0.78);
+      left: 10px;
       pointer-events: none;
       position: absolute;
-      z-index: 20;
+      right: 10px;
+      top: 10px;
+      z-index: 5;
     }
 
     .timer {
@@ -909,6 +912,10 @@ export class DisplayComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private realtime = inject(RealtimeService);
   private sub?: Subscription;
+  private focusViewport = viewChild<ElementRef<HTMLElement>>('focusViewport');
+  private focusStage = viewChild<ElementRef<HTMLElement>>('focusStage');
+  private resizeObs?: ResizeObserver;
+  private fitTimer: ReturnType<typeof setTimeout> | null = null;
 
   id = '';
   joinUrl = '';
@@ -923,6 +930,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
   actions = signal<any[]>([]);
   summary = signal<any>(null);
   expanded = signal<Record<string, boolean>>({});
+  stageCssTransform = signal('none');
   private nowTick = signal(Date.now());
   private tickHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -942,15 +950,42 @@ export class DisplayComponent implements OnInit, OnDestroy {
     return !!this.focusRect();
   }
 
-  stageOrigin() {
-    const f = this.focusRect();
-    return f ? focusOrigin(f) : '50% 50%';
+  private scheduleFitFocus() {
+    if (this.fitTimer) clearTimeout(this.fitTimer);
+    this.fitTimer = setTimeout(() => this.fitFocusToViewport(), 40);
   }
 
-  stageTransform() {
-    const f = this.focusRect();
-    if (!f) return 'scale(1)';
-    return `scale(${focusScale(f)})`;
+  private fitFocusToViewport() {
+    const focus = this.focusRect();
+    const viewport = this.focusViewport()?.nativeElement;
+    const stage = this.focusStage()?.nativeElement;
+    if (!focus || !viewport || !stage) {
+      this.stageCssTransform.set('none');
+      return;
+    }
+
+    // Host drag percentages are relative to the visible preview box.
+    // Use the display viewport size as that same board — not the full tall
+    // stage scrollHeight — otherwise Y% maps into empty lower content and
+    // scale looks like a static spotlight with no zoom.
+    const prev = stage.style.transform;
+    stage.style.transform = 'none';
+    const viewportW = Math.max(viewport.clientWidth, 1);
+    const viewportH = Math.max(viewport.clientHeight, 1);
+    stage.style.transform = prev;
+
+    this.stageCssTransform.set(
+      focusStageTransform(focus, viewportW, viewportH, viewportW, viewportH)
+    );
+  }
+
+  private ensureResizeObserver() {
+    if (this.resizeObs || typeof ResizeObserver === 'undefined') return;
+    this.resizeObs = new ResizeObserver(() => this.scheduleFitFocus());
+    const viewport = this.focusViewport()?.nativeElement;
+    const stage = this.focusStage()?.nativeElement;
+    if (viewport) this.resizeObs.observe(viewport);
+    if (stage) this.resizeObs.observe(stage);
   }
 
   timerPaused() {
@@ -1028,6 +1063,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     }
     const open = this.isOpen(id, childCount);
     this.expanded.update((m) => ({ ...m, [id]: !open }));
+    this.scheduleFitFocus();
   }
 
   ngOnInit() {
@@ -1041,9 +1077,11 @@ export class DisplayComponent implements OnInit, OnDestroy {
         this.ensureQr(e.data);
         this.ensureEndQr(e.data);
         this.loadExtras();
+        this.scheduleFitFocus();
       }
       if (e.type === 'entry.created' || e.type === 'entry.hidden' || e.type === 'vote.updated' || e.type === 'action.created') {
         this.loadExtras();
+        this.scheduleFitFocus();
       }
       if (e.type === 'summary.ready') this.summary.set(e.data);
       if (e.type === 'participant.joined') {
@@ -1051,12 +1089,19 @@ export class DisplayComponent implements OnInit, OnDestroy {
         this.refresh();
       }
     });
+    // View children exist after first CD cycle.
+    setTimeout(() => {
+      this.ensureResizeObserver();
+      this.scheduleFitFocus();
+    }, 0);
   }
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
     if (this.tickHandle) clearInterval(this.tickHandle);
+    if (this.fitTimer) clearTimeout(this.fitTimer);
+    this.resizeObs?.disconnect();
   }
 
   showJoinScreen() {
@@ -1167,6 +1212,8 @@ export class DisplayComponent implements OnInit, OnDestroy {
       this.ensureQr(s);
       this.ensureEndQr(s);
       this.loadExtras();
+      this.scheduleFitFocus();
+      setTimeout(() => this.ensureResizeObserver(), 0);
     });
     this.refreshParticipants();
     this.api.getSummary(this.id).subscribe((s) => {

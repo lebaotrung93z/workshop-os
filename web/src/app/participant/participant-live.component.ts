@@ -282,7 +282,9 @@ import {
                     <span class="vote__parent">{{ pl }}</span>
                   }
                   <p>{{ e.content }}</p>
-                  <span class="vote__cta">{{ hasMyVote(e.id) ? 'Your vote · tap to remove' : 'Tap to vote' }}</span>
+                  @if (!hasMyVote(e.id)) {
+                    <span class="vote__cta">Tap to vote</span>
+                  }
                 </button>
               } @empty {
                 <p class="empty">No ideas to vote on yet. Wait for the board to fill, then try again.</p>
@@ -708,11 +710,6 @@ import {
     .vote--mine .vote__count {
       background: var(--wos-primary);
       color: #fff;
-    }
-
-    .vote--mine .vote__cta {
-      color: var(--wos-primary);
-      font-weight: 800;
     }
 
     .vote__top {

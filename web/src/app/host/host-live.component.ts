@@ -239,9 +239,9 @@ import {
                 }
                 <p class="focus-hint">
                   @if (focusPickMode()) {
-                    Drag a rectangle on the preview to zoom that area on the big screen.
+                    Drag a rectangle on the preview — big screen magnifies that area and grays out the rest.
                   } @else if (hasDisplayFocus()) {
-                    Big screen shows only the selected area (zoomed); everything else is grayed out.
+                    Big screen is magnified on the selection; everything else is grayed out.
                   } @else {
                     Spotlight a region for the projector audience.
                   }

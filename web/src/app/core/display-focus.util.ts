@@ -54,19 +54,31 @@ export function isValidDisplayFocus(raw: unknown): raw is DisplayFocusRect {
   );
 }
 
-/** CSS transform-origin for zooming into a focus rect. */
-export function focusOrigin(focus: DisplayFocusRect): string {
-  const cx = focus.x + focus.w / 2;
-  const cy = focus.y + focus.h / 2;
-  return `${clamp(cx, 0, 100)}% ${clamp(cy, 0, 100)}%`;
-}
-
 /**
- * Scale so the selected rect fills as much of the viewport as possible.
- * Uses the limiting axis so the full selection stays visible.
+ * Pixel transform that maps the focus rect to fill the viewport as much as possible.
+ * Uses transform-origin (0,0) + translate + scale so tall/wide boards zoom correctly
+ * (percent transform-origin alone fails when the stage is larger than the viewport).
  */
-export function focusScale(focus: DisplayFocusRect, fill = 0.98): number {
-  const sx = 100 / Math.max(focus.w, 0.5);
-  const sy = 100 / Math.max(focus.h, 0.5);
-  return Math.max(1, Math.min(sx, sy) * fill);
+export function focusStageTransform(
+  focus: DisplayFocusRect,
+  viewportW: number,
+  viewportH: number,
+  stageW: number,
+  stageH: number,
+  fill = 0.96
+): string {
+  if (viewportW < 8 || viewportH < 8 || stageW < 8 || stageH < 8) return 'none';
+
+  const fx = (focus.x / 100) * stageW;
+  const fy = (focus.y / 100) * stageH;
+  const fw = Math.max((focus.w / 100) * stageW, 8);
+  const fh = Math.max((focus.h / 100) * stageH, 8);
+
+  const scale = Math.min(viewportW / fw, viewportH / fh) * fill;
+  const cx = fx + fw / 2;
+  const cy = fy + fh / 2;
+  const tx = viewportW / 2 - scale * cx;
+  const ty = viewportH / 2 - scale * cy;
+
+  return `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${scale.toFixed(4)})`;
 }
