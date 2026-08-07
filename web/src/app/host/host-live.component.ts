@@ -241,7 +241,7 @@ import {
                   @if (focusPickMode()) {
                     Drag a rectangle on the preview to zoom that area on the big screen.
                   } @else if (hasDisplayFocus()) {
-                    Big screen is zoomed into the highlighted area.
+                    Big screen shows only the selected area (zoomed); everything else is grayed out.
                   } @else {
                     Spotlight a region for the projector audience.
                   }
@@ -714,15 +714,17 @@ import {
       box-shadow: inset 0 0 0 1px #9db7ef;
     }
     .focus-rect {
-      background: rgba(0, 86, 210, 0.12);
+      background: transparent;
       border: 2px solid var(--wos-primary);
-      box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.28);
+      box-shadow:
+        0 0 0 9999px rgba(15, 23, 42, 0.72),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.2);
       pointer-events: none;
       position: absolute;
       z-index: 5;
     }
     .focus-rect--live {
-      border-style: dashed;
+      border-style: solid;
     }
     .join-url { font-size: 0.85rem; margin: 0 0 0.35rem; word-break: break-all; }
     .hint { color: var(--wos-text-muted); margin: 0; }

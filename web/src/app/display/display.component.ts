@@ -371,16 +371,17 @@ import {
           </ul>
         </section>
       }
-        </div>
         @if (focusRect(); as f) {
           <div
-            class="focus-cutout"
+            class="focus-dim"
+            aria-hidden="true"
             [style.left.%]="f.x"
             [style.top.%]="f.y"
             [style.width.%]="f.w"
             [style.height.%]="f.h"
           ></div>
         }
+        </div>
       </div>
     </div>
   `,
@@ -403,6 +404,10 @@ import {
       gap: 1.25rem;
       justify-content: space-between;
       margin-bottom: 2rem;
+      transition: opacity 0.35s ease;
+    }
+    .screen--focused header {
+      opacity: 0.35;
     }
 
     .header-side {
@@ -425,6 +430,7 @@ import {
       text-transform: uppercase;
     }
     .focus-viewport {
+      background: #020817;
       flex: 1 1 auto;
       min-height: 0;
       overflow: hidden;
@@ -432,26 +438,25 @@ import {
     }
     .focus-stage {
       min-height: 100%;
+      position: relative;
       transform: scale(1);
-      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+      transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
       will-change: transform;
     }
-    .focus-cutout {
-      border: 2px solid rgba(96, 165, 250, 0.85);
-      border-radius: 12px;
-      box-shadow: 0 0 0 9999px rgba(2, 8, 23, 0.45);
-      opacity: 0;
+    .screen--focused .focus-viewport {
+      background: #0b1220;
+    }
+    /* Clear window over the selection; everything else stays grayed out and zooms with the stage. */
+    .focus-dim {
+      background: transparent;
+      border: 3px solid rgba(147, 197, 253, 0.95);
+      border-radius: 10px;
+      box-shadow:
+        0 0 0 9999px rgba(2, 8, 23, 0.82),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.12);
       pointer-events: none;
       position: absolute;
-      z-index: 4;
-    }
-    .screen--focused .focus-cutout {
-      animation: focus-flash 0.9s ease forwards;
-    }
-    @keyframes focus-flash {
-      0% { opacity: 0.85; }
-      40% { opacity: 0.85; }
-      100% { opacity: 0; }
+      z-index: 20;
     }
 
     .timer {

@@ -62,11 +62,11 @@ export function focusOrigin(focus: DisplayFocusRect): string {
 }
 
 /**
- * Scale so the focus rect fills most of the viewport.
- * Caps at 4× so tiny selections stay readable without extreme blur.
+ * Scale so the selected rect fills as much of the viewport as possible.
+ * Uses the limiting axis so the full selection stays visible.
  */
-export function focusScale(focus: DisplayFocusRect, padding = 0.9): number {
-  const sx = 100 / Math.max(focus.w, 1);
-  const sy = 100 / Math.max(focus.h, 1);
-  return clamp(Math.min(sx, sy) * padding, 1.05, 4);
+export function focusScale(focus: DisplayFocusRect, fill = 0.98): number {
+  const sx = 100 / Math.max(focus.w, 0.5);
+  const sy = 100 / Math.max(focus.h, 0.5);
+  return Math.max(1, Math.min(sx, sy) * fill);
 }
