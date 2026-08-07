@@ -8,6 +8,13 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-07',
+    title: 'Big screen text size',
+    items: [
+      'Host can set Screen text size (S / M / L / XL) — updates the projector live for notes, OKR tree, votes, and more.'
+    ]
+  },
+  {
+    date: '2026-08-07',
     title: 'Kick & lock room',
     items: [
       'Host can Lock room to block new joins (Unlock anytime).',

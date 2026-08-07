@@ -17,6 +17,7 @@ import { db } from './firebase';
 import { SEED_TEMPLATES } from './seed-templates';
 import { clearTimerPatch } from './timer.util';
 import { clearDisplayFocusPatch, type DisplayFocusRect } from './display-focus.util';
+import { clampDisplayFontScale } from './display-font-scale.util';
 import { buildJoinUrl } from './join-url';
 import { okrInputStep } from './okr.util';
 
@@ -358,6 +359,7 @@ export class ApiService {
           currentStepId,
           participantCount: 0,
           joinsLocked: false,
+          displayFontScale: 1,
           steps,
           createdAt: nowIso()
         };
@@ -956,6 +958,20 @@ export class ApiService {
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Could not clear focus' } }));
+    });
+  }
+
+  /** Host sets big-screen content font scale (1 = default medium). */
+  setDisplayFontScale(id: string, scale: number): Observable<any> {
+    return new Observable((sub) => {
+      const displayFontScale = clampDisplayFontScale(scale);
+      this.hostUpdate(id, { displayFontScale })
+        .then(() => this.snapSession(id))
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Could not update font size' } }));
     });
   }
 

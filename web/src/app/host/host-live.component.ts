@@ -20,6 +20,11 @@ import {
   stepTimerSeconds
 } from '../core/timer.util';
 import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-data-url';
+import {
+  DEFAULT_DISPLAY_FONT_SCALE,
+  DISPLAY_FONT_SCALE_PRESETS,
+  nearestDisplayFontPreset
+} from '../core/display-font-scale.util';
 
 @Component({
   selector: 'app-host-live',
@@ -63,6 +68,24 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
               <app-bosch-button variant="secondary" (click)="saveForLater()">Save for later</app-bosch-button>
             }
             <a class="ghost" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
+            <div class="font-scale" title="Big screen text size">
+              <span class="font-scale__label">Screen text</span>
+              <div class="font-scale__opts" role="group" aria-label="Big screen font size">
+                @for (opt of fontScalePresets; track opt.value) {
+                  <button
+                    type="button"
+                    class="font-scale__btn"
+                    [class.on]="activeFontScale() === opt.value"
+                    [disabled]="busyFontScale() || session()?.status === 'CLOSED'"
+                    [attr.title]="opt.title"
+                    [attr.aria-pressed]="activeFontScale() === opt.value"
+                    (click)="setDisplayFontScale(opt.value)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+            </div>
             @if (session()?.status !== 'LOBBY' && session()?.status !== 'CLOSED') {
               <app-bosch-button
                 variant="secondary"
@@ -528,6 +551,50 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
       padding: 0;
     }
     .top-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .font-scale {
+      align-items: center;
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      display: inline-flex;
+      gap: 0.45rem;
+      padding: 0.25rem 0.35rem 0.25rem 0.65rem;
+    }
+    .font-scale__label {
+      color: var(--wos-text-muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+    .font-scale__opts {
+      display: inline-flex;
+      gap: 0.15rem;
+    }
+    .font-scale__btn {
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      color: var(--wos-text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 800;
+      min-width: 2rem;
+      padding: 0.4rem 0.45rem;
+    }
+    .font-scale__btn:hover:not(:disabled) {
+      background: var(--wos-primary-soft);
+      color: var(--wos-primary);
+    }
+    .font-scale__btn.on {
+      background: var(--wos-primary);
+      color: #fff;
+    }
+    .font-scale__btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
     .badge--prep {
       background: #fef3c7;
       color: #92400e;
@@ -868,6 +935,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   participants = signal<{ id: string; displayName: string }[]>([]);
   busyRoster = signal(false);
   kickingId = signal('');
+  busyFontScale = signal(false);
+  fontScalePresets = DISPLAY_FONT_SCALE_PRESETS;
   qrDataUrl = signal('');
   summary = signal<any>(null);
   message = signal('');
@@ -1459,6 +1528,27 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         this.message.set('On the big screen, drag a rectangle to focus that area.');
       },
       error: (e) => this.message.set(e?.error?.message || 'Could not start focus')
+    });
+  }
+
+  activeFontScale() {
+    return nearestDisplayFontPreset(this.session()?.displayFontScale ?? DEFAULT_DISPLAY_FONT_SCALE);
+  }
+
+  setDisplayFontScale(scale: number) {
+    if (this.busyFontScale() || this.activeFontScale() === scale) return;
+    this.busyFontScale.set(true);
+    const title = DISPLAY_FONT_SCALE_PRESETS.find((p) => p.value === scale)?.title || 'updated';
+    this.api.setDisplayFontScale(this.id, scale).subscribe({
+      next: (s) => {
+        this.busyFontScale.set(false);
+        this.session.set(s);
+        this.message.set(`Big screen text: ${title}.`);
+      },
+      error: (e) => {
+        this.busyFontScale.set(false);
+        this.message.set(e?.error?.message || 'Could not update font size');
+      }
     });
   }
 

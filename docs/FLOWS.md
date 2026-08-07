@@ -115,6 +115,7 @@ Participants may join until the host **locks the room** or ends the session (`CL
 ### Lobby
 
 - Join code, QR (`/?code=`), participant roster/avatars, **Open big screen**.
+- **Screen text** S / M / L / XL — sets `displayFontScale` for big-screen content size (live).
 - **Lock room** / **Unlock room** — blocks or allows new joins (`joinsLocked` on the session).
 - Per-participant **Kick** — soft-kick (`kicked` + rotated `joinToken`); the phone is ejected immediately.
 - Optional OKR theme / seed Objectives before Start.
@@ -231,7 +232,7 @@ Built-in seeds (auto-written when missing; `seedRevision` bump refreshes):
 |---|---|
 | `templates/{id}` | Seeded + custom formats (`steps[]` embedded) |
 | `sessionCodes/{code}` | `{ sessionId }` for join lookup |
-| `sessions/{id}` | Session doc: status, code, `hostToken`, `steps[]`, timer fields, `joinsLocked`, counts |
+| `sessions/{id}` | Session doc: status, code, `hostToken`, `steps[]`, timer fields, `joinsLocked`, `displayFontScale`, counts |
 | `sessions/{id}/participants/{id}` | Roster + `joinToken` (+ optional `kicked` / `kickedAt`) |
 | `sessions/{id}/entries/{id}` | Stickies / poll answers / OKR nodes |
 | `sessions/{id}/votes/{entryId_participantId}` | Unique votes |

@@ -20,13 +20,22 @@ import {
   rectFromDrag,
   type DisplayFocusRect
 } from '../core/display-focus.util';
+import {
+  clampDisplayFontScale,
+  DEFAULT_DISPLAY_FONT_SCALE
+} from '../core/display-font-scale.util';
 
 @Component({
   selector: 'app-display',
   standalone: true,
   imports: [BoschAvatarComponent, BoschAvatarStackComponent],
   template: `
-    <div class="screen" [class.screen--picking]="isPicking()" [class.screen--focused]="hasFocus()">
+    <div
+      class="screen"
+      [class.screen--picking]="isPicking()"
+      [class.screen--focused]="hasFocus()"
+      [style.--display-fs]="displayFontScale()"
+    >
       <header>
         <div>
           <p class="brand">Workshop OS</p>
@@ -400,6 +409,7 @@ import {
   styles: `
     :host { display: block; width: 100%; }
     .screen {
+      --display-fs: 1;
       background: radial-gradient(1200px 600px at 20% -10%, #1a2b4d 0%, transparent 55%), var(--wos-screen-bg);
       color: var(--wos-screen-text);
       display: flex;
@@ -480,7 +490,7 @@ import {
       border: 2px solid #60a5fa;
       border-radius: 12px;
       color: #fff;
-      font-size: 2rem;
+      font-size: calc(2rem * var(--display-fs));
       font-variant-numeric: tabular-nums;
       font-weight: 800;
       letter-spacing: 0.04em;
@@ -500,11 +510,11 @@ import {
       text-transform: uppercase;
     }
 
-    h1 { font-size: 2rem; margin: 0; }
-    h2 { font-size: 2rem; margin: 0 0 1rem; }
-    .meta { color: var(--wos-screen-muted); margin: 0.35rem 0 0; }
+    h1 { font-size: calc(2rem * var(--display-fs)); margin: 0; }
+    h2 { font-size: calc(2rem * var(--display-fs)); margin: 0 0 1rem; }
+    .meta { color: var(--wos-screen-muted); font-size: calc(1rem * var(--display-fs)); margin: 0.35rem 0 0; }
     .code, .code-lg { color: #60a5fa; font-weight: 800; letter-spacing: 0.12em; }
-    .code-lg { display: block; font-size: 4rem; margin: 0.5rem 0; }
+    .code-lg { display: block; font-size: calc(4rem * var(--display-fs)); margin: 0.5rem 0; }
 
     .hero {
       display: grid;
@@ -538,7 +548,7 @@ import {
     }
     .welcome-text {
       color: #e2e8f0;
-      font-size: 1.45rem;
+      font-size: calc(1.45rem * var(--display-fs));
       font-weight: 600;
       line-height: 1.45;
       margin: 0;
@@ -564,7 +574,7 @@ import {
     .row, .vote-row {
       align-items: center;
       display: grid;
-      font-size: 1.35rem;
+      font-size: calc(1.35rem * var(--display-fs));
       gap: 1rem;
       grid-template-columns: 160px 1fr 60px;
     }
@@ -573,7 +583,7 @@ import {
     .fill { background: linear-gradient(90deg, #0056d2, #60a5fa); height: 28px; }
     .rank { color: #60a5fa; font-weight: 800; }
     .vote-row__label { align-items: center; display: flex; font-weight: 600; gap: 0.4rem; margin-bottom: 0.3rem; }
-    .hot { font-size: 1rem; }
+    .hot { font-size: calc(1rem * var(--display-fs)); }
 
     .columns { display: grid; gap: 1rem; grid-template-columns: repeat(3, 1fr); }
     .col {
@@ -583,7 +593,7 @@ import {
       min-height: 14rem;
       overflow: hidden;
     }
-    .col header { font-weight: 800; padding: 0.9rem 1rem; }
+    .col header { font-size: calc(1.05rem * var(--display-fs)); font-weight: 800; padding: 0.9rem 1rem; }
     .col__body { display: grid; gap: 0.65rem; padding: 0.85rem; }
     .col[data-tone='0'] header { background: rgba(15, 157, 88, 0.18); color: #86efac; }
     .col[data-tone='1'] header { background: rgba(217, 48, 37, 0.18); color: #fca5a5; }
@@ -622,12 +632,12 @@ import {
       align-items: center;
       color: #cbd5e1;
       display: flex;
-      font-size: 0.9rem;
+      font-size: calc(0.9rem * var(--display-fs));
       font-weight: 600;
       gap: 0.45rem;
       margin-bottom: 0.4rem;
     }
-    .note p { font-size: 1.15rem; margin: 0; }
+    .note p { font-size: calc(1.15rem * var(--display-fs)); margin: 0; }
 
     .split { display: grid; gap: 2rem; grid-template-columns: 1.2fr 1fr; }
     .actions { display: grid; gap: 0.85rem; }
@@ -637,15 +647,16 @@ import {
       border-radius: 12px;
       padding: 1rem;
     }
-    .action p { font-size: 1.2rem; font-weight: 600; margin: 0 0 0.55rem; }
+    .action p { font-size: calc(1.2rem * var(--display-fs)); font-weight: 600; margin: 0 0 0.55rem; }
     .action__meta {
       align-items: center;
       color: #cbd5e1;
       display: flex;
+      font-size: calc(0.95rem * var(--display-fs));
       gap: 0.5rem;
     }
     .action__meta em { color: var(--wos-screen-muted); font-style: normal; margin-left: auto; }
-    .kr-tag { color: #93c5fd; display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .kr-tag { color: #93c5fd; display: block; font-size: calc(0.85rem * var(--display-fs)); font-weight: 700; margin-bottom: 0.4rem; }
 
     .okr-tree {
       -webkit-overflow-scrolling: touch;
@@ -677,7 +688,7 @@ import {
     .tree-pill {
       border-radius: 12px;
       color: #fff;
-      font-size: 1.05rem;
+      font-size: calc(1.05rem * var(--display-fs));
       font-weight: 700;
       line-height: 1.35;
       max-width: 280px;
@@ -692,7 +703,7 @@ import {
     .tree-pill--root {
       background: var(--wos-primary);
       box-shadow: 0 8px 24px rgba(0, 86, 210, 0.4);
-      font-size: 1.2rem;
+      font-size: calc(1.2rem * var(--display-fs));
       max-width: 360px;
       min-width: 180px;
       padding: 1rem 1.4rem;
@@ -709,7 +720,7 @@ import {
       background: var(--wos-success);
       box-shadow: 0 6px 18px rgba(15, 157, 88, 0.35);
       display: grid;
-      font-size: 0.98rem;
+      font-size: calc(0.98rem * var(--display-fs));
       font-weight: 600;
       gap: 0.4rem;
       justify-items: center;
@@ -724,9 +735,9 @@ import {
       gap: 0.25rem;
       padding: 0.25rem 0.65rem;
     }
-    .kr-vote strong { font-size: 1.1rem; font-weight: 800; line-height: 1; }
+    .kr-vote strong { font-size: calc(1.1rem * var(--display-fs)); font-weight: 800; line-height: 1; }
     .kr-vote em {
-      font-size: 0.72rem;
+      font-size: calc(0.72rem * var(--display-fs));
       font-style: normal;
       font-weight: 700;
       text-transform: uppercase;
@@ -738,7 +749,7 @@ import {
       box-shadow: 0 6px 18px rgba(26, 115, 232, 0.35);
       display: grid;
       gap: 0.45rem;
-      font-size: 0.92rem;
+      font-size: calc(0.92rem * var(--display-fs));
       font-weight: 600;
       max-width: 260px;
       min-width: 180px;
@@ -763,14 +774,14 @@ import {
     }
     .tree-pill--action .action-meta em {
       color: rgba(255, 255, 255, 0.75);
-      font-size: 0.72rem;
+      font-size: calc(0.72rem * var(--display-fs));
       font-style: normal;
       font-weight: 600;
       letter-spacing: 0.02em;
       text-transform: uppercase;
     }
     .tree-pill--action .action-meta strong {
-      font-size: 0.82rem;
+      font-size: calc(0.82rem * var(--display-fs));
       font-weight: 700;
       text-align: right;
     }
@@ -901,14 +912,14 @@ import {
     .breakout-card header {
       align-items: center;
       display: flex;
-      font-size: 1.15rem;
+      font-size: calc(1.15rem * var(--display-fs));
       justify-content: space-between;
       padding: 0.85rem 1rem;
     }
     .breakout-card header span {
       background: rgba(255, 255, 255, 0.08);
       border-radius: var(--wos-radius-pill);
-      font-size: 0.85rem;
+      font-size: calc(0.85rem * var(--display-fs));
       padding: 0.15rem 0.55rem;
     }
     .breakout-card[data-tone='0'] header { background: rgba(15, 157, 88, 0.2); color: #86efac; }
@@ -916,7 +927,7 @@ import {
     .breakout-card[data-tone='2'] header { background: rgba(26, 115, 232, 0.2); color: #93c5fd; }
     .breakout-topic {
       color: #e2e8f0;
-      font-size: 1.05rem;
+      font-size: calc(1.05rem * var(--display-fs));
       font-weight: 600;
       margin: 0;
       padding: 0.75rem 1rem 0;
@@ -930,9 +941,9 @@ import {
       margin: 0;
       padding: 0;
     }
-    .breakout-people li { color: var(--wos-screen-text); font-size: 1.05rem; font-weight: 600; }
+    .breakout-people li { color: var(--wos-screen-text); font-size: calc(1.05rem * var(--display-fs)); font-weight: 600; }
     .breakout-people .empty { color: var(--wos-screen-muted); margin: 0; }
-    .insights li { align-items: start; display: flex; font-size: 1.25rem; gap: 0.65rem; }
+    .insights li { align-items: start; display: flex; font-size: calc(1.25rem * var(--display-fs)); gap: 0.65rem; }
     .check {
       align-items: center;
       background: rgba(15, 157, 88, 0.2);
@@ -990,6 +1001,10 @@ export class DisplayComponent implements OnInit, OnDestroy {
     const idx = steps.findIndex((s: any) => s.id === this.session()?.currentStepId);
     if (idx < 0) return '';
     return `Step ${idx + 1}/${steps.length}`;
+  }
+
+  displayFontScale() {
+    return clampDisplayFontScale(this.session()?.displayFontScale ?? DEFAULT_DISPLAY_FONT_SCALE);
   }
 
   isPicking() {
