@@ -6,6 +6,7 @@ import {
   getDocs,
   setDoc,
   updateDoc,
+  deleteDoc,
   query,
   orderBy,
   onSnapshot,
@@ -1163,11 +1164,16 @@ export class ApiService {
     });
   }
 
+  /**
+   * Toggle a vote on an entry for the current participant.
+   * Second tap on the same card removes the vote and restores budget.
+   */
   castVote(id: string, entryIdOrBody: string | { stepId: string; entryId: string }): Observable<any> {
     return new Observable((sub) => {
       (async () => {
         const participantId = this.participantId();
         const joinToken = this.joinToken();
+        if (!participantId || !joinToken) throw new Error('Join first');
         const session = await getDoc(doc(db, 'sessions', id));
         const stepId =
           typeof entryIdOrBody === 'string'
@@ -1180,22 +1186,66 @@ export class ApiService {
         const mine = votesSnap.docs.filter(
           (d) => d.data()['participantId'] === participantId && d.data()['stepId'] === stepId
         );
-        if (mine.length >= budget) throw new Error('No votes remaining');
         const voteId = `${entryId}_${participantId}`;
-        await setDoc(doc(db, 'sessions', id, 'votes', voteId), {
+        const voteRef = doc(db, 'sessions', id, 'votes', voteId);
+        const existing = await getDoc(voteRef);
+
+        if (existing.exists()) {
+          await deleteDoc(voteRef);
+          const remainingMine = mine.filter((d) => d.id !== voteId).length;
+          return {
+            votesRemaining: budget - remainingMine,
+            voted: false,
+            entryId
+          };
+        }
+
+        if (mine.length >= budget) throw new Error('No votes remaining');
+        await setDoc(voteRef, {
           stepId,
           entryId,
           participantId,
           joinToken,
           createdAt: nowIso()
         });
-        return { votesRemaining: budget - mine.length - 1 };
+        return {
+          votesRemaining: budget - mine.length - 1,
+          voted: true,
+          entryId
+        };
       })()
         .then((r) => {
           sub.next(r);
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Vote failed' } }));
+    });
+  }
+
+  /** Entry IDs the current participant has voted for on a voting step. */
+  listMyVotedEntryIds(id: string, stepId?: string): Observable<string[]> {
+    return new Observable((sub) => {
+      (async () => {
+        const participantId = this.participantId();
+        if (!participantId) return [];
+        const session = await getDoc(doc(db, 'sessions', id));
+        const votingStepId = stepId || (session.data()?.['currentStepId'] as string);
+        const votesSnap = await getDocs(collection(db, 'sessions', id, 'votes'));
+        return votesSnap.docs
+          .filter((d) => {
+            const data = d.data();
+            return (
+              data['participantId'] === participantId &&
+              (!votingStepId || data['stepId'] === votingStepId)
+            );
+          })
+          .map((d) => d.data()['entryId'] as string);
+      })()
+        .then((ids) => {
+          sub.next(ids);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Failed to load votes' } }));
     });
   }
 

@@ -127,7 +127,13 @@ service cloud.firestore {
         allow read: if true;
         allow create: if isParticipantWrite(sessionId)
           && voteId == request.resource.data.entryId + '_' + request.resource.data.participantId;
-        allow update, delete: if false;
+        // Participant may remove their own vote (unvote). joinToken is already on the vote doc.
+        allow delete: if resource.data.participantId is string
+          && resource.data.joinToken is string
+          && voteId == resource.data.entryId + '_' + resource.data.participantId
+          && participantDoc(sessionId, resource.data.participantId).data.joinToken
+            == resource.data.joinToken;
+        allow update: if false;
       }
 
       match /actions/{actionId} {

@@ -246,13 +246,24 @@ import {
             <div class="panel__head vote-head">
               <div>
                 <h2>Vote</h2>
-                <p class="hint">{{ isOkr() ? 'Tap a Key Result to cast a vote' : 'Tap an idea to cast a vote' }}</p>
+                <p class="hint">
+                  {{
+                    isOkr()
+                      ? 'Tap a Key Result to vote · tap again to remove'
+                      : 'Tap an idea to vote · tap again to remove'
+                  }}
+                </p>
               </div>
               <span class="votes-left">{{ votesLeft() }} left</span>
             </div>
             <div class="vote-list">
               @for (e of voteEntries(); track e.id) {
-                <button type="button" class="vote" (click)="vote(e.id)">
+                <button
+                  type="button"
+                  class="vote"
+                  [class.vote--mine]="hasMyVote(e.id)"
+                  (click)="vote(e.id)"
+                >
                   <div class="vote__top">
                     <div class="vote__meta">
                       @if (e.authorName) {
@@ -271,7 +282,7 @@ import {
                     <span class="vote__parent">{{ pl }}</span>
                   }
                   <p>{{ e.content }}</p>
-                  <span class="vote__cta">Tap to vote</span>
+                  <span class="vote__cta">{{ hasMyVote(e.id) ? 'Your vote · tap to remove' : 'Tap to vote' }}</span>
                 </button>
               } @empty {
                 <p class="empty">No ideas to vote on yet. Wait for the board to fill, then try again.</p>
@@ -680,11 +691,28 @@ import {
       gap: var(--gap-sm);
       padding: 0.85rem 0.9rem;
       text-align: left;
+      transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     .vote:active {
       border-color: var(--wos-primary);
       box-shadow: 0 0 0 3px var(--wos-primary-ring);
+    }
+
+    .vote--mine {
+      background: var(--wos-primary-soft);
+      border-color: var(--wos-primary);
+      box-shadow: 0 0 0 2px var(--wos-primary-ring);
+    }
+
+    .vote--mine .vote__count {
+      background: var(--wos-primary);
+      color: #fff;
+    }
+
+    .vote--mine .vote__cta {
+      color: var(--wos-primary);
+      font-weight: 800;
     }
 
     .vote__top {
@@ -991,6 +1019,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   private myEntryCounts = signal<Record<string, number>>({});
   private boardEntries = signal<any[]>([]); // all entries on OKR input step for objectives/parents
   private voteTallies = signal<any[]>([]);
+  private myVotedIds = signal<Set<string>>(new Set());
   private myActionsList = signal<any[]>([]);
   private nowTick = signal(Date.now());
   private tickHandle: ReturnType<typeof setInterval> | null = null;
@@ -1154,6 +1183,10 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     return this.voteTallies().find((t) => t.entryId === entryId)?.votes || 0;
   }
 
+  hasMyVote(entryId: string) {
+    return this.myVotedIds().has(entryId);
+  }
+
   /** Voting cards sorted by current vote count (highest first). */
   voteEntries() {
     const tallies = new Map(this.voteTallies().map((t) => [t.entryId, t.votes]));
@@ -1221,6 +1254,11 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       const voting = (this.session()?.steps || []).find((s: any) => s.type === 'voting');
       if (voting) {
         this.api.tallyVotes(this.id, voting.id).subscribe((t) => this.voteTallies.set(t));
+        this.api.listMyVotedEntryIds(this.id, voting.id).subscribe((ids) => {
+          this.myVotedIds.set(new Set(ids));
+          const budget = Number(voting.config?.votesPerParticipant ?? 3);
+          this.votesLeft.set(Math.max(0, budget - ids.length));
+        });
       }
     }
     if (step.type === 'form') this.reloadMyActions();
@@ -1429,7 +1467,13 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     this.api.castVote(this.id, entryId).subscribe({
       next: (r) => {
         this.votesLeft.set(r.votesRemaining);
-        this.msg.set('Vote cast');
+        this.myVotedIds.update((set) => {
+          const next = new Set(set);
+          if (r.voted) next.add(entryId);
+          else next.delete(entryId);
+          return next;
+        });
+        this.msg.set(r.voted ? 'Vote cast' : 'Vote removed');
         this.reloadBoardData();
       },
       error: (e) => this.msg.set(e?.error?.message)
