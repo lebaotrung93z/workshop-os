@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-07',
+    title: 'Moderation animations & undo',
+    items: [
+      'Big screen animates when the host hides, unhides, or deletes stickies and OKR nodes.',
+      'Host live results include Undo / Redo for hide, unhide, and delete (delete restore brings the item back).'
+    ]
+  },
+  {
+    date: '2026-08-07',
     title: 'Big screen focus area',
     items: [
       'Host starts Focus area on big screen, then drags the zone directly on the projector.',

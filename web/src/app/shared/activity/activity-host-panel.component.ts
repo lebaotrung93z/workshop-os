@@ -11,6 +11,26 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
   imports: [FormsModule, BoschButtonComponent, BoschAvatarComponent],
   template: `
     <div class="panel">
+      <div class="mod-bar">
+        <button
+          type="button"
+          class="mod-btn"
+          [disabled]="!canUndoMod()"
+          title="Undo hide / unhide / delete"
+          (click)="undoModeration()"
+        >
+          Undo
+        </button>
+        <button
+          type="button"
+          class="mod-btn"
+          [disabled]="!canRedoMod()"
+          title="Redo hide / unhide / delete"
+          (click)="redoModeration()"
+        >
+          Redo
+        </button>
+      </div>
       @if (session?.currentStep?.type === 'poll') {
         <h3>Poll results</h3>
         <div class="bars">
@@ -49,7 +69,8 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
             <p class="hint">Prep Objectives now — participants add Key Results after you start.</p>
           }
         }
-        <div class="okr-tree host-tree" role="tree">
+        <div class="host-tree">
+          <div class="host-tree__canvas" role="tree">
           <div class="tree-node tree-node--root" role="treeitem">
             <div class="tree-pill tree-pill--root" [class.is-empty]="!rootLabel()">
               {{ rootLabel() || 'Theme (edit above)' }}
@@ -141,6 +162,7 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
             } @else {
               <p class="empty tree-hint">Add an Objective to grow the tree.</p>
             }
+          </div>
           </div>
         </div>
       }
@@ -323,6 +345,27 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
   `,
   styles: `
     .panel { display: grid; gap: 0.85rem; }
+    .mod-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      justify-content: flex-end;
+    }
+    .mod-btn {
+      background: #fff;
+      border: 1px solid var(--wos-border-strong);
+      border-radius: var(--wos-radius);
+      color: var(--wos-text);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0.35rem 0.7rem;
+    }
+    .mod-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
     h3 { font-size: 0.95rem; margin: 0; }
     .bars, .vote-bars { display: grid; gap: 0.65rem; }
     .bar-row, .vote-row {
@@ -485,7 +528,25 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
       .add-obj, .root-edit__row { grid-template-columns: 1fr; }
     }
 
-    .host-tree { overflow-x: auto; padding: 0.5rem 0 1rem; }
+    .host-tree {
+      -webkit-overflow-scrolling: touch;
+      overflow-x: auto;
+      overflow-y: visible;
+      padding: 0.5rem 0.75rem 1rem;
+      width: 100%;
+    }
+    /* max-content canvas: full tree is scrollable; centers when narrower than viewport */
+    .host-tree__canvas {
+      box-sizing: border-box;
+      margin-inline: auto;
+      min-width: 100%;
+      padding-inline: 0.5rem;
+      width: max-content;
+    }
+    .host-tree__canvas > .tree-node--root {
+      min-width: 100%;
+      width: max-content;
+    }
     .tree-node { align-items: center; display: flex; flex-direction: column; position: relative; }
     .tree-pill {
       border-radius: 10px;
@@ -682,6 +743,9 @@ export class ActivityHostPanelComponent implements OnChanges {
   editingObjectiveId = '';
   editObjectiveText = '';
   busy = signal(false);
+  private modUndo: Array<{ action: 'hide' | 'unhide' | 'delete'; entryId: string; snapshot: any }> = [];
+  private modRedo: Array<{ action: 'hide' | 'unhide' | 'delete'; entryId: string; snapshot: any }> = [];
+  private applyingModHistory = false;
 
   ngOnChanges() {
     if (!this.session?.id) return;
@@ -961,15 +1025,99 @@ export class ActivityHostPanelComponent implements OnChanges {
   }
 
   hide(entryId: string) {
-    this.api.hideEntry(this.session.id, entryId).subscribe(() => this.ngOnChanges());
+    const snap = this.entries().find((e) => e.id === entryId);
+    this.api.hideEntry(this.session.id, entryId).subscribe({
+      next: (r) => {
+        this.pushMod({ action: 'hide', entryId, snapshot: r.snapshot || snap });
+        this.ngOnChanges();
+      }
+    });
   }
 
   unhide(entryId: string) {
-    this.api.unhideEntry(this.session.id, entryId).subscribe(() => this.ngOnChanges());
+    const snap = this.entries().find((e) => e.id === entryId);
+    this.api.unhideEntry(this.session.id, entryId).subscribe({
+      next: (r) => {
+        this.pushMod({ action: 'unhide', entryId, snapshot: r.snapshot || snap });
+        this.ngOnChanges();
+      }
+    });
   }
 
   remove(entryId: string) {
     if (!confirm('Permanently delete this item?')) return;
-    this.api.deleteEntry(this.session.id, entryId).subscribe(() => this.ngOnChanges());
+    const snap = this.entries().find((e) => e.id === entryId);
+    this.api.deleteEntry(this.session.id, entryId).subscribe({
+      next: (r) => {
+        this.pushMod({ action: 'delete', entryId, snapshot: r.snapshot || snap });
+        this.ngOnChanges();
+      }
+    });
+  }
+
+  canUndoMod() {
+    return this.modUndo.length > 0 && !this.busy();
+  }
+
+  canRedoMod() {
+    return this.modRedo.length > 0 && !this.busy();
+  }
+
+  undoModeration() {
+    const op = this.modUndo.pop();
+    if (!op || this.applyingModHistory) return;
+    this.modRedo.push(op);
+    this.applyInverse(op);
+  }
+
+  redoModeration() {
+    const op = this.modRedo.pop();
+    if (!op || this.applyingModHistory) return;
+    this.modUndo.push(op);
+    this.applyForward(op);
+  }
+
+  private pushMod(op: { action: 'hide' | 'unhide' | 'delete'; entryId: string; snapshot: any }) {
+    if (this.applyingModHistory) return;
+    this.modUndo.push(op);
+    if (this.modUndo.length > 40) this.modUndo.shift();
+    this.modRedo = [];
+  }
+
+  private applyInverse(op: { action: 'hide' | 'unhide' | 'delete'; entryId: string; snapshot: any }) {
+    this.applyingModHistory = true;
+    this.busy.set(true);
+    const done = () => {
+      this.busy.set(false);
+      this.applyingModHistory = false;
+      this.ngOnChanges();
+    };
+    if (op.action === 'hide') {
+      this.api.unhideEntry(this.session.id, op.entryId).subscribe({ next: done, error: done });
+    } else if (op.action === 'unhide') {
+      this.api.hideEntry(this.session.id, op.entryId).subscribe({ next: done, error: done });
+    } else {
+      this.api.restoreEntry(this.session.id, op.snapshot || { id: op.entryId }).subscribe({
+        next: done,
+        error: done
+      });
+    }
+  }
+
+  private applyForward(op: { action: 'hide' | 'unhide' | 'delete'; entryId: string; snapshot: any }) {
+    this.applyingModHistory = true;
+    this.busy.set(true);
+    const done = () => {
+      this.busy.set(false);
+      this.applyingModHistory = false;
+      this.ngOnChanges();
+    };
+    if (op.action === 'hide') {
+      this.api.hideEntry(this.session.id, op.entryId).subscribe({ next: done, error: done });
+    } else if (op.action === 'unhide') {
+      this.api.unhideEntry(this.session.id, op.entryId).subscribe({ next: done, error: done });
+    } else {
+      this.api.deleteEntry(this.session.id, op.entryId).subscribe({ next: done, error: done });
+    }
   }
 }

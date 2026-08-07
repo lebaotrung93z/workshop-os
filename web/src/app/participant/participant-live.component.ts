@@ -294,12 +294,14 @@ import {
         } @else if (session()?.currentStep?.type === 'form') {
           <section class="panel">
             <div class="panel__head">
-              <h2>{{ editingActionId ? 'Update action' : 'Define 1 action' }}</h2>
+              <h2>{{ session()?.currentStep?.title || (editingActionId ? 'Update commitment' : 'Commitments') }}</h2>
               <p class="hint">
                 {{
-                  linksToKr()
-                    ? 'Pick a Key Result, then capture the commitment. You can edit or delete later.'
-                    : 'Capture a commitment. You can edit or delete it anytime on this step.'
+                  editingActionId
+                    ? 'Update your commitment, then save.'
+                    : linksToKr()
+                      ? 'Pick a Key Result, then add a commitment. Edit or delete yours anytime below.'
+                      : 'Add a commitment. You can edit or delete yours anytime below.'
                 }}
               </p>
             </div>
@@ -344,26 +346,33 @@ import {
                 <button type="button" class="link cancel-edit" (click)="cancelActionEdit()">Cancel edit</button>
               }
             </div>
-            @if (myActions().length) {
-              <div class="mine">
-                <p class="field__label">Your actions</p>
-                @for (a of myActions(); track a.id) {
-                  <div class="mine-card">
-                    <p>{{ a.action }}</p>
-                    <p class="mine-meta">
-                      {{ a.owner || 'Unassigned' }}
-                      @if (a.dueDate) {
-                        · {{ a.dueDate }}
-                      }
-                    </p>
-                    <div class="mine-actions">
-                      <button type="button" class="link" (click)="startEditAction(a)">Edit</button>
-                      <button type="button" class="danger" (click)="deleteAction(a.id)">Delete</button>
-                    </div>
+            <div class="mine">
+              <p class="field__label">Your commitments</p>
+              @for (a of myActions(); track a.id) {
+                <div class="mine-card" [class.mine-card--editing]="editingActionId === a.id">
+                  @if (a.sourceLabel) {
+                    <p class="mine-kr">KR · {{ a.sourceLabel }}</p>
+                  }
+                  <p>{{ a.action }}</p>
+                  <p class="mine-meta">
+                    {{ a.owner || 'Unassigned' }}
+                    @if (a.dueDate) {
+                      · {{ a.dueDate }}
+                    }
+                  </p>
+                  <div class="mine-actions">
+                    <button type="button" class="link" [disabled]="busy()" (click)="startEditAction(a)">
+                      {{ editingActionId === a.id ? 'Editing…' : 'Edit' }}
+                    </button>
+                    <button type="button" class="danger" [disabled]="busy()" (click)="deleteAction(a.id)">
+                      Delete
+                    </button>
                   </div>
-                }
-              </div>
-            }
+                </div>
+              } @empty {
+                <p class="empty">No commitments yet — submit one above.</p>
+              }
+            </div>
           </section>
         }
 
@@ -882,6 +891,15 @@ import {
       gap: 0.45rem;
       padding: 0.75rem;
     }
+    .mine-card--editing {
+      border-color: var(--wos-primary);
+      box-shadow: 0 0 0 2px var(--wos-primary-ring);
+    }
+    .mine-kr {
+      color: var(--wos-primary);
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
     .mine-card p { margin: 0; }
     .mine-card textarea {
       border: 1px solid var(--wos-border-strong);
@@ -1275,9 +1293,18 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   }
 
   private reloadMyActions() {
-    this.api.listActions(this.id).subscribe((list) => {
-      const pid = this.api.participantId();
-      this.myActionsList.set(pid ? list.filter((a) => a.participantId === pid) : []);
+    this.api.listActions(this.id).subscribe({
+      next: (list) => {
+        const pid = this.api.participantId();
+        if (!pid) {
+          this.myActionsList.set([]);
+          return;
+        }
+        this.myActionsList.set(
+          list.filter((a) => a.participantId === pid || a.createdBy === pid)
+        );
+      },
+      error: () => this.myActionsList.set([])
     });
   }
 
@@ -1369,6 +1396,8 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     this.editingActionId = '';
     this.action = '';
     this.sourceEntryId = '';
+    this.dueDate = '';
+    this.owner = this.displayName();
   }
 
   saveAction() {
@@ -1388,7 +1417,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
         next: () => {
           this.busy.set(false);
           this.cancelActionEdit();
-          this.msg.set('Action updated');
+          this.msg.set('Commitment updated');
           this.reloadMyActions();
         },
         error: (e) => {
@@ -1399,12 +1428,13 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   }
 
   deleteAction(actionId: string) {
+    if (!confirm('Delete this commitment?')) return;
     this.busy.set(true);
     this.api.removeOwnAction(this.id, actionId).subscribe({
       next: () => {
         this.busy.set(false);
         if (this.editingActionId === actionId) this.cancelActionEdit();
-        this.msg.set('Action deleted');
+        this.msg.set('Commitment deleted');
         this.reloadMyActions();
       },
       error: (e) => {
@@ -1494,7 +1524,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
           this.busy.set(false);
           this.action = '';
           this.sourceEntryId = '';
-          this.msg.set('Action saved');
+          this.msg.set('Commitment saved');
           this.reloadMyActions();
         },
         error: (e) => {

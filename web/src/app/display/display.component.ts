@@ -137,6 +137,7 @@ import {
         <section class="tree-section">
           <h2>{{ session()?.currentStep?.title || 'OKR workflow' }}</h2>
           <div class="okr-tree" role="tree">
+            <div class="okr-tree__canvas">
             <div class="tree-node tree-node--root" role="treeitem">
               <div class="tree-pill tree-pill--root" [class.is-empty]="!rootLabel()">
                 {{ rootLabel() || 'Theme (set by host)' }}
@@ -155,7 +156,7 @@ import {
               @if (objectives().length && isOpen('__root__', objectives().length)) {
                 <div class="tree-children" role="group">
                   @for (obj of objectives(); track obj.id) {
-                    <div class="tree-node" role="treeitem">
+                    <div class="tree-node" role="treeitem" [class.fx-out]="fx(obj.id)==='out'" [class.fx-in]="fx(obj.id)==='in'" [class.fx-delete]="fx(obj.id)==='delete'">
                       <div class="tree-pill tree-pill--objective">{{ obj.content }}</div>
                       @if (obj.krs.length) {
                         <button
@@ -170,7 +171,7 @@ import {
                         @if (isOpen(obj.id, obj.krs.length)) {
                           <div class="tree-children" role="group">
                             @for (kr of obj.krs; track kr.id) {
-                              <div class="tree-node" role="treeitem">
+                              <div class="tree-node" role="treeitem" [class.fx-out]="fx(kr.id)==='out'" [class.fx-in]="fx(kr.id)==='in'" [class.fx-delete]="fx(kr.id)==='delete'">
                                 <div class="tree-pill tree-pill--kr">
                                   <span>{{ kr.content }}</span>
                                   <span class="kr-vote" [attr.aria-label]="voteCount(kr.id) + ' votes'">
@@ -222,6 +223,7 @@ import {
                 <p class="muted tree-hint">Waiting for Objectives…</p>
               }
             </div>
+            </div>
           </div>
         </section>
       }
@@ -235,7 +237,12 @@ import {
                 <header>{{ g.title }}</header>
                 <div class="col__body">
                   @for (e of entriesFor(g.id); track e.id) {
-                    <article class="note">
+                    <article
+                      class="note"
+                      [class.fx-out]="fx(e.id)==='out'"
+                      [class.fx-in]="fx(e.id)==='in'"
+                      [class.fx-delete]="fx(e.id)==='delete'"
+                    >
                       <div class="note__head">
                         @if (e.authorName) {
                           <app-bosch-avatar [name]="e.authorName" size="sm" />
@@ -588,6 +595,29 @@ import {
       border-radius: 12px;
       padding: 0.85rem;
     }
+    .fx-out {
+      animation: board-fx-out 0.45s ease forwards;
+      pointer-events: none;
+    }
+    .fx-in {
+      animation: board-fx-in 0.4s ease;
+    }
+    .fx-delete {
+      animation: board-fx-delete 0.5s ease forwards;
+      pointer-events: none;
+    }
+    @keyframes board-fx-out {
+      from { opacity: 1; transform: scale(1); filter: none; }
+      to { opacity: 0; transform: scale(0.88); filter: grayscale(0.6); }
+    }
+    @keyframes board-fx-in {
+      from { opacity: 0; transform: scale(0.9) translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes board-fx-delete {
+      from { opacity: 1; transform: scale(1) rotate(0deg); filter: none; }
+      to { opacity: 0; transform: scale(0.55) rotate(-3deg); filter: blur(3px); }
+    }
     .note__head {
       align-items: center;
       color: #cbd5e1;
@@ -618,11 +648,23 @@ import {
     .kr-tag { color: #93c5fd; display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.4rem; }
 
     .okr-tree {
-      display: flex;
-      justify-content: center;
+      -webkit-overflow-scrolling: touch;
+      display: block;
       overflow-x: auto;
+      overflow-y: visible;
       padding: 1rem 0.5rem 2.5rem;
       width: 100%;
+    }
+    .okr-tree__canvas {
+      box-sizing: border-box;
+      margin-inline: auto;
+      min-width: 100%;
+      padding-inline: 0.5rem;
+      width: max-content;
+    }
+    .okr-tree__canvas > .tree-node--root {
+      min-width: 100%;
+      width: max-content;
     }
 
     .tree-node {
@@ -927,6 +969,11 @@ export class DisplayComponent implements OnInit, OnDestroy {
   qrDataUrl = signal('');
   endQrDataUrl = signal('');
   entries = signal<any[]>([]);
+  /** Entries animating out after hide/delete (kept briefly for CSS). */
+  departing = signal<any[]>([]);
+  entryFx = signal<Record<string, 'in' | 'out' | 'delete'>>({});
+  private liveEntryIds = new Set<string>();
+  private fxTimers = new Map<string, ReturnType<typeof setTimeout>>();
   poll = signal<any[]>([]);
   votes = signal<any[]>([]);
   actions = signal<any[]>([]);
@@ -1057,7 +1104,79 @@ export class DisplayComponent implements OnInit, OnDestroy {
   }
 
   objectives() {
-    return buildOkrTree(this.entries(), this.actions());
+    return buildOkrTree(this.boardEntries(), this.actions());
+  }
+
+  fx(entryId: string) {
+    return this.entryFx()[entryId] || '';
+  }
+
+  /** Visible entries plus short-lived departing ghosts for exit animations. */
+  boardEntries() {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const e of [...this.entries(), ...this.departing()]) {
+      if (!e?.id || seen.has(e.id)) continue;
+      seen.add(e.id);
+      out.push(e);
+    }
+    return out;
+  }
+
+  private applyEntryList(next: any[]) {
+    const prevIds = this.liveEntryIds;
+    const nextIds = new Set(next.map((e) => e.id));
+    const mod = this.session()?.lastModeration;
+    const fx = { ...this.entryFx() };
+    const departing = [...this.departing()];
+    const prevById = new Map(
+      [...this.entries(), ...this.departing()].map((e) => [e.id, e] as const)
+    );
+
+    for (const id of prevIds) {
+      if (nextIds.has(id)) continue;
+      const ghost = prevById.get(id) || {
+        id,
+        content: mod?.entryId === id ? mod.content : '',
+        groupId: mod?.entryId === id ? mod.groupId : null,
+        kind: mod?.entryId === id ? mod.kind : null,
+        parentId: mod?.entryId === id ? mod.parentId : null
+      };
+      if (!departing.some((d) => d.id === id)) departing.push(ghost);
+      const action = mod?.entryId === id ? mod.action : 'hide';
+      fx[id] = action === 'delete' ? 'delete' : 'out';
+      this.scheduleClearFx(id, true);
+    }
+
+    for (const e of next) {
+      if (prevIds.has(e.id)) continue;
+      if (mod?.entryId === e.id && mod.action === 'unhide') {
+        fx[e.id] = 'in';
+        this.scheduleClearFx(e.id, false);
+      }
+    }
+
+    this.liveEntryIds = nextIds;
+    this.entryFx.set(fx);
+    this.departing.set(departing);
+    this.entries.set(next);
+  }
+
+  private scheduleClearFx(entryId: string, removeDeparting: boolean) {
+    const prev = this.fxTimers.get(entryId);
+    if (prev) clearTimeout(prev);
+    const t = setTimeout(() => {
+      this.entryFx.update((m) => {
+        const next = { ...m };
+        delete next[entryId];
+        return next;
+      });
+      if (removeDeparting) {
+        this.departing.update((list) => list.filter((e) => e.id !== entryId));
+      }
+      this.fxTimers.delete(entryId);
+    }, 520);
+    this.fxTimers.set(entryId, t);
   }
 
   isOpen(id: string, childCount: number) {
@@ -1115,6 +1234,8 @@ export class DisplayComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
     if (this.tickHandle) clearInterval(this.tickHandle);
+    this.fxTimers.forEach((t) => clearTimeout(t));
+    this.fxTimers.clear();
   }
 
   showJoinScreen() {
@@ -1276,7 +1397,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
     const stepId = s.currentStepId;
     const okrStep = okrInputStep(s);
     const entryStepId = this.isOkrSession() && okrStep ? okrStep.id : stepId;
-    this.api.listEntries(this.id, entryStepId).subscribe((e) => this.entries.set(e));
+    this.api.listEntries(this.id, entryStepId).subscribe((e) => this.applyEntryList(e));
     this.api.pollTally(this.id, stepId).subscribe((p) => this.poll.set(p));
     const votingStep = okrVotingStep(s);
     const voteStepId = this.isOkrSession() && votingStep ? votingStep.id : stepId;
@@ -1289,7 +1410,7 @@ export class DisplayComponent implements OnInit, OnDestroy {
   }
 
   entriesFor(groupId: string) {
-    return this.entries().filter((e) => e.groupId === groupId);
+    return this.boardEntries().filter((e) => e.groupId === groupId);
   }
 
   pct(count: number) {

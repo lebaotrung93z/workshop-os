@@ -93,15 +93,12 @@ service cloud.firestore {
       match /entries/{entryId} {
         allow read: if true;
         allow create: if (
-            isParticipantWrite(sessionId)
-            || (
-              isHost(sessionId)
-              && request.resource.data.kind == 'objective'
-            )
-          )
-          && request.resource.data.hidden == false
-          && request.resource.data.content is string
-          && request.resource.data.stepId is string;
+          isParticipantWrite(sessionId)
+          || isHost(sessionId)
+        )
+        && request.resource.data.content is string
+        && request.resource.data.stepId is string
+        && request.resource.data.hidden is bool;
         allow update: if
           // Host soft-hide / unhide
           (
@@ -172,7 +169,17 @@ service cloud.firestore {
                 'participantId', 'joinToken', 'updatedAt', 'hidden'
               ])
           );
-        allow delete: if false;
+        // Owner or host may hard-delete a commitment
+        allow delete: if
+          (
+            resource.data.participantId is string
+            && resource.data.joinToken is string
+            && participantDoc(sessionId, resource.data.participantId).data.joinToken
+              == resource.data.joinToken
+          )
+          || (
+            resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken
+          );
       }
 
       match /summary/{docId} {

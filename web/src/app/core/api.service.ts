@@ -1127,12 +1127,28 @@ export class ApiService {
 
   hideEntry(id: string, entryId: string): Observable<any> {
     return new Observable((sub) => {
-      updateDoc(doc(db, 'sessions', id, 'entries', entryId), {
-        hidden: true,
-        hostToken: this.hostToken()
-      })
-        .then(() => {
-          sub.next({ ok: true });
+      (async () => {
+        const ref = doc(db, 'sessions', id, 'entries', entryId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Entry not found');
+        const data = snap.data() as Record<string, any>;
+        const snapshot = { id: entryId, ...data };
+        await updateDoc(ref, { hidden: true, hostToken: this.hostToken() });
+        await this.hostUpdate(id, {
+          lastModeration: {
+            entryId,
+            action: 'hide',
+            at: nowIso(),
+            content: data['content'] || '',
+            kind: data['kind'] || null,
+            groupId: data['groupId'] || null,
+            parentId: data['parentId'] || null
+          }
+        });
+        return { ok: true, snapshot, action: 'hide' as const };
+      })()
+        .then((r) => {
+          sub.next(r);
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Hide failed' } }));
@@ -1141,12 +1157,28 @@ export class ApiService {
 
   unhideEntry(id: string, entryId: string): Observable<any> {
     return new Observable((sub) => {
-      updateDoc(doc(db, 'sessions', id, 'entries', entryId), {
-        hidden: false,
-        hostToken: this.hostToken()
-      })
-        .then(() => {
-          sub.next({ ok: true });
+      (async () => {
+        const ref = doc(db, 'sessions', id, 'entries', entryId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Entry not found');
+        const data = snap.data() as Record<string, any>;
+        const snapshot = { id: entryId, ...data };
+        await updateDoc(ref, { hidden: false, hostToken: this.hostToken() });
+        await this.hostUpdate(id, {
+          lastModeration: {
+            entryId,
+            action: 'unhide',
+            at: nowIso(),
+            content: data['content'] || '',
+            kind: data['kind'] || null,
+            groupId: data['groupId'] || null,
+            parentId: data['parentId'] || null
+          }
+        });
+        return { ok: true, snapshot, action: 'unhide' as const };
+      })()
+        .then((r) => {
+          sub.next(r);
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Unhide failed' } }));
@@ -1160,15 +1192,69 @@ export class ApiService {
         const hostToken = this.hostToken();
         if (!hostToken) throw new Error('Missing host token');
         const ref = doc(db, 'sessions', id, 'entries', entryId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Entry not found');
+        const data = snap.data()!;
+        const snapshot = { id: entryId, ...data };
         await updateDoc(ref, { markedForDelete: true, hostToken });
         await deleteDoc(ref);
-        return { ok: true };
+        await this.hostUpdate(id, {
+          lastModeration: {
+            entryId,
+            action: 'delete',
+            at: nowIso(),
+            content: data['content'] || '',
+            kind: data['kind'] || null,
+            groupId: data['groupId'] || null,
+            parentId: data['parentId'] || null
+          }
+        });
+        return { ok: true, snapshot, action: 'delete' as const };
       })()
         .then((r) => {
           sub.next(r);
           sub.complete();
         })
         .catch((e) => sub.error({ error: { message: e?.message || 'Delete failed' } }));
+    });
+  }
+
+  /** Restore a previously deleted entry (host undo). */
+  restoreEntry(id: string, snapshot: Record<string, unknown>): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const hostToken = this.hostToken();
+        if (!hostToken) throw new Error('Missing host token');
+        const entryId = String(snapshot['id'] || '');
+        if (!entryId) throw new Error('Missing entry id');
+        const { id: _omit, ...rest } = snapshot as any;
+        const payload: Record<string, unknown> = {
+          ...rest,
+          hidden: false,
+          markedForDelete: false,
+          hostToken,
+          updatedAt: nowIso()
+        };
+        delete payload['id'];
+        await setDoc(doc(db, 'sessions', id, 'entries', entryId), payload);
+        await this.hostUpdate(id, {
+          lastModeration: {
+            entryId,
+            action: 'unhide',
+            at: nowIso(),
+            content: payload['content'] || '',
+            kind: payload['kind'] || null,
+            groupId: payload['groupId'] || null,
+            parentId: payload['parentId'] || null
+          }
+        });
+        return { ok: true, entryId, action: 'restore' as const };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Restore failed' } }));
     });
   }
 
@@ -1471,19 +1557,22 @@ export class ApiService {
       (async () => {
         const participantId = this.participantId();
         const joinToken = this.joinToken();
-        const payload: any = {
-          hidden: true,
-          updatedAt: nowIso()
-        };
+        const ref = doc(db, 'sessions', id, 'actions', actionId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Action not found');
+        const data = snap.data()!;
+
         if (participantId && joinToken) {
-          payload.participantId = participantId;
-          payload.joinToken = joinToken;
-        } else if (this.hostToken()) {
-          payload.hostToken = this.hostToken();
-        } else {
-          throw new Error('Join the session before deleting');
+          const owns =
+            data['participantId'] === participantId && data['joinToken'] === joinToken;
+          if (!owns) throw new Error('Not allowed to delete this action');
+          await deleteDoc(ref);
+          return { ok: true };
         }
-        await updateDoc(doc(db, 'sessions', id, 'actions', actionId), payload);
+
+        const hostToken = this.hostToken();
+        if (!hostToken) throw new Error('Join the session before deleting');
+        await updateDoc(ref, { hidden: true, hostToken, updatedAt: nowIso() });
         return { ok: true };
       })()
         .then((r) => {
@@ -1613,9 +1702,8 @@ export class ApiService {
       })
     );
     this.unsubs.push(
-      onSnapshot(collection(db, 'sessions', sessionId, 'actions'), (snap) => {
-        const last = snap.docs[snap.docs.length - 1];
-        if (last) this.events.next({ type: 'action.created', data: { id: last.id, ...last.data() } });
+      onSnapshot(collection(db, 'sessions', sessionId, 'actions'), () => {
+        this.events.next({ type: 'action.created', data: {} });
       })
     );
     this.unsubs.push(
