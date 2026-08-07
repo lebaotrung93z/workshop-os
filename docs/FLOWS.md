@@ -126,8 +126,9 @@ Participants may join until `CLOSED`.
 | Add step | `insertStep` — poll / input / voting / form / groups / end after current or at end |
 | Step Settings | Edit title, instructions, timer, poll options, columns, votes budget, welcome media, OKR flags (`updateStep`) |
 | Timer | Start / pause / resume / reset → `timerEndsAt` + `timerPausedRemaining` on session |
-| Highlight & zoom | Drag a rect on Big Screen Preview → `displayFocus` zoom on projector; Reset clears |
-| Hide entry | Soft-hide sticky (`hidden: true`) |
+| Hide entry | Soft-hide from participants / display; host can Unhide |
+| Delete entry | Permanent delete (host or owner) |
+| Focus area | Host arms pick → drag rectangle on big screen → selection clear, rest grayed out |
 | AI summary | Client heuristic → `sessions/{id}/summary/latest` |
 | CSV / Report | Browser-generated download |
 | End session | Status `CLOSED` |

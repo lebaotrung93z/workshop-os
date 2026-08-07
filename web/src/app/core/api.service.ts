@@ -849,21 +849,56 @@ export class ApiService {
     });
   }
 
-  /** Zoom the big screen into a normalized percent rect of the content stage. */
-  setDisplayFocus(id: string, focus: DisplayFocusRect | null): Observable<any> {
+  /** Arm the big screen to accept one drag-to-focus gesture. */
+  startDisplayFocusPick(id: string): Observable<any> {
     return new Observable((sub) => {
-      this.hostUpdate(id, { displayFocus: focus })
+      this.hostUpdate(id, { displayFocusPicking: true, displayFocus: null })
         .then(() => this.snapSession(id))
         .then((s) => {
           sub.next(s);
           sub.complete();
         })
-        .catch((e) => sub.error({ error: { message: e?.message || 'Focus update failed' } }));
+        .catch((e) => sub.error({ error: { message: e?.message || 'Could not start focus' } }));
+    });
+  }
+
+  /**
+   * Complete a focus pick from the big screen (no host token required while picking is armed).
+   * Clears displayFocusPicking afterward.
+   */
+  completeDisplayFocusPick(id: string, focus: DisplayFocusRect | null): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const ref = doc(db, 'sessions', id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Session not found');
+        if (!snap.data()?.['displayFocusPicking']) {
+          throw new Error('Focus picking is not active — start it from the host console');
+        }
+        await updateDoc(ref, {
+          displayFocus: focus,
+          displayFocusPicking: false
+        });
+        return this.snapSession(id);
+      })()
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Could not set focus' } }));
     });
   }
 
   clearDisplayFocus(id: string): Observable<any> {
-    return this.setDisplayFocus(id, null);
+    return new Observable((sub) => {
+      this.hostUpdate(id, clearDisplayFocusPatch())
+        .then(() => this.snapSession(id))
+        .then((s) => {
+          sub.next(s);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Could not clear focus' } }));
+    });
   }
 
   /** Host-editable workshop title. */
@@ -906,7 +941,7 @@ export class ApiService {
     return { id: s.id, ...data, currentStep };
   }
 
-  listEntries(id: string, stepId?: string): Observable<any[]> {
+  listEntries(id: string, stepId?: string, opts?: { includeHidden?: boolean }): Observable<any[]> {
     return new Observable((sub) => {
       (async () => {
         const sessionSnap = await getDoc(doc(db, 'sessions', id));
@@ -939,7 +974,9 @@ export class ApiService {
             null;
           return { id: d.id, ...data, authorName };
         });
-        rows = rows.filter((r: any) => !r.hidden);
+        if (!opts?.includeHidden) {
+          rows = rows.filter((r: any) => !r.hidden);
+        }
 
         // Voting lists stickies from input steps (not the voting step itself).
         // See docs/FLOWS.md — matches legacy Spring ActivityService.listEntries.
@@ -1102,6 +1139,39 @@ export class ApiService {
     });
   }
 
+  unhideEntry(id: string, entryId: string): Observable<any> {
+    return new Observable((sub) => {
+      updateDoc(doc(db, 'sessions', id, 'entries', entryId), {
+        hidden: false,
+        hostToken: this.hostToken()
+      })
+        .then(() => {
+          sub.next({ ok: true });
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Unhide failed' } }));
+    });
+  }
+
+  /** Host permanently deletes an entry (marks then deletes for rules). */
+  deleteEntry(id: string, entryId: string): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const hostToken = this.hostToken();
+        if (!hostToken) throw new Error('Missing host token');
+        const ref = doc(db, 'sessions', id, 'entries', entryId);
+        await updateDoc(ref, { markedForDelete: true, hostToken });
+        await deleteDoc(ref);
+        return { ok: true };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Delete failed' } }));
+    });
+  }
+
   /** Owner (or host for objectives) updates entry text / parent. */
   updateEntry(
     id: string,
@@ -1141,19 +1211,21 @@ export class ApiService {
     });
   }
 
-  /** Owner soft-deletes their own entry (sets hidden). Host should use hideEntry. */
+  /** Owner permanently deletes their own entry. */
   removeOwnEntry(id: string, entryId: string): Observable<any> {
     return new Observable((sub) => {
       (async () => {
         const participantId = this.participantId();
         const joinToken = this.joinToken();
         if (!participantId || !joinToken) throw new Error('Join the session before deleting');
-        await updateDoc(doc(db, 'sessions', id, 'entries', entryId), {
-          hidden: true,
-          participantId,
-          joinToken,
-          updatedAt: nowIso()
-        });
+        const ref = doc(db, 'sessions', id, 'entries', entryId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Entry not found');
+        const data = snap.data()!;
+        if (data['participantId'] !== participantId || data['joinToken'] !== joinToken) {
+          throw new Error('Not allowed to delete this entry');
+        }
+        await deleteDoc(ref);
         return { ok: true };
       })()
         .then((r) => {

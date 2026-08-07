@@ -8,10 +8,19 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-07',
-    title: 'Big screen highlight & zoom',
+    title: 'Big screen focus area',
     items: [
-      'Host can drag a rectangle on Big Screen Preview to spotlight and zoom that area on the projector.',
-      'Reset zoom from the host console; zoom clears automatically when the step changes.'
+      'Host starts Focus area on big screen, then drags the zone directly on the projector.',
+      'Selected zone stays clear; everything else grays out. Clear focus anytime from the host console.'
+    ]
+  },
+  {
+    date: '2026-08-07',
+    title: 'Hide vs delete',
+    items: [
+      'Host Hide soft-hides an idea from participants and the big screen; Unhide brings it back.',
+      'Delete permanently removes an item. Participant Delete also hard-deletes.',
+      'Removed the old preview-based highlight & zoom.'
     ]
   },
   {

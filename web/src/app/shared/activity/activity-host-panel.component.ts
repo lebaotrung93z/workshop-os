@@ -63,7 +63,7 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
               <div class="tree-children" role="group">
                 @for (obj of objectives(); track obj.id) {
                   <div class="tree-node" role="treeitem">
-                    <div class="tree-pill tree-pill--objective">
+                    <div class="tree-pill tree-pill--objective" [class.is-hidden]="obj.hidden">
                       @if (editingObjectiveId === obj.id) {
                         <input class="obj-edit" [(ngModel)]="editObjectiveText" (keyup.enter)="saveObjective(obj)" />
                         <div class="obj-edit-actions">
@@ -74,7 +74,12 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
                         <span>{{ obj.content }}</span>
                         <div class="obj-edit-actions">
                           <button type="button" class="hide-inline" (click)="startObjectiveEdit(obj)">Edit</button>
-                          <button type="button" class="hide-inline" (click)="hide(obj.id)">Hide</button>
+                          @if (obj.hidden) {
+                            <button type="button" class="hide-inline" (click)="unhide(obj.id)">Unhide</button>
+                          } @else {
+                            <button type="button" class="hide-inline" (click)="hide(obj.id)">Hide</button>
+                          }
+                          <button type="button" class="hide-inline danger" (click)="remove(obj.id)">Delete</button>
                         </div>
                       }
                     </div>
@@ -86,13 +91,18 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
                         <div class="tree-children" role="group">
                           @for (kr of obj.krs; track kr.id) {
                             <div class="tree-node" role="treeitem">
-                              <div class="tree-pill tree-pill--kr">
+                              <div class="tree-pill tree-pill--kr" [class.is-hidden]="kr.hidden">
                                 <span>{{ kr.content }}</span>
                                 <span class="kr-vote" [attr.aria-label]="voteCount(kr.id) + ' votes'">
                                   <strong>{{ voteCount(kr.id) }}</strong>
                                   <em>{{ voteCount(kr.id) === 1 ? 'vote' : 'votes' }}</em>
                                 </span>
-                                <button type="button" class="hide-inline" (click)="hide(kr.id)">Hide</button>
+                                @if (kr.hidden) {
+                                  <button type="button" class="hide-inline" (click)="unhide(kr.id)">Unhide</button>
+                                } @else {
+                                  <button type="button" class="hide-inline" (click)="hide(kr.id)">Hide</button>
+                                }
+                                <button type="button" class="hide-inline danger" (click)="remove(kr.id)">Delete</button>
                               </div>
                               @if (kr.actions.length) {
                                 <button type="button" class="tree-toggle" (click)="toggle('kr-' + kr.id)">
@@ -143,7 +153,7 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
               <header>{{ g.title }}</header>
               <div class="col__body">
                 @for (e of entriesFor(g.id); track e.id) {
-                  <article class="note">
+                  <article class="note" [class.note--hidden]="e.hidden">
                     <div class="note__head">
                       @if (e.authorName) {
                         <app-bosch-avatar [name]="e.authorName" size="sm" />
@@ -151,9 +161,19 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
                       } @else {
                         <span class="muted">Anonymous</span>
                       }
+                      @if (e.hidden) {
+                        <span class="hidden-tag">Hidden</span>
+                      }
                     </div>
                     <p>{{ e.content }}</p>
-                    <button type="button" class="hide" (click)="hide(e.id)">Hide</button>
+                    <div class="note__actions">
+                      @if (e.hidden) {
+                        <button type="button" class="hide" (click)="unhide(e.id)">Unhide</button>
+                      } @else {
+                        <button type="button" class="hide" (click)="hide(e.id)">Hide</button>
+                      }
+                      <button type="button" class="hide danger" (click)="remove(e.id)">Delete</button>
+                    </div>
                   </article>
                 } @empty {
                   <p class="empty">Waiting for ideas…</p>
@@ -330,11 +350,25 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
     .col[data-tone='2'] { background: var(--wos-info-soft); }
     .col[data-tone='2'] header { background: rgba(26, 115, 232, 0.1); color: var(--wos-info-ink); }
     .note { background: #fff; border-radius: var(--wos-radius); box-shadow: var(--wos-shadow); display: grid; gap: 0.4rem; padding: 0.7rem; }
-    .note__head { align-items: center; display: flex; font-size: 0.78rem; font-weight: 600; gap: 0.35rem; }
+    .note--hidden { opacity: 0.55; }
+    .note__head { align-items: center; display: flex; font-size: 0.78rem; font-weight: 600; gap: 0.35rem; flex-wrap: wrap; }
+    .note__actions { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .hidden-tag {
+      background: #e2e8f0;
+      border-radius: 999px;
+      color: var(--wos-text-secondary);
+      font-size: 0.65rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.45rem;
+      text-transform: uppercase;
+    }
     .note p { margin: 0; }
-    .hide, .link { background: transparent; border: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; padding: 0; }
-    .hide { color: var(--wos-danger); text-align: left; }
+    .hide, .link, .hide-inline { background: transparent; border: 0; cursor: pointer; font-size: 0.78rem; font-weight: 700; padding: 0; }
+    .hide { color: var(--wos-text-secondary); text-align: left; }
+    .hide.danger, .hide-inline.danger { color: var(--wos-danger); }
     .link { color: var(--wos-primary); }
+    .tree-pill.is-hidden { opacity: 0.55; }
     .empty, .muted, .hint { color: var(--wos-text-muted); margin: 0; }
     .hint { font-size: 0.85rem; margin: 0.35rem 0 0.65rem; }
     .breakout-head {
@@ -536,6 +570,10 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
       margin: 0.35rem auto 0;
       padding: 0.15rem 0.45rem;
     }
+    .hide-inline.danger {
+      background: rgba(217, 48, 37, 0.92);
+      color: #fff;
+    }
     .tree-toggle {
       align-items: center;
       background: #fff;
@@ -651,7 +689,7 @@ export class ActivityHostPanelComponent implements OnChanges {
     const okrStep = okrInputStep(this.session);
     const entryStepId = this.isOkrSession() && okrStep ? okrStep.id : stepId;
     this.treeRootDraft = String(this.session.treeRootLabel || '');
-    this.api.listEntries(this.session.id, entryStepId).subscribe((e) => this.entries.set(e));
+    this.api.listEntries(this.session.id, entryStepId, { includeHidden: true }).subscribe((e) => this.entries.set(e));
     this.api.pollTally(this.session.id, stepId).subscribe((p) => this.poll.set(p));
     const votingStep = okrVotingStep(this.session);
     const voteStepId = this.isOkrSession() && votingStep ? votingStep.id : stepId;
@@ -924,5 +962,14 @@ export class ActivityHostPanelComponent implements OnChanges {
 
   hide(entryId: string) {
     this.api.hideEntry(this.session.id, entryId).subscribe(() => this.ngOnChanges());
+  }
+
+  unhide(entryId: string) {
+    this.api.unhideEntry(this.session.id, entryId).subscribe(() => this.ngOnChanges());
+  }
+
+  remove(entryId: string) {
+    if (!confirm('Permanently delete this item?')) return;
+    this.api.deleteEntry(this.session.id, entryId).subscribe(() => this.ngOnChanges());
   }
 }

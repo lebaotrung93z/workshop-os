@@ -15,6 +15,15 @@ service cloud.firestore {
         && request.resource.data.participantCount == resource.data.participantCount + 1;
     }
 
+    // Big screen may finish one armed focus drag without the host token.
+    function isDisplayFocusPickComplete() {
+      return resource.data.displayFocusPicking == true
+        && request.resource.data.displayFocusPicking == false
+        && request.resource.data.hostToken == resource.data.hostToken
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayFocus', 'displayFocusPicking']);
+    }
+
     function participantDoc(sessionId, participantId) {
       return get(/databases/$(database)/documents/sessions/$(sessionId)/participants/$(participantId));
     }
@@ -68,7 +77,9 @@ service cloud.firestore {
         && request.resource.data.code is string
         && request.resource.data.status == 'LOBBY'
         && request.resource.data.steps is list;
-      allow update: if keepsHostToken(sessionId) || isParticipantCountBump();
+      allow update: if keepsHostToken(sessionId)
+        || isParticipantCountBump()
+        || isDisplayFocusPickComplete();
       allow delete: if false;
 
       match /participants/{participantId} {
@@ -92,10 +103,17 @@ service cloud.firestore {
           && request.resource.data.content is string
           && request.resource.data.stepId is string;
         allow update: if
-          // Host soft-hide
+          // Host soft-hide / unhide
           (
             isHost(sessionId)
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hidden', 'hostToken'])
+          )
+          // Host marks entry for hard delete
+          || (
+            isHost(sessionId)
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['markedForDelete', 'hostToken'])
+            && request.resource.data.markedForDelete == true
           )
           // Owner edits content / parent / group
           || (
@@ -105,13 +123,6 @@ service cloud.firestore {
             && request.resource.data.content is string
             && request.resource.data.hidden == resource.data.hidden
           )
-          // Owner soft-deletes own entry
-          || (
-            isEntryOwner(sessionId)
-            && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['hidden', 'participantId', 'joinToken', 'updatedAt'])
-            && request.resource.data.hidden == true
-          )
           // Host edits objective text
           || (
             isHost(sessionId)
@@ -120,7 +131,18 @@ service cloud.firestore {
               .hasOnly(['content', 'hostToken', 'updatedAt'])
             && request.resource.data.content is string
           );
-        allow delete: if false;
+        // Owner hard-delete, or host after markedForDelete
+        allow delete: if
+          (
+            resource.data.participantId is string
+            && resource.data.joinToken is string
+            && participantDoc(sessionId, resource.data.participantId).data.joinToken
+              == resource.data.joinToken
+          )
+          || (
+            resource.data.markedForDelete == true
+            && resource.data.hostToken == get(sessionPath(sessionId)).data.hostToken
+          );
       }
 
       match /votes/{voteId} {

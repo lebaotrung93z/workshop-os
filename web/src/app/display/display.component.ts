@@ -1,4 +1,4 @@
-import { Component, ElementRef, OnDestroy, OnInit, inject, signal, viewChild } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription } from 'rxjs';
 import QRCode from 'qrcode';
@@ -16,8 +16,8 @@ import {
 } from '../core/timer.util';
 import { cssBackgroundImage } from '../core/image-data-url';
 import {
-  focusStageTransform,
   isValidDisplayFocus,
+  rectFromDrag,
   type DisplayFocusRect
 } from '../core/display-focus.util';
 
@@ -26,7 +26,7 @@ import {
   standalone: true,
   imports: [BoschAvatarComponent, BoschAvatarStackComponent],
   template: `
-    <div class="screen" [class.screen--focused]="hasFocus()">
+    <div class="screen" [class.screen--picking]="isPicking()" [class.screen--focused]="hasFocus()">
       <header>
         <div>
           <p class="brand">Workshop OS</p>
@@ -43,8 +43,10 @@ import {
           </p>
         </div>
         <div class="header-side">
-          @if (hasFocus()) {
-            <p class="focus-badge">Zoomed</p>
+          @if (isPicking()) {
+            <p class="focus-badge focus-badge--pick">Drag to focus</p>
+          } @else if (hasFocus()) {
+            <p class="focus-badge">Focused</p>
           }
           @if (timerLabel()) {
             <div class="timer" [class.timer--paused]="timerPaused()" [class.timer--ended]="timerEnded()">
@@ -55,13 +57,17 @@ import {
         </div>
       </header>
 
-      <div class="focus-viewport" #focusViewport>
-        <div
-          class="focus-stage"
-          #focusStage
-          [class.focus-stage--zoomed]="hasFocus()"
-          [style.transform]="stageCssTransform()"
-        >
+      @if (isPicking()) {
+        <p class="pick-banner">Host: drag a rectangle on this screen. Everything outside will gray out.</p>
+      }
+
+      <div
+        class="focus-stage"
+        (pointerdown)="onFocusPointerDown($event)"
+        (pointermove)="onFocusPointerMove($event)"
+        (pointerup)="onFocusPointerUp($event)"
+        (pointercancel)="onFocusPointerCancel()"
+      >
       @if (showJoinScreen()) {
         <section
           class="hero"
@@ -371,9 +377,15 @@ import {
           </ul>
         </section>
       }
-        </div>
-        @if (hasFocus()) {
-          <div class="focus-veil" aria-hidden="true"></div>
+        @if (focusOverlay(); as f) {
+          <div
+            class="focus-dim"
+            aria-hidden="true"
+            [style.left.%]="f.x"
+            [style.top.%]="f.y"
+            [style.width.%]="f.w"
+            [style.height.%]="f.h"
+          ></div>
         }
       </div>
     </div>
@@ -397,14 +409,6 @@ import {
       gap: 1.25rem;
       justify-content: space-between;
       margin-bottom: 2rem;
-      transition: opacity 0.35s ease;
-    }
-    .screen--focused {
-      padding: 0.75rem 1rem 1rem;
-    }
-    .screen--focused header {
-      margin-bottom: 0.65rem;
-      opacity: 0.4;
     }
 
     .header-side {
@@ -426,40 +430,42 @@ import {
       padding: 0.35rem 0.7rem;
       text-transform: uppercase;
     }
-
-    .focus-viewport {
-      background: #020817;
-      flex: 1 1 auto;
-      min-height: 50vh;
-      overflow: hidden;
-      position: relative;
+    .focus-badge--pick {
+      background: rgba(251, 191, 36, 0.18);
+      border-color: rgba(251, 191, 36, 0.55);
+      color: #fde68a;
+    }
+    .pick-banner {
+      background: rgba(251, 191, 36, 0.14);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      border-radius: 12px;
+      color: #fde68a;
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin: 0 0 1rem;
+      padding: 0.75rem 1rem;
+      text-align: center;
     }
     .focus-stage {
-      min-height: 100%;
+      min-height: 40vh;
       position: relative;
-      transform-origin: 0 0;
-      transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-      will-change: transform;
+      touch-action: none;
     }
-    .focus-stage--zoomed {
-      /* Disable nested scrollports so the stage transform owns the view */
+    .screen--picking .focus-stage {
+      cursor: crosshair;
+    }
+    .screen--picking .focus-stage > :not(.focus-dim) {
       pointer-events: none;
+      user-select: none;
     }
-    .focus-stage--zoomed .tree-section {
-      overflow: visible;
-    }
-    /* Letterbox / crop outside the magnified selection */
-    .focus-veil {
-      border: 3px solid rgba(147, 197, 253, 0.9);
+    .focus-dim {
+      background: transparent;
+      border: 3px solid rgba(147, 197, 253, 0.95);
       border-radius: 12px;
-      bottom: 10px;
       box-shadow: 0 0 0 9999px rgba(2, 8, 23, 0.78);
-      left: 10px;
       pointer-events: none;
       position: absolute;
-      right: 10px;
-      top: 10px;
-      z-index: 5;
+      z-index: 30;
     }
 
     .timer {
@@ -912,10 +918,6 @@ export class DisplayComponent implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private realtime = inject(RealtimeService);
   private sub?: Subscription;
-  private focusViewport = viewChild<ElementRef<HTMLElement>>('focusViewport');
-  private focusStage = viewChild<ElementRef<HTMLElement>>('focusStage');
-  private resizeObs?: ResizeObserver;
-  private fitTimer: ReturnType<typeof setTimeout> | null = null;
 
   id = '';
   joinUrl = '';
@@ -930,7 +932,9 @@ export class DisplayComponent implements OnInit, OnDestroy {
   actions = signal<any[]>([]);
   summary = signal<any>(null);
   expanded = signal<Record<string, boolean>>({});
-  stageCssTransform = signal('none');
+  draftFocusRect = signal<DisplayFocusRect | null>(null);
+  private focusDragOrigin: { x: number; y: number } | null = null;
+  private focusDragEl: HTMLElement | null = null;
   private nowTick = signal(Date.now());
   private tickHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -941,51 +945,70 @@ export class DisplayComponent implements OnInit, OnDestroy {
     return `Step ${idx + 1}/${steps.length}`;
   }
 
-  focusRect(): DisplayFocusRect | null {
-    const raw = this.session()?.displayFocus;
-    return isValidDisplayFocus(raw) ? raw : null;
+  isPicking() {
+    return !!this.session()?.displayFocusPicking;
   }
 
   hasFocus() {
-    return !!this.focusRect();
+    return isValidDisplayFocus(this.session()?.displayFocus);
   }
 
-  private scheduleFitFocus() {
-    if (this.fitTimer) clearTimeout(this.fitTimer);
-    this.fitTimer = setTimeout(() => this.fitFocusToViewport(), 40);
+  focusOverlay(): DisplayFocusRect | null {
+    return this.draftFocusRect() || (this.hasFocus() ? this.session().displayFocus : null);
   }
 
-  private fitFocusToViewport() {
-    const focus = this.focusRect();
-    const viewport = this.focusViewport()?.nativeElement;
-    const stage = this.focusStage()?.nativeElement;
-    if (!focus || !viewport || !stage) {
-      this.stageCssTransform.set('none');
-      return;
-    }
+  onFocusPointerDown(ev: PointerEvent) {
+    if (!this.isPicking()) return;
+    const el = ev.currentTarget as HTMLElement;
+    el.setPointerCapture?.(ev.pointerId);
+    this.focusDragEl = el;
+    this.focusDragOrigin = { x: ev.clientX, y: ev.clientY };
+    this.draftFocusRect.set(null);
+    ev.preventDefault();
+  }
 
-    // Host drag percentages are relative to the visible preview box.
-    // Use the display viewport size as that same board — not the full tall
-    // stage scrollHeight — otherwise Y% maps into empty lower content and
-    // scale looks like a static spotlight with no zoom.
-    const prev = stage.style.transform;
-    stage.style.transform = 'none';
-    const viewportW = Math.max(viewport.clientWidth, 1);
-    const viewportH = Math.max(viewport.clientHeight, 1);
-    stage.style.transform = prev;
-
-    this.stageCssTransform.set(
-      focusStageTransform(focus, viewportW, viewportH, viewportW, viewportH)
+  onFocusPointerMove(ev: PointerEvent) {
+    if (!this.isPicking() || !this.focusDragOrigin || !this.focusDragEl) return;
+    this.draftFocusRect.set(
+      rectFromDrag(
+        this.focusDragEl,
+        this.focusDragOrigin.x,
+        this.focusDragOrigin.y,
+        ev.clientX,
+        ev.clientY
+      )
     );
   }
 
-  private ensureResizeObserver() {
-    if (this.resizeObs || typeof ResizeObserver === 'undefined') return;
-    this.resizeObs = new ResizeObserver(() => this.scheduleFitFocus());
-    const viewport = this.focusViewport()?.nativeElement;
-    const stage = this.focusStage()?.nativeElement;
-    if (viewport) this.resizeObs.observe(viewport);
-    if (stage) this.resizeObs.observe(stage);
+  onFocusPointerUp(ev: PointerEvent) {
+    if (!this.isPicking() || !this.focusDragOrigin || !this.focusDragEl) {
+      this.onFocusPointerCancel();
+      return;
+    }
+    const rect = rectFromDrag(
+      this.focusDragEl,
+      this.focusDragOrigin.x,
+      this.focusDragOrigin.y,
+      ev.clientX,
+      ev.clientY
+    );
+    this.focusDragOrigin = null;
+    this.focusDragEl = null;
+    this.draftFocusRect.set(rect);
+    if (!rect) return;
+    this.api.completeDisplayFocusPick(this.id, rect).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.draftFocusRect.set(null);
+      },
+      error: () => this.draftFocusRect.set(null)
+    });
+  }
+
+  onFocusPointerCancel() {
+    this.focusDragOrigin = null;
+    this.focusDragEl = null;
+    this.draftFocusRect.set(null);
   }
 
   timerPaused() {
@@ -1063,7 +1086,6 @@ export class DisplayComponent implements OnInit, OnDestroy {
     }
     const open = this.isOpen(id, childCount);
     this.expanded.update((m) => ({ ...m, [id]: !open }));
-    this.scheduleFitFocus();
   }
 
   ngOnInit() {
@@ -1077,11 +1099,9 @@ export class DisplayComponent implements OnInit, OnDestroy {
         this.ensureQr(e.data);
         this.ensureEndQr(e.data);
         this.loadExtras();
-        this.scheduleFitFocus();
       }
       if (e.type === 'entry.created' || e.type === 'entry.hidden' || e.type === 'vote.updated' || e.type === 'action.created') {
         this.loadExtras();
-        this.scheduleFitFocus();
       }
       if (e.type === 'summary.ready') this.summary.set(e.data);
       if (e.type === 'participant.joined') {
@@ -1089,19 +1109,12 @@ export class DisplayComponent implements OnInit, OnDestroy {
         this.refresh();
       }
     });
-    // View children exist after first CD cycle.
-    setTimeout(() => {
-      this.ensureResizeObserver();
-      this.scheduleFitFocus();
-    }, 0);
   }
 
   ngOnDestroy() {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
     if (this.tickHandle) clearInterval(this.tickHandle);
-    if (this.fitTimer) clearTimeout(this.fitTimer);
-    this.resizeObs?.disconnect();
   }
 
   showJoinScreen() {
@@ -1212,8 +1225,6 @@ export class DisplayComponent implements OnInit, OnDestroy {
       this.ensureQr(s);
       this.ensureEndQr(s);
       this.loadExtras();
-      this.scheduleFitFocus();
-      setTimeout(() => this.ensureResizeObserver(), 0);
     });
     this.refreshParticipants();
     this.api.getSummary(this.id).subscribe((s) => {

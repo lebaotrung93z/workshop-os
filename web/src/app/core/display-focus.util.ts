@@ -1,4 +1,4 @@
-/** Normalized big-screen focus rect (percent of content stage, 0–100). */
+/** Normalized big-screen focus rect (percent of the display content stage, 0–100). */
 export interface DisplayFocusRect {
   x: number;
   y: number;
@@ -7,7 +7,10 @@ export interface DisplayFocusRect {
 }
 
 export function clearDisplayFocusPatch() {
-  return { displayFocus: null as DisplayFocusRect | null };
+  return {
+    displayFocus: null as DisplayFocusRect | null,
+    displayFocusPicking: false
+  };
 }
 
 export function clamp(n: number, min: number, max: number) {
@@ -32,7 +35,7 @@ export function rectFromDrag(
   const y = clamp(y1, 0, 100);
   const w = clamp(x2, 0, 100) - x;
   const h = clamp(y2, 0, 100) - y;
-  if (w < 6 || h < 6) return null;
+  if (w < 5 || h < 5) return null;
   return {
     x: Math.round(x * 10) / 10,
     y: Math.round(y * 10) / 10,
@@ -52,33 +55,4 @@ export function isValidDisplayFocus(raw: unknown): raw is DisplayFocusRect {
     r.w >= 4 &&
     r.h >= 4
   );
-}
-
-/**
- * Pixel transform that maps the focus rect to fill the viewport as much as possible.
- * Uses transform-origin (0,0) + translate + scale so tall/wide boards zoom correctly
- * (percent transform-origin alone fails when the stage is larger than the viewport).
- */
-export function focusStageTransform(
-  focus: DisplayFocusRect,
-  viewportW: number,
-  viewportH: number,
-  stageW: number,
-  stageH: number,
-  fill = 0.96
-): string {
-  if (viewportW < 8 || viewportH < 8 || stageW < 8 || stageH < 8) return 'none';
-
-  const fx = (focus.x / 100) * stageW;
-  const fy = (focus.y / 100) * stageH;
-  const fw = Math.max((focus.w / 100) * stageW, 8);
-  const fh = Math.max((focus.h / 100) * stageH, 8);
-
-  const scale = Math.min(viewportW / fw, viewportH / fh) * fill;
-  const cx = fx + fw / 2;
-  const cy = fy + fh / 2;
-  const tx = viewportW / 2 - scale * cx;
-  const ty = viewportH / 2 - scale * cy;
-
-  return `translate(${tx.toFixed(2)}px, ${ty.toFixed(2)}px) scale(${scale.toFixed(4)})`;
 }

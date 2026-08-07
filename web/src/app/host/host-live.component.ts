@@ -20,11 +20,6 @@ import {
   stepTimerSeconds
 } from '../core/timer.util';
 import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-data-url';
-import {
-  isValidDisplayFocus,
-  rectFromDrag,
-  type DisplayFocusRect
-} from '../core/display-focus.util';
 
 @Component({
   selector: 'app-host-live',
@@ -68,6 +63,18 @@ import {
               <app-bosch-button variant="secondary" (click)="saveForLater()">Save for later</app-bosch-button>
             }
             <a class="ghost" [routerLink]="['/display', id]" target="_blank">Open big screen</a>
+            @if (session()?.status !== 'LOBBY' && session()?.status !== 'CLOSED') {
+              <app-bosch-button
+                variant="secondary"
+                [disabled]="session()?.displayFocusPicking"
+                (click)="startBigScreenFocus()"
+              >
+                {{ session()?.displayFocusPicking ? 'Waiting for drag…' : 'Focus area on big screen' }}
+              </app-bosch-button>
+              @if (session()?.displayFocus || session()?.displayFocusPicking) {
+                <app-bosch-button variant="secondary" (click)="clearBigScreenFocus()">Clear focus</app-bosch-button>
+              }
+            }
           </div>
         </header>
 
@@ -225,29 +232,6 @@ import {
             </div>
 
             @if (tab() === 'preview') {
-              <div class="focus-toolbar">
-                <app-bosch-button
-                  variant="secondary"
-                  icon="search"
-                  [disabled]="session()?.status === 'LOBBY' || session()?.status === 'CLOSED'"
-                  (click)="toggleFocusPick()"
-                >
-                  {{ focusPickMode() ? 'Drag on preview…' : 'Highlight & zoom' }}
-                </app-bosch-button>
-                @if (hasDisplayFocus()) {
-                  <app-bosch-button variant="secondary" (click)="clearDisplayFocus()">Reset zoom</app-bosch-button>
-                }
-                <p class="focus-hint">
-                  @if (focusPickMode()) {
-                    Drag a rectangle on the preview — big screen magnifies that area and grays out the rest.
-                  } @else if (hasDisplayFocus()) {
-                    Big screen is magnified on the selection; everything else is grayed out.
-                  } @else {
-                    Spotlight a region for the projector audience.
-                  }
-                </p>
-              </div>
-
               <div class="qr-block">
                 @if (qrDataUrl()) {
                   <img [src]="qrDataUrl()" alt="Join QR" width="160" height="160" />
@@ -258,28 +242,7 @@ import {
                 </div>
               </div>
 
-              <div
-                class="focus-stage"
-                [class.picking]="focusPickMode()"
-                [class.zoomed]="hasDisplayFocus()"
-                (pointerdown)="onFocusPointerDown($event)"
-                (pointermove)="onFocusPointerMove($event)"
-                (pointerup)="onFocusPointerUp($event)"
-                (pointercancel)="onFocusPointerCancel()"
-              >
-                <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
-
-                @if (focusOverlayRect(); as r) {
-                  <div
-                    class="focus-rect"
-                    [class.focus-rect--live]="hasDisplayFocus() && !draftFocusRect()"
-                    [style.left.%]="r.x"
-                    [style.top.%]="r.y"
-                    [style.width.%]="r.w"
-                    [style.height.%]="r.h"
-                  ></div>
-                }
-              </div>
+              <app-activity-host-panel [session]="session()" [refreshToken]="panelTick()" />
             } @else {
               <div class="settings">
                 @if (!draftStepId) {
@@ -680,52 +643,6 @@ import {
       padding: 0.85rem;
     }
     .qr-block > div { flex: 1 1 180px; min-width: 0; }
-    .focus-toolbar {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.55rem;
-      margin-bottom: 0.75rem;
-    }
-    .focus-hint {
-      color: var(--wos-text-muted);
-      flex: 1 1 12rem;
-      font-size: 0.85rem;
-      margin: 0;
-    }
-    .focus-stage {
-      border: 1px solid var(--wos-border);
-      border-radius: var(--wos-radius);
-      min-height: 12rem;
-      overflow: hidden;
-      padding: 0.85rem;
-      position: relative;
-      touch-action: none;
-    }
-    .focus-stage.picking {
-      box-shadow: inset 0 0 0 2px var(--wos-primary-ring);
-      cursor: crosshair;
-      user-select: none;
-    }
-    .focus-stage.picking app-activity-host-panel {
-      pointer-events: none;
-    }
-    .focus-stage.zoomed {
-      box-shadow: inset 0 0 0 1px #9db7ef;
-    }
-    .focus-rect {
-      background: transparent;
-      border: 2px solid var(--wos-primary);
-      box-shadow:
-        0 0 0 9999px rgba(15, 23, 42, 0.72),
-        inset 0 0 0 1px rgba(255, 255, 255, 0.2);
-      pointer-events: none;
-      position: absolute;
-      z-index: 5;
-    }
-    .focus-rect--live {
-      border-style: solid;
-    }
     .join-url { font-size: 0.85rem; margin: 0 0 0.35rem; word-break: break-all; }
     .hint { color: var(--wos-text-muted); margin: 0; }
     .settings label { display: grid; font-weight: 600; gap: 0.35rem; margin-bottom: 0.85rem; }
@@ -892,10 +809,6 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   draftBackgroundImageUrl = '';
   uploadingBg = signal(false);
   joinUrl = '';
-  focusPickMode = signal(false);
-  draftFocusRect = signal<DisplayFocusRect | null>(null);
-  private focusDragOrigin: { x: number; y: number } | null = null;
-  private focusDragEl: HTMLElement | null = null;
 
   stepTypes = [
     { value: 'welcome' as const, label: 'Welcome' },
@@ -985,98 +898,6 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.selectedStepId.set(step.id);
     this.tab.set('settings');
     this.loadStepDraft();
-  }
-
-  hasDisplayFocus() {
-    return isValidDisplayFocus(this.session()?.displayFocus);
-  }
-
-  focusOverlayRect(): DisplayFocusRect | null {
-    return this.draftFocusRect() || (this.hasDisplayFocus() ? this.session().displayFocus : null);
-  }
-
-  toggleFocusPick() {
-    if (this.session()?.status === 'LOBBY' || this.session()?.status === 'CLOSED') return;
-    const next = !this.focusPickMode();
-    this.focusPickMode.set(next);
-    if (!next) {
-      this.draftFocusRect.set(null);
-      this.focusDragOrigin = null;
-      this.focusDragEl = null;
-    } else {
-      this.tab.set('preview');
-      this.message.set('Drag a rectangle on the preview to zoom the big screen.');
-    }
-  }
-
-  clearDisplayFocus() {
-    this.focusPickMode.set(false);
-    this.draftFocusRect.set(null);
-    this.api.clearDisplayFocus(this.id).subscribe({
-      next: (s) => {
-        this.session.set(s);
-        this.message.set('Big screen zoom reset.');
-      },
-      error: (e) => this.message.set(e?.error?.message || 'Could not reset zoom')
-    });
-  }
-
-  onFocusPointerDown(ev: PointerEvent) {
-    if (!this.focusPickMode()) return;
-    const el = ev.currentTarget as HTMLElement;
-    el.setPointerCapture?.(ev.pointerId);
-    this.focusDragEl = el;
-    this.focusDragOrigin = { x: ev.clientX, y: ev.clientY };
-    this.draftFocusRect.set(null);
-    ev.preventDefault();
-  }
-
-  onFocusPointerMove(ev: PointerEvent) {
-    if (!this.focusPickMode() || !this.focusDragOrigin || !this.focusDragEl) return;
-    const rect = rectFromDrag(
-      this.focusDragEl,
-      this.focusDragOrigin.x,
-      this.focusDragOrigin.y,
-      ev.clientX,
-      ev.clientY
-    );
-    this.draftFocusRect.set(rect);
-  }
-
-  onFocusPointerUp(ev: PointerEvent) {
-    if (!this.focusPickMode() || !this.focusDragOrigin || !this.focusDragEl) {
-      this.onFocusPointerCancel();
-      return;
-    }
-    const rect = rectFromDrag(
-      this.focusDragEl,
-      this.focusDragOrigin.x,
-      this.focusDragOrigin.y,
-      ev.clientX,
-      ev.clientY
-    );
-    this.focusDragOrigin = null;
-    this.focusDragEl = null;
-    this.draftFocusRect.set(rect);
-    if (!rect) {
-      this.message.set('Drag a larger area to zoom.');
-      return;
-    }
-    this.api.setDisplayFocus(this.id, rect).subscribe({
-      next: (s) => {
-        this.session.set(s);
-        this.focusPickMode.set(false);
-        this.draftFocusRect.set(null);
-        this.message.set('Big screen zoomed to highlighted area.');
-      },
-      error: (e) => this.message.set(e?.error?.message || 'Could not set zoom')
-    });
-  }
-
-  onFocusPointerCancel() {
-    this.focusDragOrigin = null;
-    this.focusDragEl = null;
-    this.draftFocusRect.set(null);
   }
 
   /** Keep the Session steps list (and settings draft) on the live current step. */
@@ -1535,6 +1356,26 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     });
     this.message.set('Saved — resume anytime from the home screen.');
     this.router.navigate(['/'], { queryParams: { saved: this.id } });
+  }
+
+  startBigScreenFocus() {
+    this.api.startDisplayFocusPick(this.id).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.message.set('On the big screen, drag a rectangle to focus that area.');
+      },
+      error: (e) => this.message.set(e?.error?.message || 'Could not start focus')
+    });
+  }
+
+  clearBigScreenFocus() {
+    this.api.clearDisplayFocus(this.id).subscribe({
+      next: (s) => {
+        this.session.set(s);
+        this.message.set('Big screen focus cleared.');
+      },
+      error: (e) => this.message.set(e?.error?.message || 'Could not clear focus')
+    });
   }
 
   addStep(position: 'afterCurrent' | 'end') {
