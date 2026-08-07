@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { BoschButtonComponent } from '../../bosch-ui/bosch-button/bosch-button.component';
 import { BoschAvatarComponent } from '../../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../../core/api.service';
-import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../../core/okr.util';
+import { buildOkrTree, boardIsAnonymous, displayAuthorName, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../../core/okr.util';
 
 @Component({
   selector: 'app-activity-host-panel',
@@ -208,21 +208,44 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
 
       @if (session?.currentStep?.type === 'voting') {
         <div class="vote-head">
-          <h3>Voting results</h3>
+          <h3>{{ isOkrSession() ? (session?.currentStep?.title || 'Prioritize KRs') : 'Voting results' }}</h3>
           <span>{{ totalVotes() }} total votes · {{ session?.participantCount || 0 }} participants</span>
         </div>
-        <div class="vote-bars">
-          @for (v of votes(); track v.entryId; let i = $index) {
-            <div class="vote-row">
-              <span class="rank">{{ i + 1 }}</span>
-              <div class="vote-row__body">
-                <div class="vote-row__label">{{ v.content }}</div>
-                <div class="track"><div class="fill fill--purple" [style.width.%]="votePct(v.votes)"></div></div>
+        @if (isOkrSession()) {
+          <div class="kr-vote-cards">
+            @for (v of votes(); track v.entryId; let i = $index) {
+              <article class="kr-vote-card">
+                <span class="kr-vote-card__rank">{{ i + 1 }}</span>
+                <div class="kr-vote-card__body">
+                  <p class="kr-vote-card__content">{{ v.content }}</p>
+                  <div class="kr-vote-card__author">
+                    <app-bosch-avatar [name]="voteAuthor(v)" size="sm" />
+                    <span>{{ voteAuthor(v) }}</span>
+                  </div>
+                </div>
+                <div class="kr-vote-card__votes">
+                  <strong>{{ v.votes }}</strong>
+                  <em>{{ v.votes === 1 ? 'vote' : 'votes' }}</em>
+                </div>
+              </article>
+            } @empty {
+              <p class="empty">Waiting for Key Results…</p>
+            }
+          </div>
+        } @else {
+          <div class="vote-bars">
+            @for (v of votes(); track v.entryId; let i = $index) {
+              <div class="vote-row">
+                <span class="rank">{{ i + 1 }}</span>
+                <div class="vote-row__body">
+                  <div class="vote-row__label">{{ v.content }}</div>
+                  <div class="track"><div class="fill fill--purple" [style.width.%]="votePct(v.votes)"></div></div>
+                </div>
+                <strong>{{ v.votes }}</strong>
               </div>
-              <strong>{{ v.votes }}</strong>
-            </div>
-          }
-        </div>
+            }
+          </div>
+        }
       }
 
       @if (session?.currentStep?.type === 'breakout') {
@@ -507,6 +530,66 @@ import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } 
     .vote-head span, .okr-head span { color: var(--wos-text-muted); font-size: 0.85rem; }
     .rank { color: var(--wos-primary); font-weight: 800; }
     .vote-row__label { font-weight: 600; margin-bottom: 0.25rem; }
+
+    .kr-vote-cards {
+      display: grid;
+      gap: 0.65rem;
+    }
+    .kr-vote-card {
+      align-items: start;
+      background: #fff;
+      border: 1px solid var(--wos-border);
+      border-radius: 12px;
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: auto 1fr auto;
+      padding: 0.85rem 0.9rem;
+    }
+    .kr-vote-card__rank {
+      align-items: center;
+      background: var(--wos-primary-soft);
+      border-radius: 999px;
+      color: var(--wos-primary);
+      display: inline-flex;
+      font-size: 0.85rem;
+      font-weight: 800;
+      height: 1.85rem;
+      justify-content: center;
+      min-width: 1.85rem;
+    }
+    .kr-vote-card__body { display: grid; gap: 0.45rem; min-width: 0; }
+    .kr-vote-card__content {
+      font-size: 0.95rem;
+      font-weight: 650;
+      line-height: 1.4;
+      margin: 0;
+      word-break: break-word;
+    }
+    .kr-vote-card__author {
+      align-items: center;
+      color: var(--wos-text-muted);
+      display: flex;
+      font-size: 0.8rem;
+      font-weight: 600;
+      gap: 0.4rem;
+    }
+    .kr-vote-card__votes {
+      align-items: center;
+      background: var(--wos-purple-soft);
+      border-radius: 10px;
+      color: var(--wos-purple);
+      display: grid;
+      justify-items: center;
+      min-width: 3rem;
+      padding: 0.4rem 0.5rem;
+    }
+    .kr-vote-card__votes strong { font-size: 1.05rem; font-weight: 800; line-height: 1; }
+    .kr-vote-card__votes em {
+      font-size: 0.65rem;
+      font-style: normal;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
     .actions { display: grid; gap: 0.55rem; }
     .action { background: #f8fafc; border: 1px solid var(--wos-border); border-radius: var(--wos-radius); padding: 0.75rem; }
     .action p { font-weight: 600; margin: 0 0 0.45rem; }
@@ -900,6 +983,10 @@ export class ActivityHostPanelComponent implements OnChanges {
   /** Allow seeding Objectives before Start (LOBBY) on OKR workshops. */
   canPrepObjectives() {
     return this.isOkrSession() && this.session?.status === 'LOBBY';
+  }
+
+  voteAuthor(v: { authorName?: string | null }) {
+    return displayAuthorName(v, boardIsAnonymous(this.session));
   }
 
   rootLabel() {

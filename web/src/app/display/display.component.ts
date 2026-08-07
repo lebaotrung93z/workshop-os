@@ -7,7 +7,7 @@ import { BoschAvatarStackComponent } from '../bosch-ui/bosch-avatar/bosch-avatar
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
 import { buildJoinUrl } from '../core/join-url';
-import { buildOkrTree, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../core/okr.util';
+import { buildOkrTree, boardIsAnonymous, displayAuthorName, isOkrBoard, okrInputStep, okrVotingStep, sessionHasOkr } from '../core/okr.util';
 import {
   formatCountdown,
   isTimerPaused,
@@ -294,18 +294,26 @@ import {
       }
 
       @if (!showJoinScreen() && session()?.currentStep?.type === 'voting' && isOkrSession()) {
-        <section class="vote-compact">
-          <h2>Prioritize KRs</h2>
-          <div class="vote-bars">
+        <section class="vote-cards-section">
+          <h2>{{ session()?.currentStep?.title || 'Prioritize KRs' }}</h2>
+          <div class="kr-vote-cards">
             @for (v of votes(); track v.entryId; let i = $index) {
-              <div class="vote-row">
-                <span class="rank">{{ i + 1 }}</span>
-                <div class="vote-row__body">
-                  <div class="vote-row__label">{{ v.content }}</div>
-                  <div class="track"><div class="fill" [style.width.%]="votePct(v.votes)"></div></div>
+              <article class="kr-vote-card" [class.kr-vote-card--top]="i < 3">
+                <div class="kr-vote-card__rank">{{ i + 1 }}</div>
+                <div class="kr-vote-card__body">
+                  <p class="kr-vote-card__content">{{ v.content }}</p>
+                  <div class="kr-vote-card__author">
+                    <app-bosch-avatar [name]="voteAuthor(v)" size="sm" />
+                    <span>{{ voteAuthor(v) }}</span>
+                  </div>
                 </div>
-                <strong>{{ v.votes }}</strong>
-              </div>
+                <div class="kr-vote-card__votes" [attr.aria-label]="v.votes + ' votes'">
+                  <strong>{{ v.votes }}</strong>
+                  <em>{{ v.votes === 1 ? 'vote' : 'votes' }}</em>
+                </div>
+              </article>
+            } @empty {
+              <p class="muted">Waiting for Key Results and votes…</p>
             }
           </div>
         </section>
@@ -798,6 +806,82 @@ import {
 
     .vote-compact { margin-top: 1.5rem; }
 
+    .vote-cards-section { margin-top: 1.5rem; }
+    .kr-vote-cards {
+      display: grid;
+      gap: 0.85rem;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      margin-top: 0.5rem;
+    }
+    .kr-vote-card {
+      align-items: start;
+      background: var(--wos-screen-surface);
+      border: 1px solid var(--wos-screen-border);
+      border-radius: 16px;
+      display: grid;
+      gap: 0.85rem;
+      grid-template-columns: auto 1fr auto;
+      padding: 1rem 1.1rem;
+    }
+    .kr-vote-card--top {
+      border-color: rgba(96, 165, 250, 0.45);
+      box-shadow: 0 10px 28px rgba(0, 86, 210, 0.18);
+    }
+    .kr-vote-card__rank {
+      align-items: center;
+      background: rgba(96, 165, 250, 0.16);
+      border-radius: 999px;
+      color: #93c5fd;
+      display: inline-flex;
+      font-size: calc(1rem * var(--display-fs));
+      font-weight: 800;
+      height: 2.1rem;
+      justify-content: center;
+      min-width: 2.1rem;
+    }
+    .kr-vote-card__body {
+      display: grid;
+      gap: 0.65rem;
+      min-width: 0;
+    }
+    .kr-vote-card__content {
+      color: #f8fafc;
+      font-size: calc(1.15rem * var(--display-fs));
+      font-weight: 650;
+      line-height: 1.4;
+      margin: 0;
+      word-break: break-word;
+    }
+    .kr-vote-card__author {
+      align-items: center;
+      color: #94a3b8;
+      display: flex;
+      font-size: calc(0.9rem * var(--display-fs));
+      font-weight: 600;
+      gap: 0.5rem;
+    }
+    .kr-vote-card__votes {
+      align-items: center;
+      background: rgba(124, 77, 255, 0.18);
+      border-radius: 12px;
+      color: #c4b5fd;
+      display: grid;
+      justify-items: center;
+      min-width: 3.5rem;
+      padding: 0.55rem 0.65rem;
+    }
+    .kr-vote-card__votes strong {
+      font-size: calc(1.35rem * var(--display-fs));
+      font-weight: 800;
+      line-height: 1;
+    }
+    .kr-vote-card__votes em {
+      font-size: calc(0.7rem * var(--display-fs));
+      font-style: normal;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
     .tree-toggle {
       align-items: center;
       background: #0b1220;
@@ -1099,6 +1183,14 @@ export class DisplayComponent implements OnInit, OnDestroy {
 
   isOkrSession() {
     return sessionHasOkr(this.session());
+  }
+
+  boardAnonymous() {
+    return boardIsAnonymous(this.session());
+  }
+
+  voteAuthor(v: { authorName?: string | null }) {
+    return displayAuthorName(v, this.boardAnonymous());
   }
 
   rootLabel() {

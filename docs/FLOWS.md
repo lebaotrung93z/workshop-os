@@ -167,7 +167,7 @@ Participants may join until the host **locks the room** or ends the session (`CL
 | **welcome** | Instructions / welcome media |
 | **poll** | Tap one option (stored as entry `content` = option id) |
 | **input** | Columns / stickies; OKR: submit KRs under Objectives (`parentId`) |
-| **voting** | Vote on stickies (budget `votesPerParticipant`); OKR = KRs only |
+| **voting** | Vote on stickies (budget `votesPerParticipant`); OKR = pick Objective first, then vote its KRs |
 | **form** | Action / owner / due date (optional link to KR) |
 | **groups** | See assigned team + discussion topic |
 | **end** | Closing text / image; optional outbound QR |
@@ -200,7 +200,7 @@ Public `onSnapshot` on the session (+ entries / votes / actions / participants).
 | `welcome` | `welcomeText`, `backgroundImageUrl` | Image is a compressed data URL (no Storage) |
 | `poll` | `options: [{id,label}]` | |
 | `input` | `anonymous`, `boardMode: 'okr'`, groups/columns | OKR: host Objectives, participant KRs |
-| `voting` | `votesPerParticipant` | Votes on input entries (KRs only for OKR) |
+| `voting` | `votesPerParticipant` | Stickies, or OKR: Objective picker then KRs under it |
 | `form` | `linkTo: 'kr'` | Actions may store `sourceEntryId` |
 | `groups` | team lists + topics | Random or manual grouping |
 | `end` | closing text, image, outbound URL → QR | Closing beat after activities |

@@ -6,7 +6,7 @@ import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.comp
 import { BoschAvatarComponent } from '../bosch-ui/bosch-avatar/bosch-avatar.component';
 import { ApiService } from '../core/api.service';
 import { RealtimeService } from '../core/realtime.service';
-import { formLinksToKr, isOkrBoard, parseStepConfig } from '../core/okr.util';
+import { formLinksToKr, isOkrBoard, parseStepConfig, boardIsAnonymous, displayAuthorName } from '../core/okr.util';
 import {
   formatCountdown,
   isTimerPaused,
@@ -266,47 +266,91 @@ import {
                 <p class="hint">
                   {{
                     isOkr()
-                      ? 'Tap a Key Result to vote · tap again to remove'
+                      ? voteObjectiveId
+                        ? 'Tap a Key Result to vote · tap again to remove'
+                        : 'Choose an Objective, then vote on its Key Results'
                       : 'Tap an idea to vote · tap again to remove'
                   }}
                 </p>
               </div>
               <span class="votes-left">{{ votesLeft() }} left</span>
             </div>
-            <div class="vote-list">
-              @for (e of voteEntries(); track e.id) {
-                <button
-                  type="button"
-                  class="vote"
-                  [class.vote--mine]="hasMyVote(e.id)"
-                  (click)="vote(e.id)"
-                >
-                  <div class="vote__top">
-                    <div class="vote__meta">
-                      @if (e.authorName) {
-                        <app-bosch-avatar [name]="e.authorName" size="sm" />
-                        <span>{{ e.authorName }}</span>
-                      } @else {
-                        <span class="muted">Anonymous</span>
+
+            @if (isOkr()) {
+              <div class="obj-list">
+                <p class="field__label">Select Objective</p>
+                @for (o of voteObjectives(); track o.id) {
+                  <button
+                    type="button"
+                    class="obj"
+                    [class.on]="voteObjectiveId === o.id"
+                    (click)="selectVoteObjective(o.id)"
+                  >
+                    <strong>{{ o.content }}</strong>
+                    <span>{{ krsToVoteUnder(o.id).length }} KRs</span>
+                  </button>
+                } @empty {
+                  <p class="empty">Waiting for Objectives before voting.</p>
+                }
+              </div>
+            }
+
+            @if (!isOkr() || voteObjectiveId) {
+              <div class="vote-list" [class.vote-list--cards]="isOkr()">
+                @for (e of voteEntries(); track e.id) {
+                  <button
+                    type="button"
+                    class="vote"
+                    [class.vote--card]="isOkr()"
+                    [class.vote--mine]="hasMyVote(e.id)"
+                    (click)="vote(e.id)"
+                  >
+                    @if (isOkr()) {
+                      <p class="vote__content">{{ e.content }}</p>
+                      <div class="vote__footer">
+                        <div class="vote__meta">
+                          <app-bosch-avatar [name]="entryAuthor(e)" size="sm" />
+                          <span>{{ entryAuthor(e) }}</span>
+                        </div>
+                        <span class="vote__count" [attr.aria-label]="voteCount(e.id) + ' votes'">
+                          <strong>{{ voteCount(e.id) }}</strong>
+                          <em>{{ voteCount(e.id) === 1 ? 'vote' : 'votes' }}</em>
+                        </span>
+                      </div>
+                      @if (!hasMyVote(e.id)) {
+                        <span class="vote__cta">Tap to vote</span>
                       }
-                    </div>
-                    <span class="vote__count" [attr.aria-label]="voteCount(e.id) + ' votes'">
-                      <strong>{{ voteCount(e.id) }}</strong>
-                      <em>{{ voteCount(e.id) === 1 ? 'vote' : 'votes' }}</em>
-                    </span>
-                  </div>
-                  @if (parentLabel(e); as pl) {
-                    <span class="vote__parent">{{ pl }}</span>
-                  }
-                  <p>{{ e.content }}</p>
-                  @if (!hasMyVote(e.id)) {
-                    <span class="vote__cta">Tap to vote</span>
-                  }
-                </button>
-              } @empty {
-                <p class="empty">No ideas to vote on yet. Wait for the board to fill, then try again.</p>
-              }
-            </div>
+                    } @else {
+                      <div class="vote__top">
+                        <div class="vote__meta">
+                          <app-bosch-avatar [name]="entryAuthor(e)" size="sm" />
+                          <span>{{ entryAuthor(e) }}</span>
+                        </div>
+                        <span class="vote__count" [attr.aria-label]="voteCount(e.id) + ' votes'">
+                          <strong>{{ voteCount(e.id) }}</strong>
+                          <em>{{ voteCount(e.id) === 1 ? 'vote' : 'votes' }}</em>
+                        </span>
+                      </div>
+                      @if (parentLabel(e); as pl) {
+                        <span class="vote__parent">{{ pl }}</span>
+                      }
+                      <p>{{ e.content }}</p>
+                      @if (!hasMyVote(e.id)) {
+                        <span class="vote__cta">Tap to vote</span>
+                      }
+                    }
+                  </button>
+                } @empty {
+                  <p class="empty">
+                    {{
+                      isOkr()
+                        ? 'No Key Results under this Objective yet.'
+                        : 'No ideas to vote on yet. Wait for the board to fill, then try again.'
+                    }}
+                  </p>
+                }
+              </div>
+            }
           </section>
         } @else if (session()?.currentStep?.type === 'form') {
           <section class="panel">
@@ -785,6 +829,29 @@ import {
       margin: 0;
     }
 
+    .vote--card {
+      box-shadow: var(--wos-shadow);
+      gap: 0.75rem;
+      padding: 1rem;
+    }
+    .vote__content {
+      color: var(--wos-text);
+      font-size: 1rem;
+      font-weight: 650;
+      line-height: 1.4;
+      margin: 0;
+      word-break: break-word;
+    }
+    .vote__footer {
+      align-items: center;
+      display: flex;
+      gap: 0.65rem;
+      justify-content: space-between;
+    }
+    .vote-list--cards {
+      gap: 0.75rem;
+    }
+
     .vote__cta {
       color: var(--wos-primary);
       font-size: 0.75rem;
@@ -1042,6 +1109,8 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   content = '';
   groupId = '';
   parentId = '';
+  /** Selected Objective when voting on an OKR board. */
+  voteObjectiveId = '';
   sourceEntryId = '';
   action = '';
   owner = '';
@@ -1201,8 +1270,32 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     return this.boardEntries().filter((e) => e.kind === 'objective');
   }
 
+  /** Objectives available on the voting step (from board or KR parents). */
+  voteObjectives() {
+    const fromBoard = this.objectives();
+    if (fromBoard.length) return fromBoard;
+    const byId = new Map<string, any>();
+    for (const e of this.entries()) {
+      if (!e?.parentId || byId.has(e.parentId)) continue;
+      byId.set(e.parentId, {
+        id: e.parentId,
+        kind: 'objective',
+        content: this.parentLabel(e)?.replace(/^Objective:\s*/, '') || 'Objective'
+      });
+    }
+    return [...byId.values()];
+  }
+
   krsUnder(objectiveId: string) {
     return this.boardEntries().filter((e) => e.kind === 'kr' && e.parentId === objectiveId);
+  }
+
+  krsToVoteUnder(objectiveId: string) {
+    return this.entries().filter((e) => e.parentId === objectiveId);
+  }
+
+  selectVoteObjective(objectiveId: string) {
+    this.voteObjectiveId = objectiveId;
   }
 
   myEntries() {
@@ -1221,6 +1314,14 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     if (!entry?.parentId) return null;
     const parent = this.boardEntries().find((e) => e.id === entry.parentId) || this.entries().find((e) => e.id === entry.parentId);
     return parent?.content ? `Objective: ${parent.content}` : null;
+  }
+
+  boardAnonymous() {
+    return boardIsAnonymous(this.session());
+  }
+
+  entryAuthor(entry: { authorName?: string | null } | null | undefined) {
+    return displayAuthorName(entry, this.boardAnonymous());
   }
 
   krChoices() {
@@ -1242,7 +1343,13 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   /** Voting cards sorted by current vote count (highest first). */
   voteEntries() {
     const tallies = new Map(this.voteTallies().map((t) => [t.entryId, t.votes]));
-    return [...this.entries()].sort(
+    let list = [...this.entries()];
+    if (this.isOkr() && this.voteObjectiveId) {
+      list = list.filter((e) => e.parentId === this.voteObjectiveId);
+    } else if (this.isOkr()) {
+      list = [];
+    }
+    return list.sort(
       (a, b) => (tallies.get(b.id) || 0) - (tallies.get(a.id) || 0) || String(a.content).localeCompare(String(b.content))
     );
   }
@@ -1290,6 +1397,9 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       this.api.listEntries(this.id, step.id).subscribe((list) => {
         this.entries.set(list);
         this.syncMyCounts(list);
+        if (step.type === 'voting' && this.isOkr()) {
+          this.ensureVoteObjectiveSelected(this.boardEntries());
+        }
       });
     }
     const inputId = this.inputStepId();
@@ -1297,10 +1407,16 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       this.api.listEntries(this.id, inputId).subscribe((list) => {
         this.boardEntries.set(list);
         if (step.type === 'input') this.syncMyCounts(list);
-        if (this.isOkr() && !this.parentId && list.some((e) => e.kind === 'objective')) {
+        if (this.isOkr() && step.type === 'input' && !this.parentId && list.some((e) => e.kind === 'objective')) {
           this.parentId = list.find((e) => e.kind === 'objective')!.id;
         }
+        if (this.isOkr() && step.type === 'voting') {
+          this.ensureVoteObjectiveSelected(list);
+        }
       });
+    }
+    if (step.type === 'voting' && this.isOkr() && this.entries().length) {
+      this.ensureVoteObjectiveSelected(this.boardEntries());
     }
     if (step.type === 'form' || step.type === 'voting') {
       const voting = (this.session()?.steps || []).find((s: any) => s.type === 'voting');
@@ -1361,6 +1477,9 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
       this.api.listEntries(this.id, step.id).subscribe((e) => {
         this.entries.set(e);
         this.syncMyCounts(e);
+        if (step.type === 'voting' && this.isOkr()) {
+          this.ensureVoteObjectiveSelected(this.boardEntries());
+        }
       });
       if (step.type === 'input' && step.groups?.length && !this.groupId) {
         this.groupId = step.groups[0].id;
@@ -1371,10 +1490,24 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     if (step.type === 'voting') {
       const cfg = this.parseConfig(step);
       this.votesLeft.set(cfg.votesPerParticipant ?? 3);
+      if (!this.isOkr()) this.voteObjectiveId = '';
     }
     this.reloadBoardData();
     if (step.type === 'form') this.reloadMyActions();
     if (step.type === 'breakout') this.loadPeople();
+  }
+
+  private ensureVoteObjectiveSelected(board: any[]) {
+    const objs = (board || []).filter((e) => e.kind === 'objective');
+    const ids = new Set(objs.map((o) => o.id));
+    if (this.voteObjectiveId && ids.has(this.voteObjectiveId)) return;
+    if (objs.length) {
+      this.voteObjectiveId = objs[0].id;
+      return;
+    }
+    const parentIds = [...new Set(this.entries().map((e) => e.parentId).filter(Boolean))];
+    if (this.voteObjectiveId && parentIds.includes(this.voteObjectiveId)) return;
+    this.voteObjectiveId = (parentIds[0] as string) || '';
   }
 
   startEditEntry(e: any) {

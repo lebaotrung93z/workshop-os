@@ -8,6 +8,20 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-07',
+    title: 'Prioritize KRs cards',
+    items: [
+      'OKR voting shows Key Results as cards with content and author name (or Anonymous when the board is anonymous).'
+    ]
+  },
+  {
+    date: '2026-08-07',
+    title: 'OKR voting by Objective',
+    items: [
+      'On OKR workshops, participants pick an Objective first, then vote on that Objective’s Key Results.'
+    ]
+  },
+  {
+    date: '2026-08-07',
     title: 'Big screen text size',
     items: [
       'Host can set Screen text size (S / M / L / XL) — updates the projector live for notes, OKR tree, votes, and more.'

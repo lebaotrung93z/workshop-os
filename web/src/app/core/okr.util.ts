@@ -33,6 +33,19 @@ export function formLinksToKr(step: any): boolean {
   return parseStepConfig(step).linkTo === 'kr';
 }
 
+/** Sticky / KR authorship hidden when the input board is anonymous. */
+export function boardIsAnonymous(session: any): boolean {
+  const input =
+    okrInputStep(session) || (session?.steps || []).find((s: any) => s.type === 'input') || null;
+  return !!parseStepConfig(input).anonymous;
+}
+
+export function displayAuthorName(entry: { authorName?: string | null } | null | undefined, anonymous: boolean): string {
+  if (anonymous) return 'Anonymous';
+  const name = String(entry?.authorName || '').trim();
+  return name || 'Anonymous';
+}
+
 export function objectivesFrom(entries: any[]): any[] {
   return entries.filter((e) => e.kind === 'objective' || (!e.kind && !e.parentId && e.groupId));
 }
