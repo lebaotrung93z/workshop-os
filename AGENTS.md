@@ -52,11 +52,11 @@ Host sessions created in this browser are tracked in `localStorage` (`wos_host_s
 
 Host can insert poll / input / voting / form (etc.) steps mid-session via `ApiService.insertStep` — adds after the current step or at the end without changing `currentStepId`. Participants and display pick up the updated `steps[]` over Firestore.
 
-### Edit step settings live
+### Edit step content live
 
-Host **Step Settings** tab can change title, instructions, `timerSeconds`, poll options, input columns / OKR board flags, votes-per-participant, and form KR linking via `ApiService.updateStep`. Step `type` stays locked. Saving a new timer duration clears any running countdown (optional Save & restart). Draft fields reload only when the active step changes (not on every Firestore snapshot). Opening `/host/:id` calls `activateHostSession` so the correct per-workshop `hostToken` is restored from `wos_host_sessions`.
+Host **Content** tab can change title, instructions, `timerSeconds`, poll options, input columns / OKR board flags, votes-per-participant, and form KR linking via `ApiService.updateStep`. Step `type` stays locked. Saving a new timer duration clears any running countdown (optional Save & restart). Draft fields reload only when the active step changes (not on every Firestore snapshot). Opening `/host/:id` calls `activateHostSession` so the correct per-workshop `hostToken` is restored from `wos_host_sessions`.
 
-Checkbox rows in Step Settings use `label.check`; summary insight bullets use `insight-check` — do not reuse a bare `.check` circle style globally or it will crush the checkbox labels.
+Checkbox rows in Content use `label.check`; summary insight bullets use `insight-check` — do not reuse a bare `.check` circle style globally or it will crush the checkbox labels.
 
 ### Workflow board (custom format)
 
@@ -64,7 +64,7 @@ Checkbox rows in Step Settings use `label.check`; summary insight bullets use `i
 
 ### Welcome big screen
 
-On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Step Settings. **Upload** any common photo — it is resized/compressed in the browser to a data URL and stored on the session doc (no Firebase Storage / Blaze). Public image URLs still work as an alternative.
+On the welcome step, host can set `config.welcomeText` and `config.backgroundImageUrl` via Content. **Upload** any common photo — it is resized/compressed in the browser to a data URL and stored on the session doc (no Firebase Storage / Blaze). Public image URLs still work as an alternative.
 
 ### UI theme (mockup)
 

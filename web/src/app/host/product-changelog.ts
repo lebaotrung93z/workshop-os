@@ -61,7 +61,7 @@ export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
     items: [
       'New breakout step: host divides joined participants into teams randomly or manually.',
       'Host can assign a discussion topic to each group (settings or live board).',
-      'Undo / Redo for step content sits top-right of the step title in Step Settings.',
+      'Undo / Redo for step content sits top-right of the step title in Content.',
       'Templates board: Undo / Redo replace the Back button (board + inspector edits).',
       'Participants and big screen show group membership and topics in real time.',
       'Add from Templates board palette or mid-session via Add step.'
@@ -89,7 +89,7 @@ export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-04',
     title: 'Live facilitation',
     items: [
-      'Edit step settings while a workshop is live (title, timer, poll options, columns).',
+      'Edit step content while a workshop is live (title, timer, poll options, columns).',
       'Insert new activity steps mid-session without leaving the current step.',
       'Save workshops for later and resume from the Sessions list.'
     ]

@@ -127,7 +127,7 @@ Participants may join until the host **locks the room** or ends the session (`CL
 | Start | Activate first step |
 | Next / Back | Move `currentStepId`; update step statuses |
 | Add step | `insertStep` — poll / input / voting / form / groups / end after current or at end |
-| Step Settings | Edit title, instructions, timer, poll options, columns, votes budget, welcome media, OKR flags (`updateStep`) |
+| Content | Edit title, instructions, timer, poll options, columns, votes budget, welcome media, OKR flags (`updateStep`) |
 | Timer | Start / pause / resume / reset → `timerEndsAt` + `timerPausedRemaining` on session |
 | Hide entry | Soft-hide from participants / display; host can Unhide |
 | Delete entry | Permanent delete (host or owner) |

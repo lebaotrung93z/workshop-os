@@ -331,7 +331,7 @@ interface DraftStep {
           </section>
 
           <aside class="inspector card" (focusin)="beginInspectorEdit()">
-            <p class="section-label">Step settings</p>
+            <p class="section-label">Content</p>
             @if (!selected()) {
               <p class="hint">Select a card on the board to edit title, options, and columns.</p>
             } @else {

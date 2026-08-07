@@ -187,7 +187,7 @@ import {
           <section class="card steps">
             <h2>Session steps</h2>
             @if (session()?.status !== 'CLOSED') {
-              <p class="steps-hint">Live step stays highlighted; select another to edit settings</p>
+              <p class="steps-hint">Live step stays highlighted; select another to edit content</p>
             }
             <ol>
               @for (s of orderedSteps(); track s.id; let i = $index) {
@@ -254,15 +254,15 @@ import {
           <section class="card control">
             <div class="control__head">
               <div>
-                @if (tab() === 'settings' && selectedStep()) {
-                  <p class="eyebrow">Step settings · {{ selectedIndex() }} of {{ stepTotal() }}</p>
+                @if (tab() === 'content' && selectedStep()) {
+                  <p class="eyebrow">Content · {{ selectedIndex() }} of {{ stepTotal() }}</p>
                   <h2>{{ selectedStep()?.title || 'Step' }}</h2>
                 } @else {
                   <p class="eyebrow">Live control · Step {{ currentIndex() }} of {{ stepTotal() }}</p>
                   <h2>{{ session()?.currentStep?.title || 'Lobby' }}</h2>
                 }
               </div>
-              @if (tab() === 'settings') {
+              @if (tab() === 'content') {
                 <div class="history-bar">
                   <button
                     type="button"
@@ -288,7 +288,7 @@ import {
 
             <div class="tabs">
               <button type="button" class="tab" [class.on]="tab() === 'preview'" (click)="setTab('preview')">Big Screen Preview</button>
-              <button type="button" class="tab" [class.on]="tab() === 'settings'" (click)="setTab('settings')">Step Settings</button>
+              <button type="button" class="tab" [class.on]="tab() === 'content'" (click)="setTab('content')">Content</button>
             </div>
 
             @if (tab() === 'preview') {
@@ -453,7 +453,7 @@ import {
 
                   <div class="settings-actions">
                     <app-bosch-button [disabled]="busySettings()" (click)="saveStepSettings(false)">
-                      {{ busySettings() ? 'Saving…' : 'Save step settings' }}
+                      {{ busySettings() ? 'Saving…' : 'Save content' }}
                     </app-bosch-button>
                     @if (canStartTimer() || timerActive()) {
                       <app-bosch-button
@@ -941,8 +941,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   summary = signal<any>(null);
   message = signal('');
   panelTick = signal(0);
-  tab = signal<'preview' | 'settings'>('preview');
-  /** Step opened in Step Settings (does not change live currentStepId). */
+  tab = signal<'preview' | 'content'>('preview');
+  /** Step opened in Content tab (does not change live currentStepId). */
   selectedStepId = signal('');
   summaryTab = signal<'insights' | 'actions'>('insights');
   nowTick = signal(Date.now());
@@ -1021,7 +1021,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
         const prevStepId = this.session()?.currentStepId;
         this.session.set(e.data);
         this.panelTick.update((n) => n + 1);
-        // When facilitation moves (Start / Next / Back), keep Session steps + settings in sync.
+        // When facilitation moves (Start / Next / Back), keep Session steps + content tab in sync.
         if (e.data?.currentStepId && e.data.currentStepId !== prevStepId) {
           this.followLiveStep(e.data.currentStepId);
         } else if (!this.selectedStepId() && e.data?.currentStepId) {
@@ -1045,9 +1045,9 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     if (this.tickHandle) clearInterval(this.tickHandle);
   }
 
-  setTab(which: 'preview' | 'settings') {
+  setTab(which: 'preview' | 'content') {
     this.tab.set(which);
-    if (which === 'settings') {
+    if (which === 'content') {
       if (!this.selectedStepId()) {
         const currentId = this.session()?.currentStepId || this.orderedSteps()[0]?.id || '';
         if (currentId) this.selectedStepId.set(currentId);
@@ -1059,15 +1059,15 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   selectStep(step: { id: string }) {
     if (!step?.id || this.session()?.status === 'CLOSED') return;
     this.selectedStepId.set(step.id);
-    this.tab.set('settings');
+    this.tab.set('content');
     this.loadStepDraft();
   }
 
-  /** Keep the Session steps list (and settings draft) on the live current step. */
+  /** Keep the Session steps list (and content draft) on the live current step. */
   private followLiveStep(stepId: string) {
     if (!stepId) return;
     this.selectedStepId.set(stepId);
-    if (this.tab() === 'settings') {
+    if (this.tab() === 'content') {
       this.loadStepDraft();
     }
     queueMicrotask(() => {
@@ -1264,7 +1264,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
       .then((dataUrl) => {
         this.draftBackgroundImageUrl = dataUrl;
         this.uploadingBg.set(false);
-        this.message.set('Background ready — click Save step settings to apply.');
+        this.message.set('Background ready — click Save content to apply.');
       })
       .catch((err: unknown) => {
         this.uploadingBg.set(false);
@@ -1303,7 +1303,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
           if (this.contentUndo.length > 40) this.contentUndo.shift();
           this.contentRedo = [];
         }
-        this.message.set(restartTimer ? 'Step saved and timer restarted.' : 'Step settings saved.');
+        this.message.set(restartTimer ? 'Step saved and timer restarted.' : 'Content saved.');
         this.panelTick.update((n) => n + 1);
       },
       error: (e) => {
@@ -1364,7 +1364,7 @@ export class HostLiveComponent implements OnInit, OnDestroy {
           this.session.set(s);
           this.busySettings.set(false);
           this.applyingContentHistory = false;
-          this.tab.set('settings');
+          this.tab.set('content');
           this.loadStepDraft();
           this.message.set('Content restored.');
           this.panelTick.update((n) => n + 1);
@@ -1475,8 +1475,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
           this.followLiveStep(s.currentStepId);
         } else if (!this.selectedStepId() && s.currentStepId) {
           this.selectedStepId.set(s.currentStepId);
-          if (this.tab() === 'settings' && !this.draftStepId) this.loadStepDraft();
-        } else if (this.tab() === 'settings' && (!this.draftStepId || !this.selectedStepId())) {
+          if (this.tab() === 'content' && !this.draftStepId) this.loadStepDraft();
+        } else if (this.tab() === 'content' && (!this.draftStepId || !this.selectedStepId())) {
           this.loadStepDraft();
         }
       }
