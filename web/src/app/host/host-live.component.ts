@@ -118,9 +118,46 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
 
         <section class="participants card">
           <div class="participants__head">
-            <h2>{{ session()?.participantCount || 0 }} Participants</h2>
-            <app-bosch-avatar-stack [people]="participants()" [max]="7" size="md" />
+            <div class="participants__title">
+              <h2>{{ activeParticipantCount() }} Participants</h2>
+              @if (session()?.joinsLocked) {
+                <span class="lock-badge" title="New joins are blocked">Locked</span>
+              }
+            </div>
+            <div class="participants__actions">
+              @if (session()?.status !== 'CLOSED') {
+                <app-bosch-button
+                  variant="secondary"
+                  [disabled]="busyRoster()"
+                  (click)="toggleJoinsLocked()"
+                >
+                  {{ session()?.joinsLocked ? 'Unlock room' : 'Lock room' }}
+                </app-bosch-button>
+              }
+              <app-bosch-avatar-stack [people]="participants()" [max]="7" size="md" />
+            </div>
           </div>
+          @if (participants().length) {
+            <ul class="roster">
+              @for (p of participants(); track p.id) {
+                <li class="roster__row">
+                  <app-bosch-avatar [name]="p.displayName" size="sm" />
+                  <span class="roster__name">{{ p.displayName }}</span>
+                  @if (session()?.status !== 'CLOSED') {
+                    <app-bosch-button
+                      variant="danger"
+                      [disabled]="busyRoster() || kickingId() === p.id"
+                      (click)="kickParticipant(p)"
+                    >
+                      Kick
+                    </app-bosch-button>
+                  }
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="roster-empty">No one has joined yet.</p>
+          }
         </section>
 
         <div class="layout">
@@ -518,6 +555,61 @@ import { cssBackgroundImage, fileToEmbeddedImageDataUrl } from '../core/image-da
     .timer-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: end; }
     .participants__head { align-items: center; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; }
     .participants__head h2, .steps h2, .summary h2 { font-size: 1rem; margin: 0 0 0.85rem; }
+    .participants__title {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .participants__title h2 { margin: 0; }
+    .participants__actions {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem;
+    }
+    .lock-badge {
+      background: var(--wos-warning-soft, #fff3e0);
+      border-radius: var(--wos-radius-pill, 999px);
+      color: var(--wos-warning-ink, #b45309);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 0.2rem 0.55rem;
+      text-transform: uppercase;
+    }
+    .roster {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      list-style: none;
+      margin: 0.85rem 0 0;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 0;
+    }
+    .roster__row {
+      align-items: center;
+      border: 1px solid var(--wos-border);
+      border-radius: var(--wos-radius);
+      display: flex;
+      gap: 0.65rem;
+      padding: 0.45rem 0.55rem;
+    }
+    .roster__name {
+      flex: 1 1 auto;
+      font-size: 0.92rem;
+      font-weight: 600;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .roster-empty {
+      color: var(--wos-text-muted);
+      font-size: 0.9rem;
+      margin: 0.75rem 0 0;
+    }
     .steps-hint {
       color: var(--wos-text-muted);
       font-size: 0.8rem;
@@ -774,6 +866,8 @@ export class HostLiveComponent implements OnInit, OnDestroy {
   id = '';
   session = signal<any>(null);
   participants = signal<{ id: string; displayName: string }[]>([]);
+  busyRoster = signal(false);
+  kickingId = signal('');
   qrDataUrl = signal('');
   summary = signal<any>(null);
   message = signal('');
@@ -1408,6 +1502,49 @@ export class HostLiveComponent implements OnInit, OnDestroy {
     this.api.listParticipants(this.id).subscribe({
       next: (list) => this.participants.set(list || []),
       error: () => this.participants.set([])
+    });
+  }
+
+  activeParticipantCount() {
+    return this.participants().length || this.session()?.participantCount || 0;
+  }
+
+  toggleJoinsLocked() {
+    const next = !this.session()?.joinsLocked;
+    this.busyRoster.set(true);
+    this.api.setJoinsLocked(this.id, next).subscribe({
+      next: () => {
+        this.busyRoster.set(false);
+        this.session.update((s) => (s ? { ...s, joinsLocked: next } : s));
+        this.message.set(next ? 'Room locked — new joins blocked.' : 'Room unlocked — people can join again.');
+      },
+      error: (e) => {
+        this.busyRoster.set(false);
+        this.message.set(e?.error?.message || 'Could not update lock');
+      }
+    });
+  }
+
+  kickParticipant(p: { id: string; displayName: string }) {
+    if (!p?.id || this.busyRoster()) return;
+    if (!confirm(`Remove ${p.displayName} from this workshop?`)) return;
+    this.busyRoster.set(true);
+    this.kickingId.set(p.id);
+    this.api.kickParticipant(this.id, p.id).subscribe({
+      next: (r) => {
+        this.busyRoster.set(false);
+        this.kickingId.set('');
+        this.participants.update((list) => list.filter((x) => x.id !== p.id));
+        if (r?.participantCount != null) {
+          this.session.update((s) => (s ? { ...s, participantCount: r.participantCount } : s));
+        }
+        this.message.set(`${p.displayName} was removed.`);
+      },
+      error: (e) => {
+        this.busyRoster.set(false);
+        this.kickingId.set('');
+        this.message.set(e?.error?.message || 'Could not kick participant');
+      }
     });
   }
 

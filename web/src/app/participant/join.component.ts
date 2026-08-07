@@ -229,7 +229,14 @@ export class JoinComponent implements OnInit {
     this.code = fromRoute || readJoinCodeFromLocation();
     if (this.code) {
       this.api.getByCode(this.code).subscribe({
-        next: (s) => this.sessionTitle.set(s?.title || ''),
+        next: (s) => {
+          this.sessionTitle.set(s?.title || '');
+          if (s?.status === 'CLOSED') {
+            this.error.set('This workshop has ended');
+          } else if (s?.joinsLocked) {
+            this.error.set('This room is locked — ask the host to unlock before joining');
+          }
+        },
         error: () => this.sessionTitle.set('')
       });
     }

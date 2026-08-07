@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 import { BoschButtonComponent } from '../bosch-ui/bosch-button/bosch-button.component';
@@ -21,6 +21,23 @@ import {
   template: `
     <div class="page">
       <div class="phone">
+        @if (kicked()) {
+          <header class="hero">
+            <div class="hero__row">
+              <div class="hero__copy">
+                <p class="brand">Workshop OS</p>
+                <h1>{{ session()?.title || 'Workshop' }}</h1>
+              </div>
+            </div>
+          </header>
+          <section class="panel done">
+            <div class="done__copy">
+              <h2>Removed from workshop</h2>
+              <p>The host removed you from this session. You can rejoin if the room is unlocked.</p>
+            </div>
+            <app-bosch-button [block]="true" (click)="goRejoin()">Back to join</app-bosch-button>
+          </section>
+        } @else {
         <header class="hero">
           <div class="hero__row">
             <div class="hero__copy">
@@ -378,6 +395,7 @@ import {
 
         @if (msg()) {
           <p class="toast" role="status">{{ msg() }}</p>
+        }
         }
       </div>
     </div>
@@ -1006,6 +1024,7 @@ import {
 })
 export class ParticipantLiveComponent implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
   private api = inject(ApiService);
   private realtime = inject(RealtimeService);
   private sub?: Subscription;
@@ -1019,6 +1038,7 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
   displayName = signal(this.api.displayName() || 'You');
   people = signal<{ id: string; displayName: string }[]>([]);
   done = signal(false);
+  kicked = signal(false);
   content = '';
   groupId = '';
   parentId = '';
@@ -1047,6 +1067,10 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     this.refresh();
     this.tickHandle = setInterval(() => this.nowTick.set(Date.now()), 250);
     this.sub = this.realtime.events$.subscribe((e) => {
+      if (e.type === 'participant.kicked') {
+        this.handleKicked();
+        return;
+      }
       if (e.type === 'step.changed' || e.type === 'session.ended') {
         this.session.set(e.data);
         this.loadStepData();
@@ -1069,6 +1093,19 @@ export class ParticipantLiveComponent implements OnInit, OnDestroy {
     this.sub?.unsubscribe();
     this.realtime.disconnect();
     if (this.tickHandle) clearInterval(this.tickHandle);
+  }
+
+  private handleKicked() {
+    if (this.kicked()) return;
+    this.kicked.set(true);
+    this.api.clearParticipantIdentity();
+    this.realtime.disconnect();
+    this.msg.set('');
+  }
+
+  goRejoin() {
+    const code = this.session()?.code || '';
+    this.router.navigate(['/j'], { queryParams: code ? { code } : {} });
   }
 
   stepIndexLabel() {

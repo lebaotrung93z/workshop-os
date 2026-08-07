@@ -106,7 +106,7 @@ Flow: Create & prepare → title / OKR theme / Objectives in LOBBY → **Save fo
 
 Per-step flags on embedded `steps[]`: `PENDING` → `ACTIVE` → `DONE`.
 
-Participants may join until `CLOSED`.
+Participants may join until the host **locks the room** or ends the session (`CLOSED`).
 
 ---
 
@@ -115,6 +115,8 @@ Participants may join until `CLOSED`.
 ### Lobby
 
 - Join code, QR (`/?code=`), participant roster/avatars, **Open big screen**.
+- **Lock room** / **Unlock room** — blocks or allows new joins (`joinsLocked` on the session).
+- Per-participant **Kick** — soft-kick (`kicked` + rotated `joinToken`); the phone is ejected immediately.
 - Optional OKR theme / seed Objectives before Start.
 
 ### Step control
@@ -128,6 +130,8 @@ Participants may join until `CLOSED`.
 | Timer | Start / pause / resume / reset → `timerEndsAt` + `timerPausedRemaining` on session |
 | Hide entry | Soft-hide from participants / display; host can Unhide |
 | Delete entry | Permanent delete (host or owner) |
+| Lock room | Toggle `joinsLocked` — blocks new participant creates |
+| Kick participant | Soft-kick + rotate `joinToken`; decrement `participantCount` |
 | Focus area | Host arms pick → drag rectangle on big screen → selection clear, rest grayed out |
 | AI summary | Client heuristic → `sessions/{id}/summary/latest` |
 | CSV / Report | Browser-generated download |
@@ -227,8 +231,8 @@ Built-in seeds (auto-written when missing; `seedRevision` bump refreshes):
 |---|---|
 | `templates/{id}` | Seeded + custom formats (`steps[]` embedded) |
 | `sessionCodes/{code}` | `{ sessionId }` for join lookup |
-| `sessions/{id}` | Session doc: status, code, `hostToken`, `steps[]`, timer fields, counts |
-| `sessions/{id}/participants/{id}` | Roster + `joinToken` |
+| `sessions/{id}` | Session doc: status, code, `hostToken`, `steps[]`, timer fields, `joinsLocked`, counts |
+| `sessions/{id}/participants/{id}` | Roster + `joinToken` (+ optional `kicked` / `kickedAt`) |
 | `sessions/{id}/entries/{id}` | Stickies / poll answers / OKR nodes |
 | `sessions/{id}/votes/{entryId_participantId}` | Unique votes |
 | `sessions/{id}/actions/{id}` | Action items |

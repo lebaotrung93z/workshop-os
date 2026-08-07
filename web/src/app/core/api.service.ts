@@ -165,6 +165,21 @@ export class ApiService {
     if (displayName) this.displayName.set(displayName);
   }
 
+  /** Clear phone identity (after kick or leave). */
+  clearParticipantIdentity() {
+    for (const key of ['wos_participant_id', 'wos_join_token', 'wos_display_name']) {
+      try {
+        sessionStorage.removeItem(key);
+      } catch {
+        /* ignore */
+      }
+      localStorage.removeItem(key);
+    }
+    this.participantId.set('');
+    this.joinToken.set('');
+    this.displayName.set('');
+  }
+
   private mapSeedSteps(t: (typeof SEED_TEMPLATES)[number]) {
     return t.steps.map((s, i) => ({
       id: randomId(),
@@ -342,6 +357,7 @@ export class ApiService {
           templateId,
           currentStepId,
           participantCount: 0,
+          joinsLocked: false,
           steps,
           createdAt: nowIso()
         };
@@ -395,40 +411,77 @@ export class ApiService {
   }
 
   listParticipants(id: string): Observable<{ id: string; displayName: string; createdAt?: string }[]> {
+    const mapActive = (docs: { id: string; data: () => Record<string, unknown> }[]) =>
+      docs
+        .filter((d) => d.data()['kicked'] !== true)
+        .map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            displayName: (data['displayName'] as string) || 'Participant',
+            createdAt: data['createdAt'] as string | undefined
+          };
+        });
+
     return new Observable((sub) => {
       getDocs(query(collection(db, 'sessions', id, 'participants'), orderBy('createdAt')))
         .then((snap) => {
-          sub.next(
-            snap.docs.map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                displayName: (data['displayName'] as string) || 'Participant',
-                createdAt: data['createdAt'] as string | undefined
-              };
-            })
-          );
+          sub.next(mapActive(snap.docs));
           sub.complete();
         })
         .catch(async () => {
           // Fallback without orderBy if index missing
           try {
             const snap = await getDocs(collection(db, 'sessions', id, 'participants'));
-            sub.next(
-              snap.docs.map((d) => {
-                const data = d.data();
-                return {
-                  id: d.id,
-                  displayName: (data['displayName'] as string) || 'Participant',
-                  createdAt: data['createdAt'] as string | undefined
-                };
-              })
-            );
+            sub.next(mapActive(snap.docs));
             sub.complete();
           } catch (e: any) {
             sub.error({ error: { message: e?.message || 'Failed to list participants' } });
           }
         });
+    });
+  }
+
+  setJoinsLocked(id: string, locked: boolean): Observable<any> {
+    return new Observable((sub) => {
+      this.hostUpdate(id, { joinsLocked: !!locked })
+        .then(() => {
+          sub.next({ ok: true, joinsLocked: !!locked });
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Could not update lock' } }));
+    });
+  }
+
+  /** Soft-kick: mark kicked and rotate joinToken so the phone can no longer write. */
+  kickParticipant(id: string, participantId: string): Observable<any> {
+    return new Observable((sub) => {
+      (async () => {
+        const hostToken = this.hostToken();
+        if (!hostToken) throw new Error('Missing host token');
+        const ref = doc(db, 'sessions', id, 'participants', participantId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) throw new Error('Participant not found');
+        if (snap.data()!['kicked'] === true) return { ok: true, alreadyKicked: true };
+
+        await updateDoc(ref, {
+          kicked: true,
+          kickedAt: nowIso(),
+          joinToken: randomToken(),
+          hostToken
+        });
+
+        const sessionRef = doc(db, 'sessions', id);
+        const sessionSnap = await getDoc(sessionRef);
+        const count = Math.max(0, (sessionSnap.data()?.['participantCount'] || 0) - 1);
+        await this.hostUpdate(id, { participantCount: count });
+        return { ok: true, participantId, participantCount: count };
+      })()
+        .then((r) => {
+          sub.next(r);
+          sub.complete();
+        })
+        .catch((e) => sub.error({ error: { message: e?.message || 'Kick failed' } }));
     });
   }
 
@@ -441,6 +494,11 @@ export class ApiService {
         const sessionRef = doc(db, 'sessions', sessionId);
         const sessionSnap = await getDoc(sessionRef);
         if (!sessionSnap.exists()) throw new Error('Session not found');
+        const session = sessionSnap.data()!;
+        if (session['status'] === 'CLOSED') throw new Error('This workshop has ended');
+        if (session['joinsLocked'] === true) {
+          throw new Error('This room is locked — ask the host to unlock before joining');
+        }
         const participantId = randomId();
         const joinToken = randomToken();
         await setDoc(doc(db, 'sessions', sessionId, 'participants', participantId), {
@@ -449,7 +507,7 @@ export class ApiService {
           joinToken,
           createdAt: nowIso()
         });
-        const count = (sessionSnap.data()!['participantCount'] || 0) + 1;
+        const count = (session['participantCount'] || 0) + 1;
         await updateDoc(sessionRef, { participantCount: count });
         return {
           sessionId,
@@ -1716,6 +1774,19 @@ export class ApiService {
         this.events.next({ type: 'participant.joined', data: {} });
       })
     );
+    const ownId = this.participantId();
+    if (ownId) {
+      this.unsubs.push(
+        onSnapshot(doc(db, 'sessions', sessionId, 'participants', ownId), (snap) => {
+          if (!snap.exists()) return;
+          const data = snap.data()!;
+          const token = this.joinToken();
+          if (data['kicked'] === true || (token && data['joinToken'] && data['joinToken'] !== token)) {
+            this.events.next({ type: 'participant.kicked', data: { id: snap.id, ...data } });
+          }
+        })
+      );
+    }
   }
 
   disconnectRealtime() {

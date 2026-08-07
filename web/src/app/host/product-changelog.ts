@@ -8,6 +8,14 @@ export interface ChangelogEntry {
 export const PRODUCT_CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-07',
+    title: 'Kick & lock room',
+    items: [
+      'Host can Lock room to block new joins (Unlock anytime).',
+      'Host roster lists participants with Kick — removed phones lose write access immediately.'
+    ]
+  },
+  {
+    date: '2026-08-07',
     title: 'Moderation animations & undo',
     items: [
       'Big screen animates when the host hides, unhides, or deletes stickies and OKR nodes.',
