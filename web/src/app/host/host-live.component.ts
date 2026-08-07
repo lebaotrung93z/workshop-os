@@ -469,17 +469,19 @@ import {
               </div>
             }
 
-            <div class="controls">
-              @if (session()?.status === 'LOBBY') {
-                <app-bosch-button icon="dashboard" (click)="start()">Start session</app-bosch-button>
-              } @else {
-                <app-bosch-button variant="secondary" icon="chevron-left" [disabled]="isFirstStep()" (click)="back()">Previous</app-bosch-button>
-                <app-bosch-button icon="chevron-right" [disabled]="isLastStep()" (click)="advance()">Next Step</app-bosch-button>
-              }
-              <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
-              <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
-              <app-bosch-button variant="danger" (click)="end()">End Session</app-bosch-button>
-            </div>
+            @if (tab() === 'preview') {
+              <div class="controls">
+                @if (session()?.status === 'LOBBY') {
+                  <app-bosch-button icon="dashboard" (click)="start()">Start session</app-bosch-button>
+                } @else {
+                  <app-bosch-button variant="secondary" icon="chevron-left" [disabled]="isFirstStep()" (click)="back()">Previous</app-bosch-button>
+                  <app-bosch-button icon="chevron-right" [disabled]="isLastStep()" (click)="advance()">Next Step</app-bosch-button>
+                }
+                <app-bosch-button variant="secondary" icon="star" (click)="summarize()">AI summary</app-bosch-button>
+                <app-bosch-button variant="secondary" icon="download" (click)="download('xlsx')">CSV</app-bosch-button>
+                <app-bosch-button variant="danger" (click)="end()">End Session</app-bosch-button>
+              </div>
+            }
             @if (message()) {
               <p class="msg">{{ message() }}</p>
             }
